@@ -1,0 +1,14 @@
+site:
+  title: "Test Blog"
+  tagline: "A test blog for development"
+  url: "http://localhost"
+  baseUrl: "/"
+  language: "en"
+
+author:
+  name: "Test Author"
+
+build:
+  contentDir: "content"
+  outputDir: "dist"
+  parallelWorkers: 4
