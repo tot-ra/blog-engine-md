@@ -90,16 +90,23 @@ func (g *URLGenerator) Generate(filePath string, fm *parser.Frontmatter) string 
 
 // PageBuilder builds pages from content files
 type PageBuilder struct {
-	urlGen   *URLGenerator
-	mdParser *parser.MarkdownParser
+	urlGen       *URLGenerator
+	mdParser     *parser.MarkdownParser
+	pageResolver func(title string) (url string, exists bool)
 }
 
 // NewPageBuilder creates a new page builder
 func NewPageBuilder(baseURL string) *PageBuilder {
 	return &PageBuilder{
-		urlGen:   NewURLGenerator(baseURL),
-		mdParser: parser.NewMarkdownParser(),
+		urlGen:       NewURLGenerator(baseURL),
+		mdParser:     parser.NewMarkdownParser(),
+		pageResolver: nil, // Will be set later when all pages are known
 	}
+}
+
+// SetPageResolver sets the page resolver for wiki links
+func (b *PageBuilder) SetPageResolver(resolver func(title string) (url string, exists bool)) {
+	b.pageResolver = resolver
 }
 
 // Build creates a Page from a content file
@@ -140,8 +147,16 @@ func (b *PageBuilder) Build(file ContentFile) (*Page, error) {
 		title = strings.ReplaceAll(title, "_", " ")
 	}
 
+	// Process wiki links [[Page Title]] -> [Page Title](/page-title/)
+	processedContent := remaining
+	if b.pageResolver != nil {
+		processedContent = parser.ProcessWikiLinks(remaining, b.pageResolver)
+	} else {
+		processedContent = parser.SimpleWikiLinkProcessor(remaining)
+	}
+
 	// Render markdown to HTML
-	htmlContent, err := b.mdParser.Render(remaining)
+	htmlContent, err := b.mdParser.Render(processedContent)
 	if err != nil {
 		return nil, fmt.Errorf("failed to render markdown in %s: %w", file.Path, err)
 	}

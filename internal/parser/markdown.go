@@ -3,6 +3,8 @@ package parser
 import (
 	"bytes"
 	"fmt"
+	"regexp"
+	"strings"
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark-meta"
@@ -10,6 +12,9 @@ import (
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/renderer/html"
 )
+
+// wikiLinkRegex matches [[Page Title]] or [[Page Title|Display Text]]
+var wikiLinkRegex = regexp.MustCompile(`\[\[([^\]|]+)(?:\|([^\]]+))?\]\]`)
 
 // MarkdownParser handles markdown to HTML conversion
 type MarkdownParser struct {
@@ -59,4 +64,48 @@ func (p *MarkdownParser) RenderWithMeta(content string) (string, map[string]inte
 
 	metaData := meta.Get(context)
 	return buf.String(), metaData, nil
+}
+
+// ProcessWikiLinks converts [[Page Title]] wiki-style links to markdown links
+// It uses the provided page resolver to map page titles to URLs
+func ProcessWikiLinks(content string, pageResolver func(title string) (url string, exists bool)) string {
+	return wikiLinkRegex.ReplaceAllStringFunc(content, func(match string) string {
+		submatches := wikiLinkRegex.FindStringSubmatch(match)
+		if len(submatches) < 2 {
+			return match
+		}
+
+		pageTitle := strings.TrimSpace(submatches[1])
+		displayText := pageTitle
+		if len(submatches) > 2 && submatches[2] != "" {
+			displayText = strings.TrimSpace(submatches[2])
+		}
+
+		if url, exists := pageResolver(pageTitle); exists {
+			return fmt.Sprintf("[%s](%s)", displayText, url)
+		}
+		// If page doesn't exist, render as plain text with styling
+		return fmt.Sprintf("<span class=\"wiki-link-missing\">%s</span>", displayText)
+	})
+}
+
+// SimpleWikiLinkProcessor converts wiki links to markdown links using a simple slug generator
+// Use this when you don't have access to the full page index
+func SimpleWikiLinkProcessor(content string) string {
+	return wikiLinkRegex.ReplaceAllStringFunc(content, func(match string) string {
+		submatches := wikiLinkRegex.FindStringSubmatch(match)
+		if len(submatches) < 2 {
+			return match
+		}
+
+		pageTitle := strings.TrimSpace(submatches[1])
+		displayText := pageTitle
+		if len(submatches) > 2 && submatches[2] != "" {
+			displayText = strings.TrimSpace(submatches[2])
+		}
+
+		// Generate slug from title
+		slug := GenerateSlug(pageTitle)
+		return fmt.Sprintf("[%s](/%s/)", displayText, slug)
+	})
 }

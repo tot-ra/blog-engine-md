@@ -427,6 +427,12 @@ const defaultTemplates = `{{define "base"}}
             <h1><a href="/">{{.Site.Site.Title}}</a></h1>
             {{if .Site.Site.Tagline}}<p>{{.Site.Site.Tagline}}</p>{{end}}
         </div>
+        <nav class="site-nav">
+            <a href="/blog/">Blog</a>
+            <a href="/docs/">Docs</a>
+            <a href="/graph/">Graph</a>
+            <a href="/tags/">Tags</a>
+        </nav>
     </header>
     <div class="site-layout">
         {{if .Sidebar}}{{.Sidebar}}{{end}}

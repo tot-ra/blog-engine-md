@@ -1,12 +1,13 @@
 site:
-  title: "Test Blog"
-  tagline: "A test blog for development"
+  title: "Blog Engine MD"
+  tagline: "A high-performance static site generator"
   url: "http://localhost"
   baseUrl: "/"
   language: "en"
 
 author:
-  name: "Test Author"
+  name: "Demo Author"
+  email: "demo@example.com"
 
 build:
   contentDir: "content"
@@ -18,39 +19,116 @@ homepage:
   enabled: true
   hero:
     enabled: true
-    # background: "/img/hero-bg.jpg"  # Optional hero background image
-    title: "Test Blog"
-    subtitle: "Software Engineer & Developer"
-    description: "Building things that matter. Welcome to my personal website and blog."
+    # background: "/assets/images/hero-bg.jpg"
+    title: "Blog Engine MD"
+    subtitle: "High-Performance Static Site Generator"
+    description: "Built with Go. Designed for speed, flexibility, and ease of use. Features wiki-style linking, graph visualization, and modern markdown support."
     ctaButtons:
-      - label: "Read Blog"
-        url: "/blog/"
+      - label: "Get Started"
+        url: "/docs/getting-started/"
         icon: "primary"
-      - label: "View Docs"
-        url: "/docs/"
+      - label: "View Blog"
+        url: "/blog/"
   projects:
-    - title: "Blog Engine MD"
-      description: "A high-performance static site generator written in Go"
-      image: "/img/projects/blog-engine.png"
-      url: "https://github.com/tot-ra/blog-engine"
-      github: "https://github.com/tot-ra/blog-engine"
-      tags: ["Go", "Static Site Generator"]
-    - title: "Another Project"
-      description: "Description of your project goes here"
-      url: "#"
-      tags: ["React", "TypeScript"]
+    - title: "Wiki-Style Links"
+      description: "Link pages naturally with [[Page Title]] syntax. Automatic backlink tracking."
+      image: "/assets/images/sample.svg"
+      url: "/docs/advanced-features/"
+      tags: ["Feature", "Links"]
+    - title: "Graph Visualization"
+      description: "Interactive graph view showing connections between all your content."
+      image: "/assets/images/sample.svg"
+      url: "/blog/exploring-the-graph-view/"
+      tags: ["Feature", "Visualization"]
+    - title: "Image Processing"
+      description: "Automatic image optimization, responsive images, and WebP conversion."
+      image: "/assets/images/sample.svg"
+      url: "/blog/my-first-post/"
+      tags: ["Feature", "Assets"]
   socialLinks:
+    - title: "Documentation"
+      links:
+        - label: "Getting Started"
+          url: "/docs/getting-started/"
+        - label: "Advanced Features"
+          url: "/docs/advanced-features/"
+        - label: "About"
+          url: "/docs/about/"
+    - title: "Blog"
+      links:
+        - label: "First Post"
+          url: "/blog/my-first-post/"
+        - label: "Graph View"
+          url: "/blog/exploring-the-graph-view/"
     - title: "Connect"
       links:
         - label: "GitHub"
-          url: "https://github.com/username"
-        - label: "LinkedIn"
-          url: "https://linkedin.com/in/username"
+          url: "https://github.com"
         - label: "Twitter"
-          url: "https://twitter.com/username"
-    - title: "Contact"
-      links:
-        - label: "Email"
-          url: "mailto:hello@example.com"
-        - label: "Telegram"
-          url: "https://t.me/username"
+          url: "https://twitter.com"
+
+navigation:
+  sidebar:
+    enabled: true
+    maxDepth: 3
+  breadcrumbs:
+    enabled: true
+    homeLabel: "Home"
+  prevNext:
+    enabled: true
+
+assets:
+  images:
+    enabled: true
+    quality: 85
+    sizes:
+      small: 400
+      medium: 800
+      large: 1200
+    lazyLoading: true
+  css:
+    enabled: true
+    minify: true
+  js:
+    enabled: true
+    minify: true
+
+feeds:
+  rss:
+    enabled: true
+    path: "rss.xml"
+    items: 20
+    fullContent: false
+  atom:
+    enabled: true
+    path: "atom.xml"
+    items: 20
+
+sitemap:
+  enabled: true
+
+tags:
+  enabled: true
+
+archive:
+  enabled: true
+
+pagination:
+  enabled: true
+  perPage: 10
+
+advanced:
+  mermaid:
+    enabled: true
+    theme: "default"
+  graph:
+    enabled: true
+    path: "graph"
+  theme:
+    default: "auto"
+    allowToggle: true
+
+seo:
+  defaultTitle: "Blog Engine MD"
+  titleSeparator: " — "
+  generateSocialMeta: true

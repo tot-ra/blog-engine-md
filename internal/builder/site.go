@@ -12,6 +12,7 @@ import (
 	"github.com/tot-ra/blog-engine/internal/assets"
 	"github.com/tot-ra/blog-engine/internal/config"
 	"github.com/tot-ra/blog-engine/internal/feed"
+	"github.com/tot-ra/blog-engine/internal/graph"
 	"github.com/tot-ra/blog-engine/internal/parser"
 	"github.com/tot-ra/blog-engine/internal/renderer"
 	"github.com/tot-ra/blog-engine/internal/sitemap"
@@ -54,8 +55,56 @@ func (b *SiteBuilder) Build() error {
 	fmt.Printf("Found %d markdown files, %d images, %d assets\n",
 		len(index.MarkdownFiles), len(index.ImageFiles), len(index.AssetFiles))
 
-	// Build pages
+	// First pass: collect page info for wiki link resolution
 	pageBuilder := NewPageBuilder(b.config.Site.URL)
+	titleToURL := make(map[string]string)
+	
+	for _, file := range index.MarkdownFiles {
+		// Quick parse to get title and URL without full rendering
+		content, err := readFile(file.Path)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error reading file %s: %v\n", file.Path, err)
+			continue
+		}
+		fm, _, err := parser.ParseFrontmatter(content)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error parsing frontmatter %s: %v\n", file.Path, err)
+			continue
+		}
+		if fm.Draft {
+			continue
+		}
+		
+		url := pageBuilder.urlGen.Generate(file.RelativePath, fm)
+		title := fm.Title
+		if title == "" {
+			title = filepath.Base(file.Path)
+			ext := filepath.Ext(title)
+			title = strings.TrimSuffix(title, ext)
+			title = strings.ReplaceAll(title, "-", " ")
+			title = strings.ReplaceAll(title, "_", " ")
+		}
+		
+		// Map both exact title and slugified title
+		titleToURL[title] = url
+		titleToURL[parser.GenerateSlug(title)] = url
+	}
+	
+	// Set up wiki link resolver
+	pageBuilder.SetPageResolver(func(title string) (string, bool) {
+		// Try exact match first
+		if url, ok := titleToURL[title]; ok {
+			return url, true
+		}
+		// Try slugified version
+		slug := parser.GenerateSlug(title)
+		if url, ok := titleToURL[slug]; ok {
+			return url, true
+		}
+		return "", false
+	})
+	
+	// Second pass: build pages with wiki link resolution
 	for _, file := range index.MarkdownFiles {
 		page, err := pageBuilder.Build(file)
 		if err != nil {
@@ -185,6 +234,13 @@ func (b *SiteBuilder) Build() error {
 	if b.config.Sitemap.Enabled {
 		if err := b.generateSitemap(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error generating sitemap: %v\n", err)
+		}
+	}
+
+	// Generate graph visualization
+	if b.config.Advanced.Graph.Enabled {
+		if err := b.generateGraph(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error generating graph: %v\n", err)
 		}
 	}
 
@@ -800,5 +856,41 @@ func (b *SiteBuilder) generateSitemap() error {
 	}
 
 	fmt.Printf("Generated sitemap.xml (%d URLs)\n", len(entries))
+	return nil
+}
+
+// generateGraph creates the graph visualization page and JSON data
+func (b *SiteBuilder) generateGraph() error {
+	// Convert pages to PageInfo for graph builder
+	var pageInfos []graph.PageInfo
+	for _, page := range b.pages {
+		pageType := string(page.Type)
+		if pageType == "" {
+			pageType = "page"
+		}
+		pageInfos = append(pageInfos, graph.PageInfo{
+			ID:         page.ID,
+			Title:      page.Title,
+			URL:        page.URL,
+			Type:       pageType,
+			Tags:       page.Frontmatter.Tags,
+			RawContent: page.RawContent,
+		})
+	}
+
+	// Build graph data
+	graphData := graph.BuildGraph(pageInfos)
+
+	// Write graph.json
+	if err := graph.WriteGraphJSON(graphData, b.config.Build.OutputDir); err != nil {
+		return fmt.Errorf("failed to write graph JSON: %w", err)
+	}
+
+	// Write graph HTML page
+	if err := graph.WriteGraphPage(b.config.Build.OutputDir, b.config.Site.Title); err != nil {
+		return fmt.Errorf("failed to write graph page: %w", err)
+	}
+
+	fmt.Printf("Generated graph view (%d nodes, %d edges)\n", len(graphData.Nodes), len(graphData.Edges))
 	return nil
 }
