@@ -2,6 +2,8 @@
 
 A high-performance static site generator written in Go, designed as a memory-efficient alternative to Docusaurus for markdown-based blogs and documentation.
 
+<img width="1500" height="843" alt="blog" src="https://github.com/user-attachments/assets/45049191-d90b-491f-828a-c8d9cfd1b310" />
+
 ## Overview
 
 This project converts a nested folder structure of Markdown files into a static website, similar to Docusaurus but with significantly lower memory footprint and faster build times.
