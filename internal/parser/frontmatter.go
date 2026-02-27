@@ -20,6 +20,7 @@ type Frontmatter struct {
 	Order       int       `yaml:"order"`
 	HideToc     bool      `yaml:"hideToc"`
 	HideNav     bool      `yaml:"hideNav"`
+	Layout      string    `yaml:"layout"` // Custom layout template name (e.g., "homepage")
 }
 
 // ParseFrontmatter extracts YAML frontmatter from markdown content

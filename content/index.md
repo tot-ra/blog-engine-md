@@ -1,12 +1,10 @@
 ---
 title: Welcome
+layout: homepage
 ---
 
-# Welcome to Test Blog
+## About
 
-This is the homepage of your blog.
+This is a customizable homepage. You can add your content here using Markdown.
 
-## Sections
-
-- [Blog](/blog/) — Latest posts
-- [Docs](/docs/) — Documentation
+The layout, hero section, projects, and social links are all configurable via `config.yaml`.

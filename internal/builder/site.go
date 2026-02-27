@@ -296,6 +296,7 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 			Content:      page.Content,
 			Type:         string(page.Type),
 			ModifiedTime: page.ModifiedTime,
+			Layout:       page.Frontmatter.Layout,
 		},
 		Frontmatter: renderer.Frontmatter{
 			Date: page.Frontmatter.Date,

@@ -20,6 +20,7 @@ type Page struct {
 	Content      string
 	Type         string
 	ModifiedTime time.Time
+	Layout       string // Custom layout template name
 }
 
 // Frontmatter represents page frontmatter for templates
@@ -154,9 +155,14 @@ func (e *TemplateEngine) Render(templateName string, data PageData) (string, err
 	return buf.String(), nil
 }
 
-// RenderPage renders a page using the default page template
+// RenderPage renders a page using the specified or default page template
 func (e *TemplateEngine) RenderPage(data PageData) (string, error) {
-	return e.Render("page", data)
+	// Use custom layout if specified, otherwise use default "page" template
+	templateName := data.Page.Layout
+	if templateName == "" {
+		templateName = "page"
+	}
+	return e.Render(templateName, data)
 }
 
 // slugify creates a URL-friendly slug
@@ -490,5 +496,337 @@ const defaultTemplates = `{{define "base"}}
     </nav>
     {{end}}
 </article>
+{{end}}
+
+{{define "homepage"}}
+<!DOCTYPE html>
+<html lang="{{.Site.Site.Language}}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Page.Title}}{{if .Site.Site.Title}} — {{.Site.Site.Title}}{{end}}</title>
+    {{if .Page.Description}}<meta name="description" content="{{.Page.Description}}">{{end}}
+    {{if .Site.Site.Favicon}}<link rel="icon" href="{{.Site.Site.Favicon}}">{{end}}
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --accent: #0066cc;
+            --accent-hover: #0052a3;
+            --border: #e0e0e0;
+            --shadow: rgba(0,0,0,0.1);
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-primary: #1a1a1a;
+                --bg-secondary: #2d2d2d;
+                --text-primary: #e0e0e0;
+                --text-secondary: #a0a0a0;
+                --accent: #4d9fff;
+                --accent-hover: #66b3ff;
+                --border: #404040;
+                --shadow: rgba(0,0,0,0.3);
+            }
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+        /* Hero Section */
+        .hero {
+            position: relative;
+            min-height: 60vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 60px 20px;
+            {{if .Site.Homepage.Hero.Background}}
+            background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('{{.Site.Homepage.Hero.Background}}');
+            background-size: cover;
+            background-position: center;
+            color: white;
+            {{else}}
+            background: var(--bg-secondary);
+            {{end}}
+        }
+        .hero-content {
+            max-width: 800px;
+        }
+        .hero h1 {
+            font-size: 3em;
+            margin: 0 0 16px;
+            font-weight: 700;
+        }
+        .hero .subtitle {
+            font-size: 1.5em;
+            margin: 0 0 24px;
+            {{if .Site.Homepage.Hero.Background}}
+            color: rgba(255,255,255,0.9);
+            {{else}}
+            color: var(--text-secondary);
+            {{end}}
+        }
+        .hero .description {
+            font-size: 1.1em;
+            margin: 0 0 32px;
+            {{if .Site.Homepage.Hero.Background}}
+            color: rgba(255,255,255,0.8);
+            {{else}}
+            color: var(--text-secondary);
+            {{end}}
+        }
+        .hero-cta {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+        .btn-secondary {
+            background: transparent;
+            color: {{if .Site.Homepage.Hero.Background}}white{{else}}var(--text-primary){{end}};
+            border: 2px solid {{if .Site.Homepage.Hero.Background}}white{{else}}var(--border){{end}};
+        }
+        .btn-secondary:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        /* Content Section */
+        .content-section {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 60px 20px;
+        }
+        .content-section h2 {
+            text-align: center;
+            font-size: 2em;
+            margin: 0 0 40px;
+        }
+        /* Projects Grid */
+        .projects-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+            margin-bottom: 60px;
+        }
+        .project-card {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .project-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px var(--shadow);
+        }
+        .project-image {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+            background: var(--border);
+        }
+        .project-content {
+            padding: 20px;
+        }
+        .project-content h3 {
+            margin: 0 0 8px;
+            font-size: 1.25em;
+        }
+        .project-content p {
+            margin: 0 0 16px;
+            color: var(--text-secondary);
+            font-size: 0.95em;
+        }
+        .project-tags {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+        .project-tag {
+            font-size: 0.8em;
+            padding: 4px 10px;
+            background: var(--bg-primary);
+            border-radius: 20px;
+            color: var(--text-secondary);
+        }
+        .project-links {
+            display: flex;
+            gap: 16px;
+        }
+        .project-links a {
+            color: var(--accent);
+            text-decoration: none;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+        .project-links a:hover {
+            text-decoration: underline;
+        }
+        /* Social Links */
+        .social-section {
+            background: var(--bg-secondary);
+            padding: 60px 20px;
+        }
+        .social-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .social-group h3 {
+            margin: 0 0 16px;
+            font-size: 1.1em;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .social-links {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .social-links li {
+            margin-bottom: 8px;
+        }
+        .social-links a {
+            color: var(--text-primary);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 0;
+        }
+        .social-links a:hover {
+            color: var(--accent);
+        }
+        /* Main Content Area */
+        .main-content {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        .main-content h2 {
+            margin-top: 40px;
+        }
+        /* Footer */
+        .site-footer {
+            text-align: center;
+            padding: 40px 20px;
+            border-top: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 2em; }
+            .hero .subtitle { font-size: 1.1em; }
+            .projects-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-content">
+            <h1>{{if .Site.Homepage.Hero.Title}}{{.Site.Homepage.Hero.Title}}{{else}}{{.Page.Title}}{{end}}</h1>
+            {{if .Site.Homepage.Hero.Subtitle}}<p class="subtitle">{{.Site.Homepage.Hero.Subtitle}}</p>{{end}}
+            {{if .Site.Homepage.Hero.Description}}<p class="description">{{.Site.Homepage.Hero.Description}}</p>{{end}}
+            {{if .Site.Homepage.Hero.CTAButtons}}
+            <div class="hero-cta">
+                {{range .Site.Homepage.Hero.CTAButtons}}
+                <a href="{{.URL}}" class="btn {{if eq .Icon "primary"}}btn-primary{{else}}btn-secondary{{end}}">
+                    {{.Label}}
+                </a>
+                {{end}}
+            </div>
+            {{end}}
+        </div>
+    </section>
+
+    <!-- Main Content from Markdown -->
+    {{if .Content}}
+    <div class="main-content">
+        {{.Content}}
+    </div>
+    {{end}}
+
+    <!-- Projects Section -->
+    {{if .Site.Homepage.Projects}}
+    <section class="content-section">
+        <h2>Projects</h2>
+        <div class="projects-grid">
+            {{range .Site.Homepage.Projects}}
+            <div class="project-card">
+                {{if .Image}}<img src="{{.Image}}" alt="{{.Title}}" class="project-image">{{end}}
+                <div class="project-content">
+                    <h3>{{.Title}}</h3>
+                    <p>{{.Description}}</p>
+                    {{if .Tags}}
+                    <div class="project-tags">
+                        {{range .Tags}}<span class="project-tag">{{.}}</span>{{end}}
+                    </div>
+                    {{end}}
+                    <div class="project-links">
+                        {{if .URL}}<a href="{{.URL}}">View Project →</a>{{end}}
+                        {{if .GitHub}}<a href="{{.GitHub}}">GitHub</a>{{end}}
+                    </div>
+                </div>
+            </div>
+            {{end}}
+        </div>
+    </section>
+    {{end}}
+
+    <!-- Social Links Section -->
+    {{if .Site.Homepage.SocialLinks}}
+    <section class="social-section">
+        <div class="social-grid">
+            {{range .Site.Homepage.SocialLinks}}
+            <div class="social-group">
+                <h3>{{.Title}}</h3>
+                <ul class="social-links">
+                    {{range .Links}}
+                    <li><a href="{{.URL}}">{{.Label}}</a></li>
+                    {{end}}
+                </ul>
+            </div>
+            {{end}}
+        </div>
+    </section>
+    {{end}}
+
+    <!-- Footer -->
+    <footer class="site-footer">
+        {{if .Site.Author.Name}}<p>&copy; {{.Site.Author.Name}}</p>{{end}}
+    </footer>
+
+    {{if .Site.Homepage.CustomHTML}}{{.Site.Homepage.CustomHTML}}{{end}}
+</body>
+</html>
 {{end}}
 `

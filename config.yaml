@@ -12,3 +12,45 @@ build:
   contentDir: "content"
   outputDir: "dist"
   parallelWorkers: 4
+
+# Homepage customization
+homepage:
+  enabled: true
+  hero:
+    enabled: true
+    # background: "/img/hero-bg.jpg"  # Optional hero background image
+    title: "Test Blog"
+    subtitle: "Software Engineer & Developer"
+    description: "Building things that matter. Welcome to my personal website and blog."
+    ctaButtons:
+      - label: "Read Blog"
+        url: "/blog/"
+        icon: "primary"
+      - label: "View Docs"
+        url: "/docs/"
+  projects:
+    - title: "Blog Engine MD"
+      description: "A high-performance static site generator written in Go"
+      image: "/img/projects/blog-engine.png"
+      url: "https://github.com/tot-ra/blog-engine"
+      github: "https://github.com/tot-ra/blog-engine"
+      tags: ["Go", "Static Site Generator"]
+    - title: "Another Project"
+      description: "Description of your project goes here"
+      url: "#"
+      tags: ["React", "TypeScript"]
+  socialLinks:
+    - title: "Connect"
+      links:
+        - label: "GitHub"
+          url: "https://github.com/username"
+        - label: "LinkedIn"
+          url: "https://linkedin.com/in/username"
+        - label: "Twitter"
+          url: "https://twitter.com/username"
+    - title: "Contact"
+      links:
+        - label: "Email"
+          url: "mailto:hello@example.com"
+        - label: "Telegram"
+          url: "https://t.me/username"

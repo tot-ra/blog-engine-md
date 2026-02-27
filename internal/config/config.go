@@ -21,6 +21,56 @@ type SiteConfig struct {
 	Pagination PaginationConfig `yaml:"pagination"`
 	Advanced   AdvancedConfig  `yaml:"advanced"`
 	SEO        SEOConfig       `yaml:"seo"`
+	Homepage   HomepageConfig  `yaml:"homepage"` // Homepage customization
+}
+
+// HomepageConfig contains homepage-specific settings
+type HomepageConfig struct {
+	Enabled     bool                `yaml:"enabled"`
+	Hero        HeroConfig          `yaml:"hero"`
+	Projects    []ProjectConfig     `yaml:"projects"`
+	SocialLinks []SocialLinkGroup   `yaml:"socialLinks"`
+	CustomHTML  string              `yaml:"customHTML"` // Additional custom HTML/JS
+}
+
+// HeroConfig contains hero section settings
+type HeroConfig struct {
+	Enabled     bool   `yaml:"enabled"`
+	Background  string `yaml:"background"`  // Background image URL
+	Title       string `yaml:"title"`       // Override page title
+	Subtitle    string `yaml:"subtitle"`    // Subtitle/tagline
+	Description string `yaml:"description"` // Description text
+	CTAButtons  []CTAButton `yaml:"ctaButtons"` // Call-to-action buttons
+}
+
+// CTAButton represents a call-to-action button
+type CTAButton struct {
+	Label string `yaml:"label"`
+	URL   string `yaml:"url"`
+	Icon  string `yaml:"icon"` // Optional icon class/name
+}
+
+// ProjectConfig represents a project showcase item
+type ProjectConfig struct {
+	Title       string `yaml:"title"`
+	Description string `yaml:"description"`
+	Image       string `yaml:"image"`    // Project image URL
+	URL         string `yaml:"url"`      // Link to project
+	GitHub      string `yaml:"github"`   // GitHub repo URL
+	Tags        []string `yaml:"tags"`   // Technology tags
+}
+
+// SocialLinkGroup represents a group of social links (e.g., "Business", "Community")
+type SocialLinkGroup struct {
+	Title string       `yaml:"title"`
+	Links []SocialLink `yaml:"links"`
+}
+
+// SocialLink represents a single social media/link entry
+type SocialLink struct {
+	Label string `yaml:"label"`
+	URL   string `yaml:"url"`
+	Icon  string `yaml:"icon"`
 }
 
 // FeedsConfig contains feed generation settings
