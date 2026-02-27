@@ -5,11 +5,17 @@ import (
 	"html/template"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
+	"github.com/tot-ra/blog-engine/internal/archive"
 	"github.com/tot-ra/blog-engine/internal/assets"
 	"github.com/tot-ra/blog-engine/internal/config"
+	"github.com/tot-ra/blog-engine/internal/feed"
+	"github.com/tot-ra/blog-engine/internal/parser"
 	"github.com/tot-ra/blog-engine/internal/renderer"
+	"github.com/tot-ra/blog-engine/internal/sitemap"
+	"github.com/tot-ra/blog-engine/internal/tags"
 )
 
 // SiteBuilder orchestrates the site building process
@@ -149,6 +155,37 @@ func (b *SiteBuilder) Build() error {
 	// Copy remaining static assets (non-image, non-CSS/JS)
 	if err := b.copyAssets(index); err != nil {
 		return fmt.Errorf("failed to copy assets: %w", err)
+	}
+
+	// Collect blog posts sorted by date descending (used by tags, archive, feeds)
+	blogPosts := b.collectBlogPosts()
+
+	// Generate tag pages
+	if b.config.Tags.Enabled {
+		if err := b.generateTagPages(blogPosts); err != nil {
+			fmt.Fprintf(os.Stderr, "Error generating tag pages: %v\n", err)
+		}
+	}
+
+	// Generate archive pages
+	if b.config.Archive.Enabled {
+		if err := b.generateArchivePages(blogPosts); err != nil {
+			fmt.Fprintf(os.Stderr, "Error generating archive pages: %v\n", err)
+		}
+	}
+
+	// Generate RSS/Atom feeds
+	if b.config.Feeds.RSS.Enabled || b.config.Feeds.Atom.Enabled {
+		if err := b.generateFeeds(blogPosts); err != nil {
+			fmt.Fprintf(os.Stderr, "Error generating feeds: %v\n", err)
+		}
+	}
+
+	// Generate sitemap
+	if b.config.Sitemap.Enabled {
+		if err := b.generateSitemap(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error generating sitemap: %v\n", err)
+		}
 	}
 
 	return nil
@@ -396,5 +433,371 @@ func (b *SiteBuilder) copyAssets(index *ContentIndex) error {
 		}
 	}
 
+	return nil
+}
+
+// collectBlogPosts returns all blog pages sorted by date descending
+func (b *SiteBuilder) collectBlogPosts() []*Page {
+	var posts []*Page
+	for _, page := range b.pages {
+		if page.Type == TypeBlog {
+			posts = append(posts, page)
+		}
+	}
+	sort.Slice(posts, func(i, j int) bool {
+		di := posts[i].Frontmatter.Date
+		dj := posts[j].Frontmatter.Date
+		return di.After(dj)
+	})
+	return posts
+}
+
+// pageSummariesFromPosts converts builder Pages to tags.PageSummary slice
+func pageSummariesFromPosts(posts []*Page) []tags.PageSummary {
+	summaries := make([]tags.PageSummary, 0, len(posts))
+	for _, p := range posts {
+		summaries = append(summaries, tags.PageSummary{
+			Title:       p.Title,
+			URL:         p.URL,
+			Date:        p.Frontmatter.Date,
+			Description: p.Description,
+			Tags:        p.Frontmatter.Tags,
+			Type:        string(p.Type),
+		})
+	}
+	return summaries
+}
+
+// generateTagPages builds tag index and creates tag list pages
+func (b *SiteBuilder) generateTagPages(blogPosts []*Page) error {
+	summaries := pageSummariesFromPosts(blogPosts)
+	tagIdx := tags.BuildTagIndex(summaries)
+
+	allTags := tagIdx.Tags()
+	if len(allTags) == 0 {
+		return nil
+	}
+
+	// Generate tag cloud / index page at /tags/
+	tagCloudHTML := b.buildTagCloudHTML(tagIdx, allTags)
+	tagCloudPage := &Page{
+		ID:          "tags",
+		URL:         "/tags/",
+		Title:       "Tags",
+		Description: "All tags",
+		Content:     tagCloudHTML,
+		RawContent:  "",
+		Frontmatter: &parser.Frontmatter{},
+		Type:        TypePage,
+	}
+	b.pages[tagCloudPage.ID] = tagCloudPage
+	if err := b.renderPage(tagCloudPage); err != nil {
+		return fmt.Errorf("failed to render tag cloud page: %w", err)
+	}
+	fmt.Printf("Generated tag cloud page with %d tags\n", len(allTags))
+
+	// Generate individual tag pages
+	for _, tag := range allTags {
+		pages := tagIdx[tag]
+		tagSlug := parser.GenerateSlug(tag)
+		tagPageHTML := b.buildTagPageHTML(tag, pages)
+
+		tagPage := &Page{
+			ID:          "tags-" + tagSlug,
+			URL:         "/tags/" + tagSlug + "/",
+			Title:       "Tag: " + tag,
+			Description: fmt.Sprintf("Pages tagged with \"%s\"", tag),
+			Content:     tagPageHTML,
+			RawContent:  "",
+			Frontmatter: &parser.Frontmatter{Tags: []string{tag}},
+			Type:        TypePage,
+		}
+		b.pages[tagPage.ID] = tagPage
+		if err := b.renderPage(tagPage); err != nil {
+			fmt.Fprintf(os.Stderr, "Error rendering tag page %s: %v\n", tag, err)
+			continue
+		}
+	}
+	fmt.Printf("Generated %d tag pages\n", len(allTags))
+
+	return nil
+}
+
+// buildTagCloudHTML generates HTML for the tag cloud page
+func (b *SiteBuilder) buildTagCloudHTML(idx tags.TagIndex, allTags []string) string {
+	var sb strings.Builder
+	sb.WriteString("<div class=\"tag-cloud\">\n")
+	sb.WriteString("<ul class=\"tag-list\">\n")
+	for _, tag := range allTags {
+		slug := parser.GenerateSlug(tag)
+		count := idx.Count(tag)
+		sb.WriteString(fmt.Sprintf("  <li><a href=\"/tags/%s/\" class=\"tag\">%s</a> <span class=\"tag-count\">(%d)</span></li>\n", slug, tag, count))
+	}
+	sb.WriteString("</ul>\n")
+	sb.WriteString("</div>\n")
+	return sb.String()
+}
+
+// buildTagPageHTML generates HTML for a single tag page
+func (b *SiteBuilder) buildTagPageHTML(tag string, pages []tags.PageSummary) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("<h2>Posts tagged \"%s\"</h2>\n", tag))
+	sb.WriteString(fmt.Sprintf("<p>%d post(s)</p>\n", len(pages)))
+	sb.WriteString("<ul class=\"post-list\">\n")
+	for _, p := range pages {
+		dateStr := ""
+		if !p.Date.IsZero() {
+			dateStr = fmt.Sprintf(" <time>%s</time>", p.Date.Format("2006-01-02"))
+		}
+		sb.WriteString(fmt.Sprintf("  <li><a href=\"%s\">%s</a>%s</li>\n", p.URL, p.Title, dateStr))
+	}
+	sb.WriteString("</ul>\n")
+	return sb.String()
+}
+
+// generateArchivePages builds archive structure and creates archive pages
+func (b *SiteBuilder) generateArchivePages(blogPosts []*Page) error {
+	// Convert to archive.PageSummary
+	var summaries []archive.PageSummary
+	for _, p := range blogPosts {
+		summaries = append(summaries, archive.PageSummary{
+			Title:       p.Title,
+			URL:         p.URL,
+			Date:        p.Frontmatter.Date,
+			Description: p.Description,
+			Tags:        p.Frontmatter.Tags,
+			Type:        string(p.Type),
+		})
+	}
+
+	archiveData := archive.BuildArchive(summaries)
+	if len(archiveData) == 0 {
+		return nil
+	}
+
+	// Generate main archive page at /archive/
+	archiveHTML := b.buildArchiveIndexHTML(archiveData)
+	archivePage := &Page{
+		ID:          "archive",
+		URL:         "/archive/",
+		Title:       "Archive",
+		Description: "Post archive by date",
+		Content:     archiveHTML,
+		RawContent:  "",
+		Frontmatter: &parser.Frontmatter{},
+		Type:        TypePage,
+	}
+	b.pages[archivePage.ID] = archivePage
+	if err := b.renderPage(archivePage); err != nil {
+		return fmt.Errorf("failed to render archive page: %w", err)
+	}
+
+	// Generate per-year pages
+	for _, year := range archiveData {
+		yearHTML := b.buildArchiveYearHTML(year)
+		yearPage := &Page{
+			ID:          fmt.Sprintf("archive-%d", year.Year),
+			URL:         fmt.Sprintf("/archive/%d/", year.Year),
+			Title:       fmt.Sprintf("Archive: %d", year.Year),
+			Description: fmt.Sprintf("Posts from %d", year.Year),
+			Content:     yearHTML,
+			RawContent:  "",
+			Frontmatter: &parser.Frontmatter{},
+			Type:        TypePage,
+		}
+		b.pages[yearPage.ID] = yearPage
+		if err := b.renderPage(yearPage); err != nil {
+			fmt.Fprintf(os.Stderr, "Error rendering archive year page %d: %v\n", year.Year, err)
+		}
+	}
+
+	fmt.Printf("Generated archive pages (%d years)\n", len(archiveData))
+	return nil
+}
+
+// buildArchiveIndexHTML generates HTML for the main archive page
+func (b *SiteBuilder) buildArchiveIndexHTML(years []archive.ArchiveYear) string {
+	var sb strings.Builder
+	sb.WriteString("<div class=\"archive\">\n")
+	for _, year := range years {
+		sb.WriteString(fmt.Sprintf("<h2><a href=\"/archive/%d/\">%d</a> <span class=\"count\">(%d)</span></h2>\n", year.Year, year.Year, year.Count))
+		for _, month := range year.Months {
+			sb.WriteString(fmt.Sprintf("<h3>%s %d</h3>\n", month.Month.String(), month.Year))
+			sb.WriteString("<ul class=\"post-list\">\n")
+			for _, p := range month.Pages {
+				dateStr := p.Date.Format("Jan 02")
+				sb.WriteString(fmt.Sprintf("  <li><time>%s</time> <a href=\"%s\">%s</a></li>\n", dateStr, p.URL, p.Title))
+			}
+			sb.WriteString("</ul>\n")
+		}
+	}
+	sb.WriteString("</div>\n")
+	return sb.String()
+}
+
+// buildArchiveYearHTML generates HTML for a single year archive page
+func (b *SiteBuilder) buildArchiveYearHTML(year archive.ArchiveYear) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("<div class=\"archive-year\">\n"))
+	for _, month := range year.Months {
+		sb.WriteString(fmt.Sprintf("<h2>%s</h2>\n", month.Month.String()))
+		sb.WriteString("<ul class=\"post-list\">\n")
+		for _, p := range month.Pages {
+			dateStr := p.Date.Format("Jan 02")
+			sb.WriteString(fmt.Sprintf("  <li><time>%s</time> <a href=\"%s\">%s</a></li>\n", dateStr, p.URL, p.Title))
+		}
+		sb.WriteString("</ul>\n")
+	}
+	sb.WriteString("</div>\n")
+	return sb.String()
+}
+
+// generateFeeds creates RSS and/or Atom feed XML files
+func (b *SiteBuilder) generateFeeds(blogPosts []*Page) error {
+	gen := feed.NewFeedGenerator(
+		b.config.Site.Title,
+		b.config.Site.URL,
+		b.config.Site.Language,
+		b.config.Author.Name,
+		b.config.Author.Email,
+	)
+
+	// Build feed items from blog posts
+	maxItems := b.config.Feeds.RSS.Items
+	if b.config.Feeds.Atom.Items > maxItems {
+		maxItems = b.config.Feeds.Atom.Items
+	}
+	if maxItems <= 0 {
+		maxItems = 20
+	}
+
+	var items []feed.FeedItem
+	for i, p := range blogPosts {
+		if i >= maxItems {
+			break
+		}
+		desc := p.Description
+		if b.config.Feeds.RSS.FullContent {
+			desc = p.Content
+		}
+		if desc == "" {
+			desc = p.Title
+		}
+
+		absURL := strings.TrimSuffix(b.config.Site.URL, "/") + p.URL
+
+		items = append(items, feed.FeedItem{
+			Title:       p.Title,
+			URL:         absURL,
+			Date:        p.Frontmatter.Date,
+			Description: desc,
+			Categories:  p.Frontmatter.Tags,
+			GUID:        absURL,
+		})
+	}
+
+	// Generate RSS
+	if b.config.Feeds.RSS.Enabled {
+		rssPath := b.config.Feeds.RSS.Path
+		if rssPath == "" {
+			rssPath = "rss.xml"
+		}
+		rssContent, err := gen.GenerateRSS(items, rssPath)
+		if err != nil {
+			return fmt.Errorf("failed to generate RSS: %w", err)
+		}
+		outputPath := filepath.Join(b.config.Build.OutputDir, rssPath)
+		if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(outputPath, []byte(rssContent), 0644); err != nil {
+			return fmt.Errorf("failed to write RSS: %w", err)
+		}
+		fmt.Printf("Generated RSS feed: %s (%d items)\n", rssPath, len(items))
+	}
+
+	// Generate Atom
+	if b.config.Feeds.Atom.Enabled {
+		atomPath := b.config.Feeds.Atom.Path
+		if atomPath == "" {
+			atomPath = "atom.xml"
+		}
+		atomContent, err := gen.GenerateAtom(items, atomPath)
+		if err != nil {
+			return fmt.Errorf("failed to generate Atom: %w", err)
+		}
+		outputPath := filepath.Join(b.config.Build.OutputDir, atomPath)
+		if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(outputPath, []byte(atomContent), 0644); err != nil {
+			return fmt.Errorf("failed to write Atom: %w", err)
+		}
+		fmt.Printf("Generated Atom feed: %s (%d items)\n", atomPath, len(items))
+	}
+
+	return nil
+}
+
+// generateSitemap creates a sitemap.xml from all pages
+func (b *SiteBuilder) generateSitemap() error {
+	siteURL := strings.TrimSuffix(b.config.Site.URL, "/")
+
+	var entries []sitemap.SitemapEntry
+
+	for _, page := range b.pages {
+		absURL := siteURL + page.URL
+
+		var priority float64
+		var changeFreq string
+
+		switch {
+		case page.URL == "/":
+			priority = 1.0
+			changeFreq = "weekly"
+		case page.URL == "/blog/" || page.URL == "/docs/":
+			priority = 0.9
+			changeFreq = "weekly"
+		case page.Type == TypeBlog:
+			priority = 0.8
+			changeFreq = "never"
+		case page.Type == TypeDoc:
+			priority = 0.7
+			changeFreq = "monthly"
+		case strings.HasPrefix(page.URL, "/tags/"):
+			priority = 0.5
+			changeFreq = "monthly"
+		case strings.HasPrefix(page.URL, "/archive/"):
+			priority = 0.3
+			changeFreq = "yearly"
+		default:
+			priority = 0.5
+			changeFreq = "monthly"
+		}
+
+		entries = append(entries, sitemap.SitemapEntry{
+			URL:        absURL,
+			LastMod:    page.ModifiedTime,
+			ChangeFreq: changeFreq,
+			Priority:   priority,
+		})
+	}
+
+	// Sort entries by priority descending for readability
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Priority > entries[j].Priority
+	})
+
+	sitemapContent, err := sitemap.Generate(entries)
+	if err != nil {
+		return fmt.Errorf("failed to generate sitemap: %w", err)
+	}
+
+	outputPath := filepath.Join(b.config.Build.OutputDir, "sitemap.xml")
+	if err := os.WriteFile(outputPath, []byte(sitemapContent), 0644); err != nil {
+		return fmt.Errorf("failed to write sitemap: %w", err)
+	}
+
+	fmt.Printf("Generated sitemap.xml (%d URLs)\n", len(entries))
 	return nil
 }

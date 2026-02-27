@@ -9,11 +9,58 @@ import (
 
 // SiteConfig represents the complete site configuration
 type SiteConfig struct {
-	Site       Site         `yaml:"site"`
-	Author     Author       `yaml:"author"`
-	Build      Build        `yaml:"build"`
-	Navigation Navigation   `yaml:"navigation"`
-	Assets     AssetsConfig `yaml:"assets"`
+	Site       Site             `yaml:"site"`
+	Author     Author           `yaml:"author"`
+	Build      Build            `yaml:"build"`
+	Navigation Navigation       `yaml:"navigation"`
+	Assets     AssetsConfig     `yaml:"assets"`
+	Feeds      FeedsConfig      `yaml:"feeds"`
+	Sitemap    SitemapConfig    `yaml:"sitemap"`
+	Tags       TagsConfig       `yaml:"tags"`
+	Archive    ArchiveConfig    `yaml:"archive"`
+	Pagination PaginationConfig `yaml:"pagination"`
+}
+
+// FeedsConfig contains feed generation settings
+type FeedsConfig struct {
+	RSS  RSSConfig  `yaml:"rss"`
+	Atom AtomConfig `yaml:"atom"`
+}
+
+// RSSConfig contains RSS feed settings
+type RSSConfig struct {
+	Enabled     bool   `yaml:"enabled"`
+	Path        string `yaml:"path"`
+	Items       int    `yaml:"items"`
+	FullContent bool   `yaml:"fullContent"`
+}
+
+// AtomConfig contains Atom feed settings
+type AtomConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Path    string `yaml:"path"`
+	Items   int    `yaml:"items"`
+}
+
+// SitemapConfig contains sitemap generation settings
+type SitemapConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+// TagsConfig contains tag system settings
+type TagsConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+// ArchiveConfig contains archive page settings
+type ArchiveConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+// PaginationConfig contains pagination settings
+type PaginationConfig struct {
+	Enabled  bool `yaml:"enabled"`
+	PageSize int  `yaml:"pageSize"`
 }
 
 // AssetsConfig contains asset processing settings
@@ -141,6 +188,32 @@ func DefaultConfig() *SiteConfig {
 				Enabled:          true,
 				SameCategoryOnly: false,
 			},
+		},
+		Feeds: FeedsConfig{
+			RSS: RSSConfig{
+				Enabled:     true,
+				Path:        "rss.xml",
+				Items:       20,
+				FullContent: false,
+			},
+			Atom: AtomConfig{
+				Enabled: true,
+				Path:    "atom.xml",
+				Items:   20,
+			},
+		},
+		Sitemap: SitemapConfig{
+			Enabled: true,
+		},
+		Tags: TagsConfig{
+			Enabled: true,
+		},
+		Archive: ArchiveConfig{
+			Enabled: true,
+		},
+		Pagination: PaginationConfig{
+			Enabled:  true,
+			PageSize: 10,
 		},
 		Assets: AssetsConfig{
 			Images: ImagesConfig{
