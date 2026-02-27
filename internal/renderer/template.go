@@ -720,18 +720,6 @@ const defaultTemplates = `{{define "base"}}
             --border: #e0e0e0;
             --shadow: rgba(0,0,0,0.1);
         }
-        @media (prefers-color-scheme: dark) {
-            :root {
-                --bg-primary: #1a1a1a;
-                --bg-secondary: #2d2d2d;
-                --text-primary: #e0e0e0;
-                --text-secondary: #a0a0a0;
-                --accent: #4d9fff;
-                --accent-hover: #66b3ff;
-                --border: #404040;
-                --shadow: rgba(0,0,0,0.3);
-            }
-        }
         * { box-sizing: border-box; }
         body {
             margin: 0;
@@ -809,11 +797,11 @@ const defaultTemplates = `{{define "base"}}
         /* Hero Section */
         .hero {
             position: relative;
-            min-height: 52vh;
+            min-height: 42vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            text-align: center;
+            text-align: left;
             padding: 0;
             {{if .Site.Homepage.Hero.Background}}
             background: url('{{.Site.Homepage.Hero.Background}}') #20241f no-repeat center center;
@@ -825,16 +813,27 @@ const defaultTemplates = `{{define "base"}}
         }
         .hero-content {
             width: 100%;
-            min-height: 52vh;
+            min-height: 42vh;
             display: flex;
             flex-direction: column;
-            align-items: center;
+            align-items: stretch;
             justify-content: center;
-            padding: 5.2rem 1.25rem;
+            padding: 3.9rem 1.25rem;
             {{if .Site.Homepage.Hero.Background}}
             backdrop-filter: blur(6px);
             background-color: rgba(0, 0, 0, 0.15);
             {{end}}
+        }
+        .hero-layout {
+            width: min(1200px, 100%);
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1.1fr 0.9fr;
+            gap: 24px;
+            align-items: center;
+        }
+        .hero-copy {
+            max-width: 680px;
         }
         .hero h1 {
             font-size: 3em;
@@ -862,8 +861,22 @@ const defaultTemplates = `{{define "base"}}
         .hero-cta {
             display: flex;
             gap: 16px;
-            justify-content: center;
+            justify-content: flex-start;
             flex-wrap: wrap;
+        }
+        .hero-media {
+            width: 100%;
+            max-width: 560px;
+            justify-self: end;
+        }
+        .hero-media iframe {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            height: auto;
+            border: 0;
+            border-radius: 10px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+            background: rgba(0, 0, 0, 0.35);
         }
         .btn {
             display: inline-flex;
@@ -1032,9 +1045,23 @@ const defaultTemplates = `{{define "base"}}
         @media (max-width: 768px) {
             .hero h1 { font-size: 2em; }
             .hero .subtitle { font-size: 1.1em; }
+            .hero-layout {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
             .hero-content {
-                min-height: 42vh;
-                padding: 2.8rem 1rem;
+                min-height: 34vh;
+                padding: 2.4rem 1rem;
+            }
+            .hero-copy {
+                max-width: none;
+            }
+            .hero-media {
+                max-width: none;
+                justify-self: stretch;
+            }
+            .hero-content {
+                align-items: stretch;
             }
             .projects-grid { grid-template-columns: 1fr; }
         }
@@ -1066,18 +1093,34 @@ const defaultTemplates = `{{define "base"}}
     <!-- Hero Section -->
     <section class="hero">
         <div class="hero-content">
-            <h1>{{if .Site.Homepage.Hero.Title}}{{.Site.Homepage.Hero.Title}}{{else}}{{.Page.Title}}{{end}}</h1>
-            {{if .Site.Homepage.Hero.Subtitle}}<p class="subtitle">{{.Site.Homepage.Hero.Subtitle}}</p>{{end}}
-            {{if .Site.Homepage.Hero.Description}}<p class="description">{{.Site.Homepage.Hero.Description}}</p>{{end}}
-            {{if .Site.Homepage.Hero.CTAButtons}}
-            <div class="hero-cta">
-                {{range .Site.Homepage.Hero.CTAButtons}}
-                <a href="{{.URL}}" class="btn {{if eq .Icon "primary"}}btn-primary{{else}}btn-secondary{{end}}">
-                    {{.Label}}
-                </a>
+            <div class="hero-layout">
+                <div class="hero-copy">
+                    <h1>{{if .Site.Homepage.Hero.Title}}{{.Site.Homepage.Hero.Title}}{{else}}{{.Page.Title}}{{end}}</h1>
+                    {{if .Site.Homepage.Hero.Subtitle}}<p class="subtitle">{{.Site.Homepage.Hero.Subtitle}}</p>{{end}}
+                    {{if .Site.Homepage.Hero.Description}}<p class="description">{{.Site.Homepage.Hero.Description}}</p>{{end}}
+                    {{if .Site.Homepage.Hero.CTAButtons}}
+                    <div class="hero-cta">
+                        {{range .Site.Homepage.Hero.CTAButtons}}
+                        <a href="{{.URL}}" class="btn {{if eq .Icon "primary"}}btn-primary{{else}}btn-secondary{{end}}">
+                            {{.Label}}
+                        </a>
+                        {{end}}
+                    </div>
+                    {{end}}
+                </div>
+                {{if .Site.Homepage.Hero.VideoEmbed}}
+                <div class="hero-media">
+                    <iframe
+                        src="{{.Site.Homepage.Hero.VideoEmbed}}"
+                        title="Hero video"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        loading="lazy"
+                        referrerpolicy="strict-origin-when-cross-origin"
+                        allowfullscreen>
+                    </iframe>
+                </div>
                 {{end}}
             </div>
-            {{end}}
         </div>
     </section>
 
@@ -1097,17 +1140,21 @@ const defaultTemplates = `{{define "base"}}
             <div class="project-card">
                 {{if .Image}}<img src="{{.Image}}" alt="{{.Title}}" class="project-image">{{end}}
                 <div class="project-content">
-                    <h3>{{.Title}}</h3>
+                    <h3>
+                        {{if .URL}}
+                        <a href="{{.URL}}">{{.Title}}</a>
+                        {{else if .GitHub}}
+                        <a href="{{.GitHub}}">{{.Title}}</a>
+                        {{else}}
+                        {{.Title}}
+                        {{end}}
+                    </h3>
                     <p>{{.Description}}</p>
                     {{if .Tags}}
                     <div class="project-tags">
                         {{range .Tags}}<span class="project-tag">{{.}}</span>{{end}}
                     </div>
                     {{end}}
-                    <div class="project-links">
-                        {{if .URL}}<a href="{{.URL}}">View Project →</a>{{end}}
-                        {{if .GitHub}}<a href="{{.GitHub}}">GitHub</a>{{end}}
-                    </div>
                 </div>
             </div>
             {{end}}

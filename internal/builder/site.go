@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/tot-ra/blog-engine/internal/archive"
@@ -110,15 +111,11 @@ func (b *SiteBuilder) Build() error {
 	})
 
 	// Second pass: build pages with wiki link resolution
-	for _, file := range index.MarkdownFiles {
-		page, err := pageBuilder.Build(file)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error building page %s: %v\n", file.Path, err)
-			continue
-		}
-		if page == nil {
-			continue // Draft or skipped
-		}
+	pages, buildErrs := b.buildPages(index.MarkdownFiles, titleToURL)
+	for _, err := range buildErrs {
+		fmt.Fprintf(os.Stderr, "Error building page: %v\n", err)
+	}
+	for _, page := range pages {
 		b.pages[page.ID] = page
 	}
 
@@ -194,11 +191,13 @@ func (b *SiteBuilder) Build() error {
 	b.blogTimeline = buildBlogTimeline(b.collectBlogPosts(), 20)
 
 	// Render pages (after CSS/JS processing so templates can reference bundles)
+	renderPages := make([]*Page, 0, len(b.pages))
 	for _, page := range b.pages {
-		if err := b.renderPage(page); err != nil {
-			fmt.Fprintf(os.Stderr, "Error rendering page %s: %v\n", page.URL, err)
-			continue
-		}
+		renderPages = append(renderPages, page)
+	}
+	renderErrs := b.renderPages(renderPages)
+	for _, err := range renderErrs {
+		fmt.Fprintf(os.Stderr, "Error rendering page: %v\n", err)
 	}
 
 	// Transform image references in rendered HTML
@@ -281,6 +280,143 @@ func (b *SiteBuilder) stripSiteFooters() error {
 	})
 }
 
+func (b *SiteBuilder) workerCount() int {
+	if b.config.Build.ParallelWorkers <= 0 {
+		return 1
+	}
+	return b.config.Build.ParallelWorkers
+}
+
+func (b *SiteBuilder) parallelForEach(total int, fn func(i int) error) []error {
+	if total == 0 {
+		return nil
+	}
+
+	workers := b.workerCount()
+	if workers > total {
+		workers = total
+	}
+	if workers <= 1 {
+		var errs []error
+		for i := 0; i < total; i++ {
+			if err := fn(i); err != nil {
+				errs = append(errs, err)
+			}
+		}
+		return errs
+	}
+
+	jobs := make(chan int, total)
+	errCh := make(chan error, total)
+	var wg sync.WaitGroup
+
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range jobs {
+				if err := fn(i); err != nil {
+					errCh <- err
+				}
+			}
+		}()
+	}
+
+	for i := 0; i < total; i++ {
+		jobs <- i
+	}
+	close(jobs)
+
+	wg.Wait()
+	close(errCh)
+
+	var errs []error
+	for err := range errCh {
+		errs = append(errs, err)
+	}
+	return errs
+}
+
+func (b *SiteBuilder) buildPages(files []ContentFile, titleToURL map[string]string) ([]*Page, []error) {
+	if len(files) == 0 {
+		return nil, nil
+	}
+
+	resolvePage := func(title string) (string, bool) {
+		if url, ok := titleToURL[title]; ok {
+			return url, true
+		}
+		slug := parser.GenerateSlug(title)
+		if url, ok := titleToURL[slug]; ok {
+			return url, true
+		}
+		return "", false
+	}
+
+	pages := make([]*Page, len(files))
+	workers := b.workerCount()
+	if workers > len(files) {
+		workers = len(files)
+	}
+
+	type buildJob struct {
+		idx  int
+		file ContentFile
+	}
+
+	jobs := make(chan buildJob, len(files))
+	errCh := make(chan error, len(files))
+	var wg sync.WaitGroup
+
+	for w := 0; w < workers; w++ {
+		builder := NewPageBuilder(b.config.Site.URL)
+		builder.SetPageResolver(resolvePage)
+
+		wg.Add(1)
+		go func(pb *PageBuilder) {
+			defer wg.Done()
+			for job := range jobs {
+				page, err := pb.Build(job.file)
+				if err != nil {
+					errCh <- fmt.Errorf("%s: %w", job.file.Path, err)
+					continue
+				}
+				pages[job.idx] = page
+			}
+		}(builder)
+	}
+
+	for i, file := range files {
+		jobs <- buildJob{idx: i, file: file}
+	}
+	close(jobs)
+	wg.Wait()
+	close(errCh)
+
+	var errs []error
+	for err := range errCh {
+		errs = append(errs, err)
+	}
+
+	result := make([]*Page, 0, len(files))
+	for _, page := range pages {
+		if page != nil {
+			result = append(result, page)
+		}
+	}
+	return result, errs
+}
+
+func (b *SiteBuilder) renderPages(pages []*Page) []error {
+	return b.parallelForEach(len(pages), func(i int) error {
+		page := pages[i]
+		if err := b.renderPage(page); err != nil {
+			return fmt.Errorf("%s: %w", page.URL, err)
+		}
+		return nil
+	})
+}
+
 // processImages processes all discovered image files
 func (b *SiteBuilder) processImages(index *ContentIndex) error {
 	cacheDir := b.config.Assets.Cache.Directory
@@ -332,7 +468,13 @@ func (b *SiteBuilder) processImages(index *ContentIndex) error {
 
 // transformRenderedPages re-reads rendered HTML files and transforms image tags
 func (b *SiteBuilder) transformRenderedPages(transformer *assets.ImageTransformer) error {
+	pages := make([]*Page, 0, len(b.pages))
 	for _, page := range b.pages {
+		pages = append(pages, page)
+	}
+
+	errs := b.parallelForEach(len(pages), func(i int) error {
+		page := pages[i]
 		outputPath := filepath.Join(b.config.Build.OutputDir, page.URL)
 		if !strings.HasSuffix(outputPath, ".html") {
 			outputPath = filepath.Join(outputPath, "index.html")
@@ -340,7 +482,7 @@ func (b *SiteBuilder) transformRenderedPages(transformer *assets.ImageTransforme
 
 		data, err := os.ReadFile(outputPath)
 		if err != nil {
-			continue
+			return nil
 		}
 
 		transformed := transformer.Transform(string(data))
@@ -349,6 +491,10 @@ func (b *SiteBuilder) transformRenderedPages(transformer *assets.ImageTransforme
 				return fmt.Errorf("failed to write transformed page %s: %w", outputPath, err)
 			}
 		}
+		return nil
+	})
+	if len(errs) > 0 {
+		return errs[0]
 	}
 	return nil
 }
@@ -529,11 +675,12 @@ func convertPrevNext(links *PrevNextLinks) *renderer.PrevNextLinks {
 
 // copyAssets copies static assets to output directory (non-image, non-CSS/JS files)
 func (b *SiteBuilder) copyAssets(index *ContentIndex) error {
-	for _, file := range index.AssetFiles {
+	errs := b.parallelForEach(len(index.AssetFiles), func(i int) error {
+		file := index.AssetFiles[i]
 		// Skip CSS/JS files (already processed)
 		ext := strings.ToLower(filepath.Ext(file.Path))
 		if ext == ".css" || ext == ".js" {
-			continue
+			return nil
 		}
 
 		// Determine output path
@@ -548,13 +695,17 @@ func (b *SiteBuilder) copyAssets(index *ContentIndex) error {
 		data, err := os.ReadFile(file.Path)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error reading asset %s: %v\n", file.Path, err)
-			continue
+			return nil
 		}
 
 		// Write to output
 		if err := os.WriteFile(outputPath, data, 0644); err != nil {
 			return fmt.Errorf("failed to write asset: %w", err)
 		}
+		return nil
+	})
+	if len(errs) > 0 {
+		return errs[0]
 	}
 
 	return nil

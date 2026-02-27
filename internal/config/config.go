@@ -10,37 +10,38 @@ import (
 // SiteConfig represents the complete site configuration
 type SiteConfig struct {
 	Site       Site             `yaml:"site"`
-	Author     Author          `yaml:"author"`
-	Build      Build           `yaml:"build"`
-	Navigation Navigation      `yaml:"navigation"`
-	Assets     AssetsConfig    `yaml:"assets"`
-	Feeds      FeedsConfig     `yaml:"feeds"`
-	Sitemap    SitemapConfig   `yaml:"sitemap"`
-	Tags       TagsConfig      `yaml:"tags"`
-	Archive    ArchiveConfig   `yaml:"archive"`
+	Author     Author           `yaml:"author"`
+	Build      Build            `yaml:"build"`
+	Navigation Navigation       `yaml:"navigation"`
+	Assets     AssetsConfig     `yaml:"assets"`
+	Feeds      FeedsConfig      `yaml:"feeds"`
+	Sitemap    SitemapConfig    `yaml:"sitemap"`
+	Tags       TagsConfig       `yaml:"tags"`
+	Archive    ArchiveConfig    `yaml:"archive"`
 	Pagination PaginationConfig `yaml:"pagination"`
-	Advanced   AdvancedConfig  `yaml:"advanced"`
-	SEO        SEOConfig       `yaml:"seo"`
-	Homepage   HomepageConfig  `yaml:"homepage"` // Homepage customization
+	Advanced   AdvancedConfig   `yaml:"advanced"`
+	SEO        SEOConfig        `yaml:"seo"`
+	Homepage   HomepageConfig   `yaml:"homepage"` // Homepage customization
 }
 
 // HomepageConfig contains homepage-specific settings
 type HomepageConfig struct {
-	Enabled     bool                `yaml:"enabled"`
-	Hero        HeroConfig          `yaml:"hero"`
-	Projects    []ProjectConfig     `yaml:"projects"`
-	SocialLinks []SocialLinkGroup   `yaml:"socialLinks"`
-	CustomHTML  string              `yaml:"customHTML"` // Additional custom HTML/JS
+	Enabled     bool              `yaml:"enabled"`
+	Hero        HeroConfig        `yaml:"hero"`
+	Projects    []ProjectConfig   `yaml:"projects"`
+	SocialLinks []SocialLinkGroup `yaml:"socialLinks"`
+	CustomHTML  string            `yaml:"customHTML"` // Additional custom HTML/JS
 }
 
 // HeroConfig contains hero section settings
 type HeroConfig struct {
-	Enabled     bool   `yaml:"enabled"`
-	Background  string `yaml:"background"`  // Background image URL
-	Title       string `yaml:"title"`       // Override page title
-	Subtitle    string `yaml:"subtitle"`    // Subtitle/tagline
-	Description string `yaml:"description"` // Description text
-	CTAButtons  []CTAButton `yaml:"ctaButtons"` // Call-to-action buttons
+	Enabled     bool        `yaml:"enabled"`
+	Background  string      `yaml:"background"`  // Background image URL
+	Title       string      `yaml:"title"`       // Override page title
+	Subtitle    string      `yaml:"subtitle"`    // Subtitle/tagline
+	Description string      `yaml:"description"` // Description text
+	VideoEmbed  string      `yaml:"videoEmbed"`  // Optional iframe src for hero video
+	CTAButtons  []CTAButton `yaml:"ctaButtons"`  // Call-to-action buttons
 }
 
 // CTAButton represents a call-to-action button
@@ -52,11 +53,11 @@ type CTAButton struct {
 
 // ProjectConfig represents a project showcase item
 type ProjectConfig struct {
-	Title       string `yaml:"title"`
-	Description string `yaml:"description"`
-	Image       string `yaml:"image"`    // Project image URL
-	URL         string `yaml:"url"`      // Link to project
-	GitHub      string `yaml:"github"`   // GitHub repo URL
+	Title       string   `yaml:"title"`
+	Description string   `yaml:"description"`
+	Image       string   `yaml:"image"`  // Project image URL
+	URL         string   `yaml:"url"`    // Link to project
+	GitHub      string   `yaml:"github"` // GitHub repo URL
 	Tags        []string `yaml:"tags"`   // Technology tags
 }
 
