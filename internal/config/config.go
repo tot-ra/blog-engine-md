@@ -10,15 +10,17 @@ import (
 // SiteConfig represents the complete site configuration
 type SiteConfig struct {
 	Site       Site             `yaml:"site"`
-	Author     Author           `yaml:"author"`
-	Build      Build            `yaml:"build"`
-	Navigation Navigation       `yaml:"navigation"`
-	Assets     AssetsConfig     `yaml:"assets"`
-	Feeds      FeedsConfig      `yaml:"feeds"`
-	Sitemap    SitemapConfig    `yaml:"sitemap"`
-	Tags       TagsConfig       `yaml:"tags"`
-	Archive    ArchiveConfig    `yaml:"archive"`
+	Author     Author          `yaml:"author"`
+	Build      Build           `yaml:"build"`
+	Navigation Navigation      `yaml:"navigation"`
+	Assets     AssetsConfig    `yaml:"assets"`
+	Feeds      FeedsConfig     `yaml:"feeds"`
+	Sitemap    SitemapConfig   `yaml:"sitemap"`
+	Tags       TagsConfig      `yaml:"tags"`
+	Archive    ArchiveConfig   `yaml:"archive"`
 	Pagination PaginationConfig `yaml:"pagination"`
+	Advanced   AdvancedConfig  `yaml:"advanced"`
+	SEO        SEOConfig       `yaml:"seo"`
 }
 
 // FeedsConfig contains feed generation settings
@@ -154,6 +156,78 @@ type Build struct {
 	OutputDir       string `yaml:"outputDir"`
 	CacheDir        string `yaml:"cacheDir"`
 	ParallelWorkers int    `yaml:"parallelWorkers"`
+	Profile         bool   `yaml:"profile"`
+}
+
+// AdvancedConfig contains Phase 5 advanced feature settings
+type AdvancedConfig struct {
+	Mermaid     MermaidConfig     `yaml:"mermaid"`
+	Graph       GraphConfig       `yaml:"graph"`
+	Theme       ThemeConfig       `yaml:"theme"`
+	Embeds      EmbedsConfig      `yaml:"embeds"`
+	Admonitions AdmonitionsConfig `yaml:"admonitions"`
+	ScrollSpy   ScrollSpyConfig   `yaml:"scrollSpy"`
+	CodeCopy    CodeCopyConfig    `yaml:"codeCopy"`
+}
+
+// MermaidConfig contains Mermaid diagram settings
+type MermaidConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Theme   string `yaml:"theme"` // default, dark, forest, neutral
+}
+
+// GraphConfig contains graph view settings
+type GraphConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Path    string `yaml:"path"`
+}
+
+// ThemeConfig contains theme toggle settings
+type ThemeConfig struct {
+	Default     string `yaml:"default"` // light, dark, auto
+	AllowToggle bool   `yaml:"allowToggle"`
+}
+
+// EmbedsConfig contains embed support settings
+type EmbedsConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+// AdmonitionsConfig contains admonition block settings
+type AdmonitionsConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+// ScrollSpyConfig contains scroll spy settings
+type ScrollSpyConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+// CodeCopyConfig contains code copy button settings
+type CodeCopyConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+// SEOConfig contains SEO optimization settings
+type SEOConfig struct {
+	Enabled       bool          `yaml:"enabled"`
+	TitleTemplate string        `yaml:"titleTemplate"`
+	DefaultDesc   string        `yaml:"defaultDescription"`
+	DefaultImage  string        `yaml:"defaultImage"`
+	Twitter       TwitterConfig `yaml:"twitter"`
+}
+
+// TwitterConfig contains Twitter card settings
+type TwitterConfig struct {
+	Site    string `yaml:"site"`
+	Creator string `yaml:"creator"`
+}
+
+// DevServerConfig contains dev server settings
+type DevServerConfig struct {
+	Port       int    `yaml:"port"`
+	Host       string `yaml:"host"`
+	LiveReload bool   `yaml:"liveReload"`
 }
 
 // DefaultConfig returns a config with default values
