@@ -55,6 +55,8 @@ type PageData struct {
 	Page        Page
 	Frontmatter Frontmatter
 	Content     template.HTML
+	CSSPath     string
+	JSPath      string
 	// Navigation fields (Phase 2)
 	Sidebar     template.HTML
 	TOC         template.HTML
@@ -85,6 +87,9 @@ func NewTemplateEngine() *TemplateEngine {
 		"lower":      strings.ToLower,
 		"upper":      strings.ToUpper,
 		"title":      strings.Title,
+		"hasDate": func(t time.Time) bool {
+			return !t.IsZero()
+		},
 	}
 
 	return &TemplateEngine{
@@ -188,6 +193,7 @@ const defaultTemplates = `{{define "base"}}
     {{if .Page.Description}}
     <meta name="description" content="{{.Page.Description}}">
     {{end}}
+    {{if .Site.Site.Favicon}}<link rel="icon" href="{{.Site.Site.Favicon}}">{{end}}
     <style>
         :root {
             --sidebar-width: 280px;
@@ -214,14 +220,66 @@ const defaultTemplates = `{{define "base"}}
             align-items: center;
             justify-content: space-between;
         }
-        .site-header h1 { font-size: 1.2em; }
-        .site-header h1 a { color: inherit; text-decoration: none; }
-        .site-header p { margin: 0; color: var(--text-secondary); font-size: 0.9em; }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .navbar-logo {
+            display: inline-flex;
+            align-items: center;
+        }
+        .navbar-logo img {
+            width: 40px;
+            height: 40px;
+            border-radius: 20px;
+            object-fit: cover;
+        }
+        .site-nav {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .site-nav a {
+            color: var(--text-primary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .site-nav a:hover { color: var(--nav-active); }
+        .theme-toggle {
+            border: 1px solid var(--nav-border);
+            background: transparent;
+            width: 36px;
+            height: 36px;
+            border-radius: 18px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--text-primary);
+        }
+        .theme-toggle svg {
+            width: 18px;
+            height: 18px;
+            display: block;
+        }
+        .theme-toggle .icon-moon { display: none; }
+        html[data-theme='dark'] .theme-toggle .icon-sun { display: none; }
+        html[data-theme='dark'] .theme-toggle .icon-moon { display: block; }
+        html[data-theme='dark'] {
+            --nav-bg: #1d1f22;
+            --nav-border: #383c42;
+            --nav-active: #6aa4ff;
+            --bg-primary: #111315;
+            --text-primary: #eceef1;
+            --text-secondary: #a9adb5;
+        }
         /* Layout */
         .site-layout {
             display: flex;
-            max-width: 1400px;
-            margin: 0 auto;
+            width: 100%;
+            max-width: none;
+            margin: 0;
             min-height: calc(100vh - 120px);
         }
         /* Sidebar */
@@ -235,6 +293,96 @@ const defaultTemplates = `{{define "base"}}
             max-height: calc(100vh - 60px);
             position: sticky;
             top: 0;
+        }
+        .blog-sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .sidebar-mode-switch {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px;
+            border: 1px solid var(--nav-border);
+            background: var(--bg-primary);
+            border-radius: 999px;
+            padding: 4px;
+        }
+        .sidebar-mode-btn {
+            border: 0;
+            background: transparent;
+            color: var(--text-secondary);
+            border-radius: 999px;
+            font-size: 0.78em;
+            font-weight: 600;
+            padding: 7px 6px;
+            cursor: pointer;
+        }
+        .sidebar-mode-btn.is-active {
+            color: #fff;
+            background: var(--nav-active);
+        }
+        .sidebar-mode-pane {
+            min-height: 0;
+        }
+        .sidebar-timeline {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: calc(100vh - 130px);
+            overflow-y: auto;
+            padding-right: 2px;
+        }
+        .timeline-year h4 {
+            font-size: 0.86em;
+            color: var(--text-secondary);
+            margin: 4px 0;
+        }
+        .timeline-year h5 {
+            font-size: 0.78em;
+            color: var(--text-secondary);
+            margin: 8px 0 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+        .timeline-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+        .timeline-list li a {
+            display: block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            color: var(--text-primary);
+            text-decoration: none;
+            font-size: 0.86em;
+        }
+        .timeline-list li a time {
+            color: var(--text-secondary);
+            margin-right: 6px;
+            font-size: 0.9em;
+        }
+        .timeline-list li.active > a {
+            color: var(--nav-active);
+            font-weight: 600;
+            background: rgba(0, 102, 204, 0.08);
+        }
+        .sidebar-graph-pane {
+            height: calc(100vh - 130px);
+        }
+        .sidebar-graph-frame {
+            width: 100%;
+            height: 100%;
+            border: 1px solid var(--nav-border);
+            border-radius: 8px;
+            background: var(--bg-primary);
+        }
+        .site-layout.sidebar-graph-mode .sidebar {
+            width: 40%;
+        }
+        .site-layout.sidebar-graph-mode .site-content {
+            max-width: none;
         }
         .sidebar-menu, .sidebar-submenu {
             list-style: none;
@@ -253,6 +401,47 @@ const defaultTemplates = `{{define "base"}}
             text-decoration: none;
             border-radius: 4px;
             font-size: 0.9em;
+        }
+        .sidebar-section-head {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .sidebar-section-head a {
+            flex: 1;
+        }
+        .sidebar-toggle {
+            appearance: none;
+            border: 0;
+            background: transparent;
+            color: var(--text-secondary);
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+        }
+        .sidebar-toggle:hover {
+            background: rgba(0, 102, 204, 0.08);
+            color: var(--nav-active);
+        }
+        .sidebar-toggle::before {
+            content: "▸";
+            font-size: 0.8em;
+            line-height: 1;
+            transition: transform 0.15s ease;
+        }
+        .sidebar-section.expanded > .sidebar-section-head .sidebar-toggle::before {
+            transform: rotate(90deg);
+        }
+        .sidebar-section > .sidebar-submenu {
+            display: none;
+        }
+        .sidebar-section.expanded > .sidebar-submenu {
+            display: block;
         }
         .sidebar-item a:hover {
             background: rgba(0, 102, 204, 0.08);
@@ -420,19 +609,28 @@ const defaultTemplates = `{{define "base"}}
             .site-content { padding: 16px; }
         }
     </style>
+    {{if .CSSPath}}<link rel="stylesheet" href="{{.CSSPath}}">{{end}}
 </head>
-<body>
+<body class="homepage">
     <header class="site-header">
-        <div>
-            <h1><a href="/">{{.Site.Site.Title}}</a></h1>
-            {{if .Site.Site.Tagline}}<p>{{.Site.Site.Tagline}}</p>{{end}}
+        <div class="header-left">
+            <a class="navbar-logo" href="/">
+                <img class="no-transform" src="/assets/img/artjom.webp" alt="Artjom Kurapov">
+            </a>
+            <nav class="site-nav">
+                <a href="/docs/ob-avtore/">Об авторе</a>
+                <a href="/blog/">Блог</a>
+            </nav>
         </div>
-        <nav class="site-nav">
-            <a href="/blog/">Blog</a>
-            <a href="/docs/">Docs</a>
-            <a href="/graph/">Graph</a>
-            <a href="/tags/">Tags</a>
-        </nav>
+        <button id="theme-toggle" class="theme-toggle" aria-label="Toggle color theme" title="Toggle theme">
+            <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="4"></circle>
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
+            </svg>
+            <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3c0 0 0 0 0 0A7 7 0 0 0 21 12.79z"></path>
+            </svg>
+        </button>
     </header>
     <div class="site-layout">
         {{if .Sidebar}}{{.Sidebar}}{{end}}
@@ -441,9 +639,7 @@ const defaultTemplates = `{{define "base"}}
         </main>
         {{if .TOC}}{{.TOC}}{{end}}
     </div>
-    <footer class="site-footer">
-        {{if .Site.Author.Name}}&copy; {{.Site.Author.Name}}{{end}}
-    </footer>
+    {{if .JSPath}}<script defer src="{{.JSPath}}"></script>{{end}}
 </body>
 </html>
 {{end}}
@@ -470,7 +666,7 @@ const defaultTemplates = `{{define "base"}}
     </nav>
     {{end}}
     <h1>{{.Page.Title}}</h1>
-    {{if .Frontmatter.Date}}
+    {{if hasDate .Frontmatter.Date}}
     <time datetime="{{.Frontmatter.Date.Format "2006-01-02T15:04:05Z07:00"}}">
         {{.Frontmatter.Date.Format "January 2, 2006"}}
     </time>
@@ -544,26 +740,101 @@ const defaultTemplates = `{{define "base"}}
             color: var(--text-primary);
             line-height: 1.6;
         }
+        .site-header {
+            border-bottom: 1px solid var(--border);
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--bg-primary);
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .navbar-logo {
+            display: inline-flex;
+            align-items: center;
+        }
+        .navbar-logo img {
+            width: 40px;
+            height: 40px;
+            border-radius: 20px;
+            object-fit: cover;
+        }
+        .site-nav {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .site-nav a {
+            color: var(--text-primary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .site-nav a:hover {
+            color: var(--accent);
+        }
+        .theme-toggle {
+            border: 1px solid var(--border);
+            background: transparent;
+            width: 36px;
+            height: 36px;
+            border-radius: 18px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--text-primary);
+        }
+        .theme-toggle svg {
+            width: 18px;
+            height: 18px;
+            display: block;
+        }
+        .theme-toggle .icon-moon { display: none; }
+        html[data-theme='dark'] .theme-toggle .icon-sun { display: none; }
+        html[data-theme='dark'] .theme-toggle .icon-moon { display: block; }
+        html[data-theme='dark'] {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2d2d2d;
+            --text-primary: #e0e0e0;
+            --text-secondary: #a0a0a0;
+            --accent: #4d9fff;
+            --accent-hover: #66b3ff;
+            --border: #404040;
+            --shadow: rgba(0,0,0,0.3);
+        }
         /* Hero Section */
         .hero {
             position: relative;
-            min-height: 60vh;
+            min-height: 52vh;
             display: flex;
             align-items: center;
             justify-content: center;
             text-align: center;
-            padding: 60px 20px;
+            padding: 0;
             {{if .Site.Homepage.Hero.Background}}
-            background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('{{.Site.Homepage.Hero.Background}}');
+            background: url('{{.Site.Homepage.Hero.Background}}') #20241f no-repeat center center;
             background-size: cover;
-            background-position: center;
             color: white;
             {{else}}
             background: var(--bg-secondary);
             {{end}}
         }
         .hero-content {
-            max-width: 800px;
+            width: 100%;
+            min-height: 52vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 5.2rem 1.25rem;
+            {{if .Site.Homepage.Hero.Background}}
+            backdrop-filter: blur(6px);
+            background-color: rgba(0, 0, 0, 0.15);
+            {{end}}
         }
         .hero h1 {
             font-size: 3em;
@@ -648,6 +919,16 @@ const defaultTemplates = `{{define "base"}}
         .project-card:hover {
             transform: translateY(-4px);
             box-shadow: 0 8px 24px var(--shadow);
+        }
+        .project-card .md-image {
+            margin: 0;
+        }
+        .project-card .md-image img {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+            background: var(--border);
+            display: block;
         }
         .project-image {
             width: 100%;
@@ -751,11 +1032,37 @@ const defaultTemplates = `{{define "base"}}
         @media (max-width: 768px) {
             .hero h1 { font-size: 2em; }
             .hero .subtitle { font-size: 1.1em; }
+            .hero-content {
+                min-height: 42vh;
+                padding: 2.8rem 1rem;
+            }
             .projects-grid { grid-template-columns: 1fr; }
         }
     </style>
+    {{if .CSSPath}}<link rel="stylesheet" href="{{.CSSPath}}">{{end}}
 </head>
 <body>
+    <header class="site-header">
+        <div class="header-left">
+            <a class="navbar-logo" href="/">
+                <img class="no-transform" src="/assets/img/artjom.webp" alt="Artjom Kurapov">
+            </a>
+            <nav class="site-nav">
+                <a href="/docs/ob-avtore/">Об авторе</a>
+                <a href="/blog/">Блог</a>
+            </nav>
+        </div>
+        <button id="theme-toggle" class="theme-toggle" aria-label="Toggle color theme" title="Toggle theme">
+            <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="4"></circle>
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
+            </svg>
+            <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3c0 0 0 0 0 0A7 7 0 0 0 21 12.79z"></path>
+            </svg>
+        </button>
+    </header>
+
     <!-- Hero Section -->
     <section class="hero">
         <div class="hero-content">
@@ -826,12 +1133,8 @@ const defaultTemplates = `{{define "base"}}
     </section>
     {{end}}
 
-    <!-- Footer -->
-    <footer class="site-footer">
-        {{if .Site.Author.Name}}<p>&copy; {{.Site.Author.Name}}</p>{{end}}
-    </footer>
-
     {{if .Site.Homepage.CustomHTML}}{{.Site.Homepage.CustomHTML}}{{end}}
+    {{if .JSPath}}<script defer src="{{.JSPath}}"></script>{{end}}
 </body>
 </html>
 {{end}}

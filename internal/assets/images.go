@@ -7,12 +7,20 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/disintegration/imaging"
+	_ "golang.org/x/image/webp"
 )
+
+func normalizeImageRelativePath(relativePath string) string {
+	rel := filepath.ToSlash(relativePath)
+	return strings.TrimPrefix(rel, "img/")
+}
 
 // ImageConfig holds image processing configuration
 type ImageConfig struct {
@@ -69,22 +77,24 @@ func NewImageProcessor(config ImageConfig, outputDir string, cache *ImageCache) 
 	}
 }
 
-// ProcessFile processes a single image file, generating size variants as WebP
+// ProcessFile processes a single image file, generating size variants as WebP.
+// If WebP encoding is unavailable, it falls back to JPEG.
 func (p *ImageProcessor) ProcessFile(srcPath, relativePath string, modTime int64, size int64) (*ProcessedImage, error) {
+	normalizedRelPath := normalizeImageRelativePath(relativePath)
 	ext := strings.ToLower(filepath.Ext(srcPath))
 
 	// SVG pass-through: just copy
 	if ext == ".svg" {
-		return p.copySVG(srcPath, relativePath)
+		return p.copySVG(srcPath, normalizedRelPath)
 	}
 
 	// Check cache
 	if p.cache != nil {
-		if entry, ok := p.cache.Get(relativePath); ok {
-			if entry.SourceModTime == modTime && entry.SourceSize == size {
+		if entry, ok := p.cache.Get(normalizedRelPath); ok {
+			if entry.SourceModTime == modTime && entry.SourceSize == size && p.variantsExist(entry.Variants) {
 				return &ProcessedImage{
 					OriginalPath: srcPath,
-					RelativePath: relativePath,
+					RelativePath: normalizedRelPath,
 					Variants:     entry.Variants,
 				}, nil
 			}
@@ -100,7 +110,8 @@ func (p *ImageProcessor) ProcessFile(srcPath, relativePath string, modTime int64
 
 	srcImg, _, err := image.Decode(srcFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode image %s: %w", srcPath, err)
+		// Fall back to passthrough copy for formats/variants not supported by the decoder.
+		return p.copyOriginalImage(srcPath, normalizedRelPath)
 	}
 
 	bounds := srcImg.Bounds()
@@ -109,14 +120,14 @@ func (p *ImageProcessor) ProcessFile(srcPath, relativePath string, modTime int64
 
 	result := &ProcessedImage{
 		OriginalPath: srcPath,
-		RelativePath: relativePath,
+		RelativePath: normalizedRelPath,
 		Width:        origWidth,
 		Height:       origHeight,
 	}
 
 	// Generate each size variant
-	baseName := strings.TrimSuffix(filepath.Base(relativePath), filepath.Ext(relativePath))
-	relDir := filepath.Dir(relativePath)
+	baseName := strings.TrimSuffix(filepath.Base(normalizedRelPath), filepath.Ext(normalizedRelPath))
+	relDir := filepath.Dir(normalizedRelPath)
 
 	for sizeName, maxWidth := range p.config.Sizes {
 		// Skip if original is smaller than target
@@ -138,10 +149,9 @@ func (p *ImageProcessor) ProcessFile(srcPath, relativePath string, modTime int64
 			return nil, fmt.Errorf("failed to create directory for %s: %w", outFullPath, err)
 		}
 
-		// Encode as WebP via imaging (falls back to PNG if WebP not available, but we'll use JPEG for compatibility)
-		// imaging doesn't support WebP encoding natively, so we encode as JPEG with quality
-		if err := imaging.Save(resized, outFullPath); err != nil {
-			// If WebP save fails, fall back to JPEG
+		// Encode as WebP with cwebp.
+		if err := saveAsWebP(resized, outFullPath, p.config.Quality); err != nil {
+			// If WebP encoding is unavailable, fall back to JPEG.
 			jpegPath := filepath.Join("assets", "img", relDir, fmt.Sprintf("%s-%s.jpg", baseName, sizeName))
 			jpegFullPath := filepath.Join(p.outputDir, jpegPath)
 			if err2 := imaging.Save(resized, jpegFullPath, imaging.JPEGQuality(p.config.Quality)); err2 != nil {
@@ -170,7 +180,7 @@ func (p *ImageProcessor) ProcessFile(srcPath, relativePath string, modTime int64
 
 	// Update cache
 	if p.cache != nil {
-		p.cache.Set(relativePath, &CacheEntry{
+		p.cache.Set(normalizedRelPath, &CacheEntry{
 			SourceModTime: modTime,
 			SourceSize:    size,
 			Variants:      result.Variants,
@@ -178,6 +188,34 @@ func (p *ImageProcessor) ProcessFile(srcPath, relativePath string, modTime int64
 	}
 
 	return result, nil
+}
+
+func saveAsWebP(img image.Image, outPath string, quality int) error {
+	tmpInput := outPath + ".tmp.png"
+	if err := imaging.Save(img, tmpInput); err != nil {
+		return fmt.Errorf("failed to create temporary input for webp: %w", err)
+	}
+	defer os.Remove(tmpInput)
+
+	cmd := exec.Command("cwebp", "-quiet", "-q", strconv.Itoa(quality), tmpInput, "-o", outPath)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to encode webp: %w", err)
+	}
+	return nil
+}
+
+func (p *ImageProcessor) variantsExist(variants []ImageVariant) bool {
+	if len(variants) == 0 {
+		return false
+	}
+	for _, v := range variants {
+		rel := strings.TrimPrefix(v.FilePath, "/")
+		fullPath := filepath.Join(p.outputDir, rel)
+		if _, err := os.Stat(fullPath); err != nil {
+			return false
+		}
+	}
+	return true
 }
 
 // ProcessBatch processes multiple images concurrently
@@ -245,6 +283,32 @@ func (p *ImageProcessor) copySVG(srcPath, relativePath string) (*ProcessedImage,
 
 	if err := os.WriteFile(outFullPath, data, 0644); err != nil {
 		return nil, fmt.Errorf("failed to write SVG: %w", err)
+	}
+
+	return &ProcessedImage{
+		OriginalPath: srcPath,
+		RelativePath: relativePath,
+		Variants: []ImageVariant{
+			{Size: "original", FilePath: "/" + outRelPath, FileSize: int64(len(data))},
+		},
+	}, nil
+}
+
+// copyOriginalImage copies an image as-is when transformation is not possible.
+func (p *ImageProcessor) copyOriginalImage(srcPath, relativePath string) (*ProcessedImage, error) {
+	outRelPath := filepath.Join("assets", "img", relativePath)
+	outFullPath := filepath.Join(p.outputDir, outRelPath)
+
+	if err := os.MkdirAll(filepath.Dir(outFullPath), 0755); err != nil {
+		return nil, fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	data, err := os.ReadFile(srcPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read image: %w", err)
+	}
+	if err := os.WriteFile(outFullPath, data, 0644); err != nil {
+		return nil, fmt.Errorf("failed to write image: %w", err)
 	}
 
 	return &ProcessedImage{

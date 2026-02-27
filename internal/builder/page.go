@@ -30,16 +30,16 @@ type TocItem struct {
 
 // Page represents a single page to be rendered
 type Page struct {
-	ID          string
-	URL         string
-	SourcePath  string
-	Title       string
-	Description string
-	Content     string
-	RawContent  string
-	Frontmatter *parser.Frontmatter
-	TOC         []*TocItem
-	Type        PageType
+	ID           string
+	URL          string
+	SourcePath   string
+	Title        string
+	Description  string
+	Content      string
+	RawContent   string
+	Frontmatter  *parser.Frontmatter
+	TOC          []*TocItem
+	Type         PageType
 	ModifiedTime time.Time
 }
 
@@ -84,7 +84,7 @@ func (g *URLGenerator) Generate(filePath string, fm *parser.Frontmatter) string 
 
 	// Clean up URL
 	url = strings.ReplaceAll(url, "//", "/")
-	
+
 	return url
 }
 
@@ -130,6 +130,9 @@ func (b *PageBuilder) Build(file ContentFile) (*Page, error) {
 
 	// Determine page type
 	pageType := determinePageType(file.RelativePath)
+	if pageType == TypeBlog && fm.Date.IsZero() {
+		fm.Date = inferDateFromFilename(file.RelativePath)
+	}
 
 	// Generate URL
 	url := b.urlGen.Generate(file.RelativePath, fm)
@@ -181,6 +184,24 @@ func (b *PageBuilder) Build(file ContentFile) (*Page, error) {
 	return page, nil
 }
 
+func inferDateFromFilename(relPath string) time.Time {
+	name := filepath.Base(relPath)
+	name = strings.TrimSuffix(name, filepath.Ext(name))
+
+	// Common pattern: "YYYY-MM-DD title"
+	re := regexp.MustCompile(`^(\d{4})-(\d{2})-(\d{2})(?:[\s_-].*)?$`)
+	m := re.FindStringSubmatch(name)
+	if len(m) != 4 {
+		return time.Time{}
+	}
+
+	t, err := time.Parse("2006-01-02", m[1]+"-"+m[2]+"-"+m[3])
+	if err != nil {
+		return time.Time{}
+	}
+	return t
+}
+
 // determinePageType determines the page type from the file path
 func determinePageType(relPath string) PageType {
 	if strings.HasPrefix(relPath, "blog/") {
@@ -227,8 +248,8 @@ func extractTOC(content string) []*TocItem {
 			continue
 		}
 
-		// Extract text
-		text := strings.TrimSpace(line[level:])
+		// Extract and normalize heading text for cleaner TOC labels.
+		text := sanitizeTOCHeading(strings.TrimSpace(line[level:]))
 		anchor := parser.GenerateSlug(text)
 
 		item := &TocItem{
@@ -256,6 +277,28 @@ func extractTOC(content string) []*TocItem {
 	}
 
 	return toc
+}
+
+func sanitizeTOCHeading(text string) string {
+	// Remove optional trailing ATX markers: "Heading ###"
+	text = strings.TrimSpace(text)
+	text = regexp.MustCompile(`\s+#+\s*$`).ReplaceAllString(text, "")
+
+	// Convert markdown links/images to visible label text.
+	text = regexp.MustCompile(`!\[([^\]]*)\]\([^\)]*\)`).ReplaceAllString(text, "$1")
+	text = regexp.MustCompile(`\[([^\]]+)\]\([^\)]*\)`).ReplaceAllString(text, "$1")
+
+	// Remove inline code and emphasis delimiters.
+	text = strings.ReplaceAll(text, "`", "")
+	text = strings.ReplaceAll(text, "**", "")
+	text = strings.ReplaceAll(text, "__", "")
+	text = strings.ReplaceAll(text, "*", "")
+	text = strings.ReplaceAll(text, "_", "")
+	text = strings.ReplaceAll(text, "~~", "")
+
+	// Collapse whitespace for stable labels/slugs.
+	text = strings.Join(strings.Fields(text), " ")
+	return strings.TrimSpace(text)
 }
 
 // readFile reads a file and returns its content

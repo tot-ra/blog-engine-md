@@ -38,6 +38,7 @@ func NewMarkdownParser() *MarkdownParser {
 		goldmark.WithRendererOptions(
 			html.WithHardWraps(),
 			html.WithXHTML(),
+			html.WithUnsafe(),
 		),
 	)
 

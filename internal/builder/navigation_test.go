@@ -101,3 +101,20 @@ func TestFlattenPages(t *testing.T) {
 		t.Fatalf("Expected 3 flat pages, got %d", len(flat))
 	}
 }
+
+func TestBuildTree_SectionTitleUTF8(t *testing.T) {
+	pages := map[string]*Page{
+		"p1": {ID: "p1", Title: "Post", URL: "/blog/вера/post/", Type: TypeBlog, Frontmatter: &parser.Frontmatter{}},
+	}
+
+	nb := NewNavigationBuilder()
+	tree := nb.BuildTree(pages)
+
+	node := tree.ByPath["/blog/вера/"]
+	if node == nil {
+		t.Fatal("Expected /blog/вера/ node")
+	}
+	if node.Title != "Вера" {
+		t.Fatalf("Expected UTF-8 title 'Вера', got '%s'", node.Title)
+	}
+}

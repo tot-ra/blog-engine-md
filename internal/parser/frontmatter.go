@@ -43,10 +43,38 @@ func ParseFrontmatter(content string) (*Frontmatter, string, error) {
 	fmContent := content[3 : endIdx+3]
 	remaining := strings.TrimSpace(content[endIdx+6:])
 
-	// Parse YAML
-	if err := yaml.Unmarshal([]byte(fmContent), fm); err != nil {
+	type rawFrontmatter struct {
+		Title       string      `yaml:"title"`
+		Date        interface{} `yaml:"date"`
+		Draft       bool        `yaml:"draft"`
+		Tags        []string    `yaml:"tags"`
+		Description string      `yaml:"description"`
+		Slug        string      `yaml:"slug"`
+		Order       int         `yaml:"order"`
+		HideToc     bool        `yaml:"hideToc"`
+		HideNav     bool        `yaml:"hideNav"`
+		Layout      string      `yaml:"layout"`
+	}
+
+	var raw rawFrontmatter
+	if err := yaml.Unmarshal([]byte(fmContent), &raw); err != nil {
 		return nil, "", fmt.Errorf("failed to parse frontmatter: %w", err)
 	}
+	fm.Title = raw.Title
+	fm.Draft = raw.Draft
+	fm.Tags = raw.Tags
+	fm.Description = raw.Description
+	fm.Slug = raw.Slug
+	fm.Order = raw.Order
+	fm.HideToc = raw.HideToc
+	fm.HideNav = raw.HideNav
+	fm.Layout = raw.Layout
+
+	parsedDate, err := parseFlexibleTime(raw.Date)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to parse frontmatter: %w", err)
+	}
+	fm.Date = parsedDate
 
 	// Normalize tags
 	for i, tag := range fm.Tags {
@@ -54,6 +82,40 @@ func ParseFrontmatter(content string) (*Frontmatter, string, error) {
 	}
 
 	return fm, remaining, nil
+}
+
+func parseFlexibleTime(v interface{}) (time.Time, error) {
+	if v == nil {
+		return time.Time{}, nil
+	}
+	if t, ok := v.(time.Time); ok {
+		return t, nil
+	}
+
+	s, ok := v.(string)
+	if !ok {
+		return time.Time{}, fmt.Errorf("unsupported date type %T", v)
+	}
+
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return time.Time{}, nil
+	}
+
+	layouts := []string{
+		time.RFC3339,
+		"2006-01-02T15:04:05",
+		"2006-01-02T15:04",
+		"2006-01-02",
+	}
+
+	for _, layout := range layouts {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t, nil
+		}
+	}
+
+	return time.Time{}, nil
 }
 
 // GenerateSlug creates a URL-friendly slug from text

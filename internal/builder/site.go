@@ -5,8 +5,10 @@ import (
 	"html/template"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/tot-ra/blog-engine/internal/archive"
 	"github.com/tot-ra/blog-engine/internal/assets"
@@ -19,12 +21,15 @@ import (
 	"github.com/tot-ra/blog-engine/internal/tags"
 )
 
+var siteFooterRe = regexp.MustCompile(`(?s)<footer class="site-footer">.*?</footer>`)
+
 // SiteBuilder orchestrates the site building process
 type SiteBuilder struct {
 	config          *config.SiteConfig
 	templates       *renderer.TemplateEngine
 	pages           map[string]*Page
 	navTree         *NavTree
+	blogTimeline    []renderer.TimelineYear
 	processedImages []*assets.ProcessedImage
 	cssBundle       *assets.CSSBundle
 	jsBundle        *assets.JSBundle
@@ -58,7 +63,7 @@ func (b *SiteBuilder) Build() error {
 	// First pass: collect page info for wiki link resolution
 	pageBuilder := NewPageBuilder(b.config.Site.URL)
 	titleToURL := make(map[string]string)
-	
+
 	for _, file := range index.MarkdownFiles {
 		// Quick parse to get title and URL without full rendering
 		content, err := readFile(file.Path)
@@ -74,7 +79,7 @@ func (b *SiteBuilder) Build() error {
 		if fm.Draft {
 			continue
 		}
-		
+
 		url := pageBuilder.urlGen.Generate(file.RelativePath, fm)
 		title := fm.Title
 		if title == "" {
@@ -84,12 +89,12 @@ func (b *SiteBuilder) Build() error {
 			title = strings.ReplaceAll(title, "-", " ")
 			title = strings.ReplaceAll(title, "_", " ")
 		}
-		
+
 		// Map both exact title and slugified title
 		titleToURL[title] = url
 		titleToURL[parser.GenerateSlug(title)] = url
 	}
-	
+
 	// Set up wiki link resolver
 	pageBuilder.SetPageResolver(func(title string) (string, bool) {
 		// Try exact match first
@@ -103,7 +108,7 @@ func (b *SiteBuilder) Build() error {
 		}
 		return "", false
 	})
-	
+
 	// Second pass: build pages with wiki link resolution
 	for _, file := range index.MarkdownFiles {
 		page, err := pageBuilder.Build(file)
@@ -138,14 +143,6 @@ func (b *SiteBuilder) Build() error {
 	// Create output directory
 	if err := os.MkdirAll(b.config.Build.OutputDir, 0755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
-	}
-
-	// Render pages
-	for _, page := range b.pages {
-		if err := b.renderPage(page); err != nil {
-			fmt.Fprintf(os.Stderr, "Error rendering page %s: %v\n", page.URL, err)
-			continue
-		}
 	}
 
 	// Process images
@@ -193,6 +190,17 @@ func (b *SiteBuilder) Build() error {
 		}
 	}
 
+	// Precompute blog timeline data used by blog sidebar "time" mode.
+	b.blogTimeline = buildBlogTimeline(b.collectBlogPosts(), 20)
+
+	// Render pages (after CSS/JS processing so templates can reference bundles)
+	for _, page := range b.pages {
+		if err := b.renderPage(page); err != nil {
+			fmt.Fprintf(os.Stderr, "Error rendering page %s: %v\n", page.URL, err)
+			continue
+		}
+	}
+
 	// Transform image references in rendered HTML
 	if len(b.processedImages) > 0 {
 		transformer := assets.NewImageTransformer(b.processedImages)
@@ -204,6 +212,11 @@ func (b *SiteBuilder) Build() error {
 	// Copy remaining static assets (non-image, non-CSS/JS)
 	if err := b.copyAssets(index); err != nil {
 		return fmt.Errorf("failed to copy assets: %w", err)
+	}
+
+	// Remove legacy footer blocks from generated pages.
+	if err := b.stripSiteFooters(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error stripping site footers: %v\n", err)
 	}
 
 	// Collect blog posts sorted by date descending (used by tags, archive, feeds)
@@ -245,6 +258,27 @@ func (b *SiteBuilder) Build() error {
 	}
 
 	return nil
+}
+
+func (b *SiteBuilder) stripSiteFooters() error {
+	return filepath.Walk(b.config.Build.OutputDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() || !strings.HasSuffix(strings.ToLower(path), ".html") {
+			return nil
+		}
+
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		updated := siteFooterRe.ReplaceAll(data, []byte(""))
+		if string(updated) == string(data) {
+			return nil
+		}
+		return os.WriteFile(path, updated, 0644)
+	})
 }
 
 // processImages processes all discovered image files
@@ -339,6 +373,27 @@ func convertNavNode(node *NavNode) *renderer.NavNode {
 	return rn
 }
 
+func selectSidebarRoot(root *renderer.NavNode, currentPath string) *renderer.NavNode {
+	if root == nil {
+		return nil
+	}
+	trimmed := strings.Trim(currentPath, "/")
+	if trimmed == "" {
+		return root
+	}
+	parts := strings.Split(trimmed, "/")
+	if len(parts) == 0 || parts[0] == "" {
+		return root
+	}
+	sectionURL := "/" + parts[0] + "/"
+	for _, child := range root.Children {
+		if child.URL == sectionURL {
+			return child
+		}
+	}
+	return root
+}
+
 // renderPage renders a single page to HTML
 func (b *SiteBuilder) renderPage(page *Page) error {
 	// Prepare base data
@@ -360,10 +415,21 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 		},
 		Content: template.HTML(page.Content),
 	}
+	if b.cssBundle != nil {
+		data.CSSPath = b.cssBundle.Path
+	}
+	if b.jsBundle != nil {
+		data.JSPath = b.jsBundle.Path
+	}
 
 	// Generate sidebar
 	rendererRoot := convertNavNode(b.navTree.Root)
-	data.Sidebar = renderer.RenderSidebar(rendererRoot, page.URL, b.config.Navigation.Sidebar.MaxDepth)
+	sidebarRoot := selectSidebarRoot(rendererRoot, page.URL)
+	if strings.HasPrefix(page.URL, "/blog/") {
+		data.Sidebar = renderer.RenderBlogSidebar(sidebarRoot, page.URL, b.config.Navigation.Sidebar.MaxDepth, b.config.Navigation.Sidebar.Collapsed, b.blogTimeline)
+	} else {
+		data.Sidebar = renderer.RenderSidebar(sidebarRoot, page.URL, b.config.Navigation.Sidebar.MaxDepth, b.config.Navigation.Sidebar.Collapsed)
+	}
 
 	// Generate TOC (if page has headings and hideToc is not set)
 	if len(page.TOC) > 0 && (page.Frontmatter == nil || !page.Frontmatter.HideToc) {
@@ -392,6 +458,7 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 	if err != nil {
 		return err
 	}
+	html = siteFooterRe.ReplaceAllString(html, "")
 
 	// Determine output path
 	outputPath := filepath.Join(b.config.Build.OutputDir, page.URL)
@@ -507,6 +574,66 @@ func (b *SiteBuilder) collectBlogPosts() []*Page {
 		return di.After(dj)
 	})
 	return posts
+}
+
+func buildBlogTimeline(posts []*Page, maxPerYear int) []renderer.TimelineYear {
+	if maxPerYear <= 0 {
+		maxPerYear = 20
+	}
+
+	byYear := make(map[int][]*Page)
+	years := make([]int, 0)
+	for _, p := range posts {
+		if p == nil || p.Frontmatter == nil || p.Frontmatter.Date.IsZero() {
+			continue
+		}
+		year := p.Frontmatter.Date.Year()
+		if _, exists := byYear[year]; !exists {
+			years = append(years, year)
+		}
+		byYear[year] = append(byYear[year], p)
+	}
+	sort.Slice(years, func(i, j int) bool { return years[i] > years[j] })
+
+	result := make([]renderer.TimelineYear, 0, len(years))
+	for _, year := range years {
+		pages := byYear[year]
+		sort.Slice(pages, func(i, j int) bool {
+			return pages[i].Frontmatter.Date.After(pages[j].Frontmatter.Date)
+		})
+		if len(pages) > maxPerYear {
+			pages = pages[:maxPerYear]
+		}
+
+		monthOrder := make([]time.Month, 0, 12)
+		byMonth := make(map[time.Month][]renderer.TimelineItem)
+		for _, p := range pages {
+			m := p.Frontmatter.Date.Month()
+			if _, exists := byMonth[m]; !exists {
+				monthOrder = append(monthOrder, m)
+			}
+			byMonth[m] = append(byMonth[m], renderer.TimelineItem{
+				Title: p.Title,
+				URL:   p.URL,
+				Date:  p.Frontmatter.Date,
+			})
+		}
+		sort.Slice(monthOrder, func(i, j int) bool { return monthOrder[i] > monthOrder[j] })
+
+		months := make([]renderer.TimelineMonth, 0, len(monthOrder))
+		for _, m := range monthOrder {
+			months = append(months, renderer.TimelineMonth{
+				MonthLabel: m.String(),
+				Items:      byMonth[m],
+			})
+		}
+
+		result = append(result, renderer.TimelineYear{
+			Year:   year,
+			Months: months,
+		})
+	}
+	return result
 }
 
 // pageSummariesFromPosts converts builder Pages to tags.PageSummary slice

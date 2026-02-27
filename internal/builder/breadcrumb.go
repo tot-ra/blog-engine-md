@@ -42,11 +42,7 @@ func (g *BreadcrumbGenerator) Generate(page *Page, tree *NavTree) []BreadcrumbIt
 		fullPath := "/" + pathSoFar
 		isLast := i == len(segments)-1
 
-		title := seg
-		// Capitalize first letter as fallback
-		if len(title) > 0 {
-			title = strings.ToUpper(title[:1]) + title[1:]
-		}
+		title := capitalizeFirst(seg)
 
 		// Try to find a better title from the nav tree
 		if tree != nil {

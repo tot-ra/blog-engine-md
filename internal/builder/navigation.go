@@ -119,11 +119,7 @@ func (nb *NavigationBuilder) insertPage(tree *NavTree, page *Page) {
 				}
 			} else {
 				// Create intermediate section node
-				title := seg
-				// Capitalize first letter for display
-				if len(title) > 0 {
-					title = strings.ToUpper(title[:1]) + title[1:]
-				}
+				title := capitalizeFirst(seg)
 				child = &NavNode{
 					ID:       strings.Trim(fullPath, "/"),
 					Title:    title,

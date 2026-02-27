@@ -2,6 +2,7 @@ package assets
 
 import (
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -32,12 +33,20 @@ var altAttrRegex = regexp.MustCompile(`alt="([^"]*)"`)
 // where processed images are available
 func (t *ImageTransformer) Transform(html string) string {
 	return imgTagRegex.ReplaceAllStringFunc(html, func(match string) string {
+		// Skip explicitly opted-out images (e.g. navbar logo/icon sprites).
+		if strings.Contains(match, "no-transform") {
+			return match
+		}
+
 		// Extract src
 		srcMatch := srcAttrRegex.FindStringSubmatch(match)
 		if srcMatch == nil {
 			return match
 		}
 		src := srcMatch[1]
+		if src == "/assets/img/artjom.webp" {
+			return match
+		}
 
 		// Extract alt
 		alt := ""
@@ -62,20 +71,32 @@ func (t *ImageTransformer) Transform(html string) string {
 
 // findImage looks up a processed image by various path forms
 func (t *ImageTransformer) findImage(src string) *ProcessedImage {
-	// Try exact match
-	if img, ok := t.processedImages[src]; ok {
-		return img
-	}
-	// Try without leading ./
+	candidates := []string{src}
+
 	cleaned := strings.TrimPrefix(src, "./")
-	if img, ok := t.processedImages[cleaned]; ok {
-		return img
+	if cleaned != src {
+		candidates = append(candidates, cleaned)
 	}
-	// Try just filename
-	base := filepath.Base(src)
-	if img, ok := t.processedImages[base]; ok {
-		return img
+
+	decoded, err := url.PathUnescape(src)
+	if err == nil && decoded != src {
+		candidates = append(candidates, decoded)
+		decodedCleaned := strings.TrimPrefix(decoded, "./")
+		if decodedCleaned != decoded {
+			candidates = append(candidates, decodedCleaned)
+		}
 	}
+
+	for _, candidate := range candidates {
+		if img, ok := t.processedImages[candidate]; ok {
+			return img
+		}
+		base := filepath.Base(candidate)
+		if img, ok := t.processedImages[base]; ok {
+			return img
+		}
+	}
+
 	return nil
 }
 
@@ -84,10 +105,14 @@ func (t *ImageTransformer) buildPictureElement(img *ProcessedImage, alt string) 
 	// Find the "full" variant for the main display
 	var fullVariant *ImageVariant
 	var srcsetParts []string
+	allWebP := true
 
 	for i := range img.Variants {
 		v := &img.Variants[i]
 		srcsetParts = append(srcsetParts, fmt.Sprintf("%s %dw", v.FilePath, v.Width))
+		if strings.ToLower(filepath.Ext(v.FilePath)) != ".webp" {
+			allWebP = false
+		}
 		if v.Size == "full" || (fullVariant == nil && v.Size == "original") {
 			fullVariant = v
 		}
@@ -104,15 +129,20 @@ func (t *ImageTransformer) buildPictureElement(img *ProcessedImage, alt string) 
 	sb.WriteString("<figure class=\"md-image\">\n")
 	sb.WriteString("  <picture>\n")
 
-	// WebP sources with srcset
-	if len(srcsetParts) > 0 {
+	// Emit <source type="image/webp"> only when variants are actually webp files.
+	if len(srcsetParts) > 0 && allWebP {
 		sb.WriteString(fmt.Sprintf("    <source srcset=\"%s\" sizes=\"(max-width: 768px) 100vw, 800px\" type=\"image/webp\">\n",
 			strings.Join(srcsetParts, ", ")))
 	}
 
 	// Fallback img
-	sb.WriteString(fmt.Sprintf("    <img src=\"%s\" alt=\"%s\" loading=\"lazy\" width=\"%d\" height=\"%d\">\n",
-		fullVariant.FilePath, alt, fullVariant.Width, fullVariant.Height))
+	if len(srcsetParts) > 0 && !allWebP {
+		sb.WriteString(fmt.Sprintf("    <img src=\"%s\" srcset=\"%s\" sizes=\"(max-width: 768px) 100vw, 800px\" alt=\"%s\" loading=\"lazy\" width=\"%d\" height=\"%d\">\n",
+			fullVariant.FilePath, strings.Join(srcsetParts, ", "), alt, fullVariant.Width, fullVariant.Height))
+	} else {
+		sb.WriteString(fmt.Sprintf("    <img src=\"%s\" alt=\"%s\" loading=\"lazy\" width=\"%d\" height=\"%d\">\n",
+			fullVariant.FilePath, alt, fullVariant.Width, fullVariant.Height))
+	}
 	sb.WriteString("  </picture>\n")
 	sb.WriteString("</figure>")
 

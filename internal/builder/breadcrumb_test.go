@@ -62,3 +62,16 @@ func TestBreadcrumb_WithNavTree(t *testing.T) {
 		t.Errorf("Expected 'My Post', got '%s'", crumbs[2].Title)
 	}
 }
+
+func TestBreadcrumb_UTF8FallbackTitle(t *testing.T) {
+	page := &Page{URL: "/blog/вера/", Title: "Вера", Frontmatter: &parser.Frontmatter{}}
+	gen := NewBreadcrumbGenerator("Home")
+	crumbs := gen.Generate(page, nil)
+
+	if len(crumbs) != 3 {
+		t.Fatalf("Expected 3 crumbs, got %d", len(crumbs))
+	}
+	if crumbs[2].Title != "Вера" {
+		t.Fatalf("Expected UTF-8 title 'Вера', got '%s'", crumbs[2].Title)
+	}
+}
