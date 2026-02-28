@@ -1,6 +1,6 @@
 # Blog Engine MD
 
-A high-performance static site generator written in Go, designed as a memory-efficient alternative to Docusaurus for markdown-based blogs and documentation.
+A high-performance static site generator written in Go, designed as a memory-efficient alternative to [Docusaurus](https://docusaurus.io/) or [Hugo](https://gohugo.io/) for markdown-based blogs and documentation in [Obsidian](https://obsidian.md/) style
 
 <img width="1500" height="843" alt="blog" src="https://github.com/user-attachments/assets/45049191-d90b-491f-828a-c8d9cfd1b310" />
 
