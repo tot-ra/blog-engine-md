@@ -295,9 +295,35 @@ func (b *SiteBuilder) prepareOutputDir() error {
 	}
 	if err := os.RemoveAll(out); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to fully clean output directory %s: %v\n", out, err)
+		if clearErr := clearGeneratedOutput(out); clearErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to clear generated output in %s: %v\n", out, clearErr)
+		}
 	}
 	if err := os.MkdirAll(out, 0755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+	return nil
+}
+
+// clearGeneratedOutput removes generated site output while preserving assets if full cleanup fails.
+func clearGeneratedOutput(out string) error {
+	entries, err := os.ReadDir(out)
+	if err != nil {
+		// Directory may already be gone.
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+
+	for _, entry := range entries {
+		name := entry.Name()
+		if name == "assets" {
+			continue
+		}
+		if err := os.RemoveAll(filepath.Join(out, name)); err != nil {
+			return err
+		}
 	}
 	return nil
 }
