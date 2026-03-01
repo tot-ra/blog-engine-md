@@ -38,6 +38,7 @@ type Page struct {
 	Description  string
 	Content      string
 	RawContent   string
+	AudioURL     string
 	Frontmatter  *parser.Frontmatter
 	TOC          []*TocItem
 	Type         PageType

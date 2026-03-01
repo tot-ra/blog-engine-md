@@ -148,6 +148,11 @@ func (b *SiteBuilder) Build() error {
 		b.navTree = navBuilder.BuildTree(b.pages)
 	}
 
+	// Generate and cache audio narration for recent blog posts.
+	if err := b.prepareBlogAudio(index); err != nil {
+		fmt.Fprintf(os.Stderr, "Error generating blog audio: %v\n", err)
+	}
+
 	// Reset output directory to avoid stale routes from previous builds.
 	if err := b.prepareOutputDir(); err != nil {
 		return err
@@ -623,6 +628,12 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 	if page.Language == "" {
 		page.Language = b.detectLanguageFromURL(page.URL)
 	}
+	if b.config.Audio.Enabled && page.Type == TypeBlog && page.AudioURL == "" {
+		absAudioPath, audioURL, err := b.audioFilePathAndURL(page)
+		if err == nil && fileExistsNonEmpty(absAudioPath) {
+			page.AudioURL = audioURL
+		}
+	}
 	ui := i18n.UI(page.Language)
 
 	// Prepare base data
@@ -635,6 +646,7 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 			Title:        page.Title,
 			Description:  page.Description,
 			Content:      page.Content,
+			AudioURL:     page.AudioURL,
 			Type:         string(page.Type),
 			ModifiedTime: page.ModifiedTime,
 			Layout:       page.Frontmatter.Layout,

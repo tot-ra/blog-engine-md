@@ -16,6 +16,7 @@ type SiteConfig struct {
 	Build        Build                     `yaml:"build"`
 	Navigation   Navigation                `yaml:"navigation"`
 	Assets       AssetsConfig              `yaml:"assets"`
+	Audio        AudioConfig               `yaml:"audio"`
 	Feeds        FeedsConfig               `yaml:"feeds"`
 	Sitemap      SitemapConfig             `yaml:"sitemap"`
 	Tags         TagsConfig                `yaml:"tags"`
@@ -160,6 +161,25 @@ type JSConfig struct {
 type CacheConfig struct {
 	Enabled   bool   `yaml:"enabled"`
 	Directory string `yaml:"directory"`
+}
+
+// AudioConfig contains article text-to-speech generation settings.
+type AudioConfig struct {
+	Enabled     bool              `yaml:"enabled"`
+	Provider    string            `yaml:"provider"`    // edge
+	OutputDir   string            `yaml:"outputDir"`   // Path inside content dir to store generated audio
+	RecentPosts int               `yaml:"recentPosts"` // Generate for N latest blog posts (<=0 means all)
+	MaxChars    int               `yaml:"maxChars"`    // Character cap per article for synthesis request
+	Edge        EdgeAudioConfig   `yaml:"edge"`
+	Voices      map[string]string `yaml:"voices"` // Language code to voice mapping, e.g. ru: ru-RU-SvetlanaNeural
+}
+
+// EdgeAudioConfig contains settings for edge-tts provider.
+type EdgeAudioConfig struct {
+	Binary string `yaml:"binary"` // edge-tts executable path
+	Rate   string `yaml:"rate"`   // +0%
+	Pitch  string `yaml:"pitch"`  // +0Hz
+	Voice  string `yaml:"voice"`  // Fallback voice
 }
 
 // Navigation contains navigation settings
@@ -391,6 +411,23 @@ func DefaultConfig() *SiteConfig {
 				Directory: ".cache",
 			},
 		},
+		Audio: AudioConfig{
+			Enabled:     false,
+			Provider:    "edge",
+			OutputDir:   "content/audio/posts",
+			RecentPosts: 10,
+			MaxChars:    12000,
+			Edge: EdgeAudioConfig{
+				Binary: "edge-tts",
+				Rate:   "+0%",
+				Pitch:  "+0Hz",
+				Voice:  "en-US-EmmaMultilingualNeural",
+			},
+			Voices: map[string]string{
+				"ru": "ru-RU-SvetlanaNeural",
+				"en": "en-US-EmmaMultilingualNeural",
+			},
+		},
 	}
 }
 
@@ -430,6 +467,36 @@ func Validate(cfg *SiteConfig) error {
 	}
 	if cfg.Build.ParallelWorkers <= 0 {
 		cfg.Build.ParallelWorkers = 4
+	}
+	if cfg.Audio.Provider == "" {
+		cfg.Audio.Provider = "edge"
+	}
+	if cfg.Audio.OutputDir == "" {
+		cfg.Audio.OutputDir = "content/audio/posts"
+	}
+	if cfg.Audio.RecentPosts == 0 {
+		cfg.Audio.RecentPosts = 10
+	}
+	if cfg.Audio.MaxChars <= 0 {
+		cfg.Audio.MaxChars = 12000
+	}
+	if cfg.Audio.Edge.Binary == "" {
+		cfg.Audio.Edge.Binary = "edge-tts"
+	}
+	if cfg.Audio.Edge.Rate == "" {
+		cfg.Audio.Edge.Rate = "+0%"
+	}
+	if cfg.Audio.Edge.Pitch == "" {
+		cfg.Audio.Edge.Pitch = "+0Hz"
+	}
+	if cfg.Audio.Edge.Voice == "" {
+		cfg.Audio.Edge.Voice = "en-US-EmmaMultilingualNeural"
+	}
+	if cfg.Audio.Voices == nil {
+		cfg.Audio.Voices = map[string]string{
+			"ru": "ru-RU-SvetlanaNeural",
+			"en": "en-US-EmmaMultilingualNeural",
+		}
 	}
 	if cfg.Site.Language == "" {
 		cfg.Site.Language = "en"

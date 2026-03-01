@@ -18,6 +18,10 @@ type UIStrings struct {
 	OnThisPage      string
 	Previous        string
 	Next            string
+	Listen          string
+	Stop            string
+	Rewind          string
+	PlaybackPos     string
 	ToggleTheme     string
 	AskMyAgent      string
 	Projects        string
@@ -107,6 +111,10 @@ func UI(lang string) UIStrings {
 			OnThisPage:      "На этой странице",
 			Previous:        "Предыдущая",
 			Next:            "Следующая",
+			Listen:          "Слушать",
+			Stop:            "Стоп",
+			Rewind:          "В начало",
+			PlaybackPos:     "Позиция воспроизведения",
 			ToggleTheme:     "Сменить тему",
 			AskMyAgent:      "Спросить моего агента",
 			Projects:        "Проекты",
@@ -127,6 +135,10 @@ func UI(lang string) UIStrings {
 			OnThisPage:      "On this page",
 			Previous:        "Previous",
 			Next:            "Next",
+			Listen:          "Listen",
+			Stop:            "Stop",
+			Rewind:          "Rewind",
+			PlaybackPos:     "Playback position",
 			ToggleTheme:     "Toggle theme",
 			AskMyAgent:      "Ask my agent",
 			Projects:        "Projects",

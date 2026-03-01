@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -29,7 +30,7 @@ type GraphNode struct {
 type GraphEdge struct {
 	Source string  `json:"source"`
 	Target string  `json:"target"`
-	Type   string  `json:"type"` // "link", "tag"
+	Type   string  `json:"type"` // "link", "tag", "related"
 	Weight float64 `json:"weight"`
 }
 
@@ -60,6 +61,7 @@ func BuildGraph(pages []PageInfo) *GraphData {
 		Nodes: make([]GraphNode, 0),
 		Edges: make([]GraphEdge, 0),
 	}
+	edgeSet := make(map[string]struct{})
 
 	// Build URL-to-ID lookup for resolving internal links
 	urlToID := make(map[string]string)
@@ -98,12 +100,14 @@ func BuildGraph(pages []PageInfo) *GraphData {
 			linkURL = normalizeLinkURL(p.URL, linkURL)
 
 			if targetID, ok := urlToID[linkURL]; ok {
-				graph.Edges = append(graph.Edges, GraphEdge{
+				if !addUniqueEdge(graph, edgeSet, GraphEdge{
 					Source: p.ID,
 					Target: targetID,
 					Type:   "link",
 					Weight: 1.0,
-				})
+				}) {
+					continue
+				}
 				linkCount[p.ID]++
 				linkCount[targetID]++
 			}
@@ -113,15 +117,55 @@ func BuildGraph(pages []PageInfo) *GraphData {
 		for _, tag := range p.Tags {
 			tagID := "tag-" + tag
 			tagSet[tag] = true
-			graph.Edges = append(graph.Edges, GraphEdge{
+			if !addUniqueEdge(graph, edgeSet, GraphEdge{
 				Source: p.ID,
 				Target: tagID,
 				Type:   "tag",
 				Weight: 0.5,
-			})
+			}) {
+				continue
+			}
 			linkCount[p.ID]++
 			linkCount[tagID]++
 		}
+	}
+
+	// Add direct article-to-article edges for pages sharing tags.
+	// This creates denser clusters in graph view while preserving tag nodes.
+	idsByTag := make(map[string][]string)
+	for _, p := range pages {
+		for _, tag := range p.Tags {
+			idsByTag[tag] = append(idsByTag[tag], p.ID)
+		}
+	}
+
+	sharedTagCount := make(map[string]int)
+	for _, ids := range idsByTag {
+		sort.Strings(ids)
+		for i := 0; i < len(ids); i++ {
+			for j := i + 1; j < len(ids); j++ {
+				pair := canonicalPairKey(ids[i], ids[j])
+				sharedTagCount[pair]++
+			}
+		}
+	}
+
+	for pair, count := range sharedTagCount {
+		source, target := splitPairKey(pair)
+		weight := 0.35 + float64(count-1)*0.15
+		if weight > 1.0 {
+			weight = 1.0
+		}
+		if !addUniqueEdge(graph, edgeSet, GraphEdge{
+			Source: source,
+			Target: target,
+			Type:   "related",
+			Weight: weight,
+		}) {
+			continue
+		}
+		linkCount[source]++
+		linkCount[target]++
 	}
 
 	// Add tag nodes
@@ -145,6 +189,41 @@ func BuildGraph(pages []PageInfo) *GraphData {
 	}
 
 	return graph
+}
+
+func addUniqueEdge(graph *GraphData, edgeSet map[string]struct{}, edge GraphEdge) bool {
+	key := edgeKey(edge.Source, edge.Target, edge.Type)
+	if _, exists := edgeSet[key]; exists {
+		return false
+	}
+	edgeSet[key] = struct{}{}
+	graph.Edges = append(graph.Edges, edge)
+	return true
+}
+
+func edgeKey(source, target, edgeType string) string {
+	switch edgeType {
+	case "tag", "related":
+		if source > target {
+			source, target = target, source
+		}
+	}
+	return source + "|" + target + "|" + edgeType
+}
+
+func canonicalPairKey(a, b string) string {
+	if a > b {
+		a, b = b, a
+	}
+	return a + "|" + b
+}
+
+func splitPairKey(key string) (string, string) {
+	parts := strings.SplitN(key, "|", 2)
+	if len(parts) != 2 {
+		return key, key
+	}
+	return parts[0], parts[1]
 }
 
 // normalizeLinkURL resolves a relative link URL based on the source page URL
@@ -213,15 +292,6 @@ func generateGraphHTML(siteTitle string) string {
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow: hidden; background: #ffffff; color: #111; }
         #graph-container { width: 100vw; height: 100vh; display: block; }
-        .controls {
-            position: fixed; top: 16px; left: 16px; z-index: 10;
-            background: rgba(255,255,255,0.95); padding: 12px 16px;
-            border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-            font-size: 14px;
-        }
-        .controls h3 { margin-bottom: 8px; font-size: 16px; }
-        .controls label { display: block; margin: 4px 0; cursor: pointer; }
-        .controls input[type="checkbox"] { margin-right: 6px; }
         .legend {
             position: fixed;
             left: 50%%;
@@ -250,16 +320,6 @@ func generateGraphHTML(siteTitle string) string {
             text-decoration: none; color: #333; font-size: 14px;
         }
         .back-link:hover { background: #f0f0f0; }
-        body.embed .controls {
-            top: 8px;
-            left: 8px;
-            padding: 8px 10px;
-            font-size: 12px;
-        }
-        body.embed .controls h3 {
-            font-size: 13px;
-            margin-bottom: 6px;
-        }
         body.embed .back-link { display: none; }
         body.embed .legend {
             bottom: 8px;
@@ -271,7 +331,6 @@ func generateGraphHTML(siteTitle string) string {
             background: #111315;
             color: #e8edf6;
         }
-        body.dark .controls,
         body.dark .legend,
         body.dark .back-link {
             background: rgba(33, 37, 45, 0.94);
@@ -284,12 +343,6 @@ func generateGraphHTML(siteTitle string) string {
     </style>
 </head>
 <body>
-    <div class="controls">
-        <h3>🔗 Graph View</h3>
-        <label><input type="checkbox" id="filter-blog" checked> Blog posts</label>
-        <label><input type="checkbox" id="filter-doc" checked> Documentation</label>
-        <label><input type="checkbox" id="filter-tag" checked> Tags</label>
-    </div>
     <div class="legend">
         <div class="legend-item"><div class="legend-dot" style="background:#4CAF50"></div> Blog</div>
         <div class="legend-item"><div class="legend-dot" style="background:#2196F3"></div> Docs</div>
@@ -342,20 +395,8 @@ func generateGraphHTML(siteTitle string) string {
                 .force('center', d3.forceCenter(width / 2, height / 2))
                 .force('collision', d3.forceCollide().radius(d => d.size + 2));
 
-            // Filter state
-            const filters = { blog: true, doc: true, tag: true, page: true };
-
-            document.querySelectorAll('.controls input').forEach(cb => {
-                cb.addEventListener('change', () => {
-                    const type = cb.id.replace('filter-', '');
-                    filters[type] = cb.checked;
-                    simulation.alpha(0.3).restart();
-                    draw();
-                });
-            });
-
             function isVisible(node) {
-                return filters[node.type] !== false;
+                return true;
             }
 
             function screenToWorld(x, y) {

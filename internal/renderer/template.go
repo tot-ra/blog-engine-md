@@ -21,6 +21,7 @@ type Page struct {
 	Title        string
 	Description  string
 	Content      string
+	AudioURL     string
 	Type         string
 	ModifiedTime time.Time
 	Layout       string // Custom layout template name
@@ -215,6 +216,8 @@ const defaultTemplates = `{{define "base"}}
             --bg-primary: #ffffff;
             --text-primary: #333333;
             --text-secondary: #666666;
+            --quote-bg: #f5f9ff;
+            --quote-border: #8cb8ee;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -310,6 +313,8 @@ const defaultTemplates = `{{define "base"}}
             --bg-primary: #111315;
             --text-primary: #eceef1;
             --text-secondary: #a9adb5;
+            --quote-bg: #18212d;
+            --quote-border: #4b7ebd;
         }
         /* Layout */
         .site-layout {
@@ -586,6 +591,60 @@ const defaultTemplates = `{{define "base"}}
         /* Article */
         article h1 { font-size: 2em; margin-bottom: 8px; }
         article time { color: var(--text-secondary); font-size: 0.9em; }
+        .article-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin: 0 0 14px;
+            flex-wrap: wrap;
+        }
+        .article-audio {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0;
+        }
+        .article-audio button {
+            border: 1px solid var(--nav-border);
+            border-radius: 999px;
+            background: #fff;
+            color: var(--text-primary);
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .article-audio button svg {
+            width: 14px;
+            height: 14px;
+            fill: currentColor;
+        }
+        .article-audio .audio-wave {
+            width: 120px;
+            height: 28px;
+            border: 1px solid var(--nav-border);
+            border-radius: 6px;
+            background: #fff;
+        }
+        .article-audio input[type="range"] {
+            width: 140px;
+            accent-color: var(--nav-active);
+        }
+        .audio-time {
+            min-width: 74px;
+            color: var(--text-secondary);
+            font-size: 0.8em;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+        .article-audio button:disabled {
+            opacity: 0.55;
+            cursor: default;
+        }
         article .tags { margin: 22px 0 24px; }
         article .tag {
             display: inline-block;
@@ -602,6 +661,17 @@ const defaultTemplates = `{{define "base"}}
         article .content h2 { margin-top: 2em; margin-bottom: 0.5em; }
         article .content h3 { margin-top: 1.5em; margin-bottom: 0.4em; }
         article .content p { margin-bottom: 1em; }
+        article .content blockquote {
+            margin: 1.4em 0;
+            padding: 0.8em 1em;
+            border-left: 4px solid var(--quote-border);
+            background: var(--quote-bg);
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+        article .content blockquote p:last-child {
+            margin-bottom: 0;
+        }
         /* Footer */
         .site-footer {
             border-top: 1px solid var(--nav-border);
@@ -699,6 +769,212 @@ const defaultTemplates = `{{define "base"}}
         </main>
         {{if .TOC}}{{.TOC}}{{end}}
     </div>
+    <script>
+    (function() {
+        var players = document.querySelectorAll("[data-audio-player]");
+        players.forEach(function(container) {
+            var audio = container.querySelector("[data-audio-element]");
+            var playBtn = container.querySelector("[data-audio-play]");
+            var stopBtn = container.querySelector("[data-audio-stop]");
+            var seek = container.querySelector("[data-audio-seek]");
+            var timeEl = container.querySelector("[data-audio-time]");
+            var wave = container.querySelector("[data-audio-wave]");
+            if (!audio || !playBtn || !stopBtn || !seek || !timeEl || !wave) {
+                return;
+            }
+            var audioCtx = null;
+            var sourceNode = null;
+            var analyser = null;
+            var waveData = null;
+            var rafId = 0;
+            var isSeeking = false;
+            var progressRaf = 0;
+
+            function formatTime(totalSeconds) {
+                if (!isFinite(totalSeconds) || totalSeconds <= 0) {
+                    return "0:00";
+                }
+                var sec = Math.floor(totalSeconds);
+                var m = Math.floor(sec / 60);
+                var s = sec % 60;
+                return m + ":" + String(s).padStart(2, "0");
+            }
+
+            function getTotalDuration() {
+                if (isFinite(audio.duration) && audio.duration > 0) {
+                    return audio.duration;
+                }
+                if (audio.seekable && audio.seekable.length > 0) {
+                    var end = audio.seekable.end(audio.seekable.length - 1);
+                    if (isFinite(end) && end > 0) {
+                        return end;
+                    }
+                }
+                return 0;
+            }
+
+            function updateTimeLabel() {
+                var current = audio.currentTime || 0;
+                var total = getTotalDuration();
+                timeEl.textContent = formatTime(current) + " / " + formatTime(total);
+            }
+
+            function updateSeek() {
+                if (!isSeeking) {
+                    var max = getTotalDuration();
+                    seek.max = String(Math.max(max, 0));
+                    seek.value = String(Math.min(audio.currentTime || 0, max || 0));
+                }
+                updateTimeLabel();
+            }
+
+            function stopProgressLoop() {
+                if (progressRaf) {
+                    cancelAnimationFrame(progressRaf);
+                    progressRaf = 0;
+                }
+            }
+
+            function startProgressLoop() {
+                stopProgressLoop();
+                var tick = function() {
+                    updateSeek();
+                    if (!audio.paused && !audio.ended) {
+                        progressRaf = requestAnimationFrame(tick);
+                    } else {
+                        stopProgressLoop();
+                    }
+                };
+                progressRaf = requestAnimationFrame(tick);
+            }
+
+            function ensureVisualizer() {
+                if (analyser) {
+                    return;
+                }
+                var AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) {
+                    return;
+                }
+                audioCtx = new AudioCtx();
+                sourceNode = audioCtx.createMediaElementSource(audio);
+                analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 1024;
+                waveData = new Uint8Array(analyser.fftSize);
+                sourceNode.connect(analyser);
+                analyser.connect(audioCtx.destination);
+            }
+
+            function stopWave() {
+                if (rafId) {
+                    cancelAnimationFrame(rafId);
+                    rafId = 0;
+                }
+            }
+
+            function drawWave() {
+                if (!analyser || !wave) {
+                    return;
+                }
+                var dpr = window.devicePixelRatio || 1;
+                var w = Math.max(120, wave.clientWidth || 120);
+                var h = Math.max(28, wave.clientHeight || 28);
+                if (wave.width !== Math.floor(w * dpr) || wave.height !== Math.floor(h * dpr)) {
+                    wave.width = Math.floor(w * dpr);
+                    wave.height = Math.floor(h * dpr);
+                }
+                var ctx = wave.getContext("2d");
+                if (!ctx) {
+                    return;
+                }
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                ctx.clearRect(0, 0, w, h);
+                ctx.strokeStyle = "#0066cc";
+                ctx.lineWidth = 1.2;
+
+                analyser.getByteTimeDomainData(waveData);
+                ctx.beginPath();
+                var slice = waveData.length / w;
+                for (var x = 0; x < w; x++) {
+                    var idx = Math.floor(x * slice);
+                    var y = ((waveData[idx] - 128) / 128) * (h * 0.36) + (h / 2);
+                    if (x === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+                ctx.stroke();
+
+                if (!audio.paused && !audio.ended) {
+                    rafId = requestAnimationFrame(drawWave);
+                } else {
+                    stopWave();
+                }
+            }
+
+            playBtn.addEventListener("click", function() {
+                ensureVisualizer();
+                if (audioCtx && audioCtx.state === "suspended") {
+                    audioCtx.resume().catch(function() {});
+                }
+                var started = audio.play();
+                if (started && typeof started.then === "function") {
+                    started.then(function() {
+                        playBtn.disabled = true;
+                        stopBtn.disabled = false;
+                        startProgressLoop();
+                        drawWave();
+                    }).catch(function() {});
+                    return;
+                }
+                playBtn.disabled = true;
+                stopBtn.disabled = false;
+                startProgressLoop();
+                drawWave();
+            });
+            stopBtn.addEventListener("click", function() {
+                audio.pause();
+                audio.currentTime = 0;
+                playBtn.disabled = false;
+                stopBtn.disabled = true;
+                updateSeek();
+                stopWave();
+                stopProgressLoop();
+            });
+            seek.addEventListener("input", function() {
+                isSeeking = true;
+                var preview = parseFloat(seek.value || "0");
+                timeEl.textContent = formatTime(preview) + " / " + formatTime(audio.duration || 0);
+            });
+            seek.addEventListener("change", function() {
+                var target = parseFloat(seek.value || "0");
+                if (isFinite(target)) {
+                    audio.currentTime = target;
+                }
+                isSeeking = false;
+                updateSeek();
+            });
+            audio.addEventListener("timeupdate", updateSeek);
+            audio.addEventListener("loadedmetadata", updateSeek);
+            audio.addEventListener("durationchange", updateSeek);
+            audio.addEventListener("loadeddata", updateSeek);
+            audio.addEventListener("canplay", updateSeek);
+            audio.addEventListener("progress", updateSeek);
+            audio.addEventListener("ended", function() {
+                playBtn.disabled = false;
+                stopBtn.disabled = true;
+                updateSeek();
+                stopWave();
+                stopProgressLoop();
+            });
+
+            seek.min = "0";
+            seek.step = "0.1";
+            updateSeek();
+        });
+    })();
+    </script>
     {{if .JSPath}}<script defer src="{{.JSPath}}"></script>{{end}}
 </body>
 </html>
@@ -726,10 +1002,32 @@ const defaultTemplates = `{{define "base"}}
     </nav>
     {{end}}
     <h1>{{.Page.Title}}</h1>
-    {{if hasDate .Frontmatter.Date}}
-    <time datetime="{{.Frontmatter.Date.Format "2006-01-02T15:04:05Z07:00"}}">
-        {{formatDateLocalized .Frontmatter.Date .Page.Language}}
-    </time>
+    {{if or (hasDate .Frontmatter.Date) .Page.AudioURL}}
+    <div class="article-meta">
+        {{if hasDate .Frontmatter.Date}}
+        <time datetime="{{.Frontmatter.Date.Format "2006-01-02T15:04:05Z07:00"}}">
+            {{formatDateLocalized .Frontmatter.Date .Page.Language}}
+        </time>
+        {{else}}<span></span>{{end}}
+        {{if .Page.AudioURL}}
+        <div class="article-audio" data-audio-player>
+            <audio preload="metadata" src="{{.Page.AudioURL}}" data-audio-element></audio>
+            <button type="button" data-audio-play aria-label="{{.UI.Listen}}" title="{{.UI.Listen}}">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <polygon points="8,5 19,12 8,19"></polygon>
+                </svg>
+            </button>
+            <button type="button" data-audio-stop disabled aria-label="{{.UI.Stop}}" title="{{.UI.Stop}}">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="7" y="7" width="10" height="10"></rect>
+                </svg>
+            </button>
+            <input type="range" value="0" data-audio-seek aria-label="{{.UI.PlaybackPos}}">
+            <canvas class="audio-wave" data-audio-wave></canvas>
+            <span class="audio-time" data-audio-time>0:00 / 0:00</span>
+        </div>
+        {{end}}
+    </div>
     {{end}}
     <div class="content">
         {{.Content}}

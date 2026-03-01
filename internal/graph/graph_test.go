@@ -101,6 +101,57 @@ func TestBuildGraph_NodeSizes(t *testing.T) {
 	}
 }
 
+func TestBuildGraph_AddsRelatedEdgesForSharedTags(t *testing.T) {
+	pages := []PageInfo{
+		{
+			ID:    "a",
+			Title: "A",
+			URL:   "/a/",
+			Type:  "blog",
+			Tags:  []string{"go", "api"},
+		},
+		{
+			ID:    "b",
+			Title: "B",
+			URL:   "/b/",
+			Type:  "blog",
+			Tags:  []string{"go", "api"},
+		},
+		{
+			ID:    "c",
+			Title: "C",
+			URL:   "/c/",
+			Type:  "doc",
+			Tags:  []string{"go"},
+		},
+	}
+
+	graph := BuildGraph(pages)
+
+	relatedEdges := 0
+	weightedAB := false
+	for _, e := range graph.Edges {
+		if e.Type != "related" {
+			continue
+		}
+		relatedEdges++
+		if (e.Source == "a" && e.Target == "b") || (e.Source == "b" && e.Target == "a") {
+			// 2 shared tags => 0.35 + 0.15 = 0.5
+			if e.Weight == 0.5 {
+				weightedAB = true
+			}
+		}
+	}
+
+	// Pairs sharing at least one tag: a-b, a-c, b-c
+	if relatedEdges != 3 {
+		t.Fatalf("expected 3 related edges, got %d", relatedEdges)
+	}
+	if !weightedAB {
+		t.Fatal("expected a-b related edge with weight 0.5")
+	}
+}
+
 func TestNormalizeLinkURL(t *testing.T) {
 	tests := []struct {
 		source string
