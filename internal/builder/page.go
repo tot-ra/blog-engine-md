@@ -220,6 +220,17 @@ func determinePageType(relPath string) PageType {
 	if strings.HasPrefix(path, "docs/") || path == "docs" {
 		return TypeDoc
 	}
+
+	// Be tolerant to language-prefixed or nested paths (e.g. ru/blog/...).
+	parts := strings.Split(path, "/")
+	if len(parts) > 1 {
+		switch parts[1] {
+		case "blog":
+			return TypeBlog
+		case "docs":
+			return TypeDoc
+		}
+	}
 	return TypePage
 }
 

@@ -594,22 +594,22 @@ const defaultTemplates = `{{define "base"}}
         .article-meta {
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            margin: 0 0 14px;
-            flex-wrap: wrap;
+            justify-content: flex-start;
+            gap: 4px;
+            margin: 0 0 8px;
+            flex-wrap: nowrap;
         }
         .article-audio {
             display: flex;
             align-items: center;
             gap: 8px;
-            margin: 0;
+            margin: 0 0 0 2px;
         }
         .article-audio button {
-            border: 1px solid var(--nav-border);
+            border: 1px solid var(--nav-active);
             border-radius: 999px;
-            background: #fff;
-            color: var(--text-primary);
+            background: var(--nav-active);
+            color: #fff;
             width: 36px;
             height: 36px;
             padding: 0;
@@ -617,6 +617,9 @@ const defaultTemplates = `{{define "base"}}
             align-items: center;
             justify-content: center;
             cursor: pointer;
+        }
+        .article-audio button:hover {
+            filter: brightness(0.92);
         }
         .article-audio button svg {
             width: 14px;
@@ -632,6 +635,7 @@ const defaultTemplates = `{{define "base"}}
             border: 0;
             border-radius: 0;
             background: transparent;
+            opacity: 0.95;
         }
         .article-audio button:disabled {
             opacity: 0.55;

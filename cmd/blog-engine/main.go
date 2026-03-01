@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/tot-ra/blog-engine/internal/builder"
 	"github.com/tot-ra/blog-engine/internal/config"
@@ -47,6 +48,10 @@ func printUsage() {
 }
 
 func runBuild() error {
+	if _, err := loadEnvFiles(); err != nil {
+		return err
+	}
+
 	// Load configuration
 	cfg, err := config.Load("config.yaml")
 	if err != nil {
@@ -72,6 +77,11 @@ func runBuild() error {
 }
 
 func runServe() error {
+	envFiles, err := loadEnvFiles()
+	if err != nil {
+		return err
+	}
+
 	// Load configuration
 	cfg, err := config.Load("config.yaml")
 	if err != nil {
@@ -105,11 +115,17 @@ func runServe() error {
 	})
 
 	// Configure watcher
+	watchPaths := []string{"content", "templates", "assets", "config.yaml"}
+	watchPaths = append(watchPaths, envFiles...)
 	watcher := server.NewWatcher(server.WatcherConfig{
-		Paths:    []string{"content", "templates", "assets", "config.yaml"},
+		Paths:    watchPaths,
 		Ignore:   []string{".git", "node_modules", ".cache", cfg.Build.OutputDir},
 		Server:   srv,
 		OnChange: func() error {
+			if _, err := loadEnvFiles(); err != nil {
+				return err
+			}
+
 			// Reload config if changed
 			newCfg, err := config.Load("config.yaml")
 			if err == nil {
@@ -131,4 +147,31 @@ func runServe() error {
 
 	// Start watcher (blocks)
 	return watcher.Start()
+}
+
+func loadEnvFiles() ([]string, error) {
+	var candidates []string
+	exePath, err := os.Executable()
+	if err == nil {
+		candidates = append(candidates, filepath.Join(filepath.Dir(exePath), ".env"))
+	}
+	candidates = append(candidates, ".env")
+
+	seen := make(map[string]struct{}, len(candidates))
+	loaded := make([]string, 0, len(candidates))
+	for _, path := range candidates {
+		if path == "" {
+			continue
+		}
+		if _, exists := seen[path]; exists {
+			continue
+		}
+		seen[path] = struct{}{}
+		if err := config.LoadDotEnv(path); err != nil {
+			return nil, fmt.Errorf("failed to load %q: %w", path, err)
+		}
+		loaded = append(loaded, path)
+	}
+
+	return loaded, nil
 }

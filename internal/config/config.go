@@ -166,11 +166,12 @@ type CacheConfig struct {
 // AudioConfig contains article text-to-speech generation settings.
 type AudioConfig struct {
 	Enabled     bool              `yaml:"enabled"`
-	Provider    string            `yaml:"provider"`    // edge
+	Provider    string            `yaml:"provider"`    // elevenlabs, edge
 	OutputDir   string            `yaml:"outputDir"`   // Path inside content dir to store generated audio
 	RecentPosts int               `yaml:"recentPosts"` // Generate for N latest blog posts (<=0 means all)
 	MaxChars    int               `yaml:"maxChars"`    // Character cap per article for synthesis request
 	Edge        EdgeAudioConfig   `yaml:"edge"`
+	ElevenLabs  ElevenLabsConfig  `yaml:"elevenlabs"`
 	Voices      map[string]string `yaml:"voices"` // Language code to voice mapping, e.g. ru: ru-RU-SvetlanaNeural
 }
 
@@ -180,6 +181,19 @@ type EdgeAudioConfig struct {
 	Rate   string `yaml:"rate"`   // +0%
 	Pitch  string `yaml:"pitch"`  // +0Hz
 	Voice  string `yaml:"voice"`  // Fallback voice
+}
+
+// ElevenLabsConfig contains settings for ElevenLabs text-to-speech provider.
+type ElevenLabsConfig struct {
+	APIKeyEnv       string  `yaml:"apiKeyEnv"`       // Environment variable name with API key
+	BaseURL         string  `yaml:"baseUrl"`         // API base URL
+	ModelID         string  `yaml:"modelId"`         // e.g. eleven_multilingual_v2
+	OutputFormat    string  `yaml:"outputFormat"`    // e.g. mp3_44100_128
+	DefaultVoiceID  string  `yaml:"defaultVoiceId"`  // Fallback voice id
+	Stability       float64 `yaml:"stability"`       // 0..1
+	SimilarityBoost float64 `yaml:"similarityBoost"` // 0..1
+	Style           float64 `yaml:"style"`           // 0..1
+	SpeakerBoost    bool    `yaml:"speakerBoost"`    // Enhance speaker similarity
 }
 
 // Navigation contains navigation settings
@@ -413,7 +427,7 @@ func DefaultConfig() *SiteConfig {
 		},
 		Audio: AudioConfig{
 			Enabled:     false,
-			Provider:    "edge",
+			Provider:    "elevenlabs",
 			OutputDir:   "content/audio/posts",
 			RecentPosts: 10,
 			MaxChars:    12000,
@@ -423,9 +437,20 @@ func DefaultConfig() *SiteConfig {
 				Pitch:  "+0Hz",
 				Voice:  "en-US-EmmaMultilingualNeural",
 			},
+			ElevenLabs: ElevenLabsConfig{
+				APIKeyEnv:       "ELEVENLABS_API_KEY",
+				BaseURL:         "https://api.elevenlabs.io",
+				ModelID:         "eleven_multilingual_v2",
+				OutputFormat:    "mp3_44100_128",
+				DefaultVoiceID:  "EXAVITQu4vr4xnSDxMaL",
+				Stability:       0.45,
+				SimilarityBoost: 0.75,
+				Style:           0.2,
+				SpeakerBoost:    true,
+			},
 			Voices: map[string]string{
-				"ru": "ru-RU-SvetlanaNeural",
-				"en": "en-US-EmmaMultilingualNeural",
+				"ru": "EXAVITQu4vr4xnSDxMaL",
+				"en": "EXAVITQu4vr4xnSDxMaL",
 			},
 		},
 	}
@@ -469,7 +494,7 @@ func Validate(cfg *SiteConfig) error {
 		cfg.Build.ParallelWorkers = 4
 	}
 	if cfg.Audio.Provider == "" {
-		cfg.Audio.Provider = "edge"
+		cfg.Audio.Provider = "elevenlabs"
 	}
 	if cfg.Audio.OutputDir == "" {
 		cfg.Audio.OutputDir = "content/audio/posts"
@@ -492,10 +517,34 @@ func Validate(cfg *SiteConfig) error {
 	if cfg.Audio.Edge.Voice == "" {
 		cfg.Audio.Edge.Voice = "en-US-EmmaMultilingualNeural"
 	}
+	if cfg.Audio.ElevenLabs.APIKeyEnv == "" {
+		cfg.Audio.ElevenLabs.APIKeyEnv = "ELEVENLABS_API_KEY"
+	}
+	if cfg.Audio.ElevenLabs.BaseURL == "" {
+		cfg.Audio.ElevenLabs.BaseURL = "https://api.elevenlabs.io"
+	}
+	if cfg.Audio.ElevenLabs.ModelID == "" {
+		cfg.Audio.ElevenLabs.ModelID = "eleven_multilingual_v2"
+	}
+	if cfg.Audio.ElevenLabs.OutputFormat == "" {
+		cfg.Audio.ElevenLabs.OutputFormat = "mp3_44100_128"
+	}
+	if cfg.Audio.ElevenLabs.DefaultVoiceID == "" {
+		cfg.Audio.ElevenLabs.DefaultVoiceID = "EXAVITQu4vr4xnSDxMaL"
+	}
+	if cfg.Audio.ElevenLabs.Stability <= 0 {
+		cfg.Audio.ElevenLabs.Stability = 0.45
+	}
+	if cfg.Audio.ElevenLabs.SimilarityBoost <= 0 {
+		cfg.Audio.ElevenLabs.SimilarityBoost = 0.75
+	}
+	if cfg.Audio.ElevenLabs.Style < 0 {
+		cfg.Audio.ElevenLabs.Style = 0
+	}
 	if cfg.Audio.Voices == nil {
 		cfg.Audio.Voices = map[string]string{
-			"ru": "ru-RU-SvetlanaNeural",
-			"en": "en-US-EmmaMultilingualNeural",
+			"ru": cfg.Audio.ElevenLabs.DefaultVoiceID,
+			"en": cfg.Audio.ElevenLabs.DefaultVoiceID,
 		}
 	}
 	if cfg.Site.Language == "" {
