@@ -27,28 +27,26 @@ func NewSectionIndexGenerator() *SectionIndexGenerator {
 }
 
 // GenerateMissing creates index pages for any section nodes that don't already have a page
-func (g *SectionIndexGenerator) GenerateMissing(pages map[string]*Page, tree *NavTree) []*Page {
+func (g *SectionIndexGenerator) GenerateMissing(pages map[string]*Page, tree *NavTree, defaultLang string, languages map[string]struct{}) []*Page {
 	var generated []*Page
 
 	var walk func(node *NavNode)
 	walk = func(node *NavNode) {
-		if node.Type != "section" {
-			return
-		}
-
-		// Check if an index page already exists for this section
-		exists := false
-		for _, p := range pages {
-			if p.URL == node.URL {
-				exists = true
-				break
+		if node.Type == "section" {
+			// Check if an index page already exists for this section
+			exists := false
+			for _, p := range pages {
+				if p.URL == node.URL {
+					exists = true
+					break
+				}
 			}
-		}
 
-		if !exists && node.URL != "" {
-			page := g.generateIndexPage(node)
-			if page != nil {
-				generated = append(generated, page)
+			if !exists && node.URL != "" {
+				page := g.generateIndexPage(node, defaultLang, languages)
+				if page != nil {
+					generated = append(generated, page)
+				}
 			}
 		}
 
@@ -65,7 +63,7 @@ func (g *SectionIndexGenerator) GenerateMissing(pages map[string]*Page, tree *Na
 }
 
 // generateIndexPage creates an index page for a section node
-func (g *SectionIndexGenerator) generateIndexPage(node *NavNode) *Page {
+func (g *SectionIndexGenerator) generateIndexPage(node *NavNode, defaultLang string, languages map[string]struct{}) *Page {
 	// Collect children info
 	var children []SectionChild
 	for _, child := range node.Children {
@@ -99,9 +97,21 @@ func (g *SectionIndexGenerator) generateIndexPage(node *NavNode) *Page {
 
 	pageType := determinePageType(strings.TrimPrefix(node.URL, "/"))
 
+	lang := defaultLang
+	trimmed := strings.Trim(node.URL, "/")
+	if trimmed != "" {
+		parts := strings.Split(trimmed, "/")
+		if len(parts) > 0 {
+			if _, ok := languages[strings.ToLower(parts[0])]; ok {
+				lang = strings.ToLower(parts[0])
+			}
+		}
+	}
+
 	return &Page{
 		ID:           node.ID + "-index",
 		URL:          node.URL,
+		Language:     lang,
 		Title:        node.Title,
 		Description:  fmt.Sprintf("Index of %s", node.Title),
 		Content:      sb.String(),

@@ -13,12 +13,12 @@ import (
 
 // DevServer is a development server with live reload
 type DevServer struct {
-	host      string
-	port      int
-	outputDir string
+	host       string
+	port       int
+	outputDir  string
 	liveReload bool
-	clients   map[chan string]bool
-	mu        sync.Mutex
+	clients    map[chan string]bool
+	mu         sync.Mutex
 }
 
 // Config holds dev server configuration
@@ -194,21 +194,22 @@ func (s *DevServer) handleRequest(w http.ResponseWriter, r *http.Request) {
 
 func mimeType(ext string) string {
 	types := map[string]string{
-		".html": "text/html; charset=utf-8",
-		".css":  "text/css; charset=utf-8",
-		".js":   "application/javascript",
-		".json": "application/json",
-		".xml":  "application/xml",
-		".svg":  "image/svg+xml",
-		".png":  "image/png",
-		".jpg":  "image/jpeg",
-		".jpeg": "image/jpeg",
-		".gif":  "image/gif",
-		".webp": "image/webp",
-		".ico":  "image/x-icon",
-		".woff": "font/woff",
+		".html":  "text/html; charset=utf-8",
+		".css":   "text/css; charset=utf-8",
+		".js":    "application/javascript",
+		".mjs":   "application/javascript",
+		".json":  "application/json",
+		".xml":   "application/xml",
+		".svg":   "image/svg+xml",
+		".png":   "image/png",
+		".jpg":   "image/jpeg",
+		".jpeg":  "image/jpeg",
+		".gif":   "image/gif",
+		".webp":  "image/webp",
+		".ico":   "image/x-icon",
+		".woff":  "font/woff",
 		".woff2": "font/woff2",
-		".ttf":  "font/ttf",
+		".ttf":   "font/ttf",
 	}
 	if ct, ok := types[ext]; ok {
 		return ct

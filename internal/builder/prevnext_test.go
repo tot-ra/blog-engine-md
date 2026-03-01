@@ -10,11 +10,11 @@ import (
 func TestPrevNext_BlogByDate(t *testing.T) {
 	now := time.Now()
 	pages := map[string]*Page{
-		"p1": {ID: "p1", Title: "Newest", URL: "/blog/newest/", Type: TypeBlog,
+		"p1": {ID: "p1", Title: "Newest", URL: "/blog/newest/", Language: "en", Type: TypeBlog,
 			Frontmatter: &parser.Frontmatter{Date: now}},
-		"p2": {ID: "p2", Title: "Middle", URL: "/blog/middle/", Type: TypeBlog,
+		"p2": {ID: "p2", Title: "Middle", URL: "/blog/middle/", Language: "en", Type: TypeBlog,
 			Frontmatter: &parser.Frontmatter{Date: now.Add(-24 * time.Hour)}},
-		"p3": {ID: "p3", Title: "Oldest", URL: "/blog/oldest/", Type: TypeBlog,
+		"p3": {ID: "p3", Title: "Oldest", URL: "/blog/oldest/", Language: "en", Type: TypeBlog,
 			Frontmatter: &parser.Frontmatter{Date: now.Add(-48 * time.Hour)}},
 	}
 
@@ -53,9 +53,9 @@ func TestPrevNext_BlogByDate(t *testing.T) {
 
 func TestPrevNext_DocsByTreeOrder(t *testing.T) {
 	pages := map[string]*Page{
-		"p1": {ID: "p1", Title: "First", URL: "/docs/first/", Type: TypeDoc,
+		"p1": {ID: "p1", Title: "First", URL: "/docs/first/", Language: "en", Type: TypeDoc,
 			Frontmatter: &parser.Frontmatter{Order: 1}},
-		"p2": {ID: "p2", Title: "Second", URL: "/docs/second/", Type: TypeDoc,
+		"p2": {ID: "p2", Title: "Second", URL: "/docs/second/", Language: "en", Type: TypeDoc,
 			Frontmatter: &parser.Frontmatter{Order: 2}},
 	}
 

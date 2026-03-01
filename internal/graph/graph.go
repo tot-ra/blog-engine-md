@@ -314,7 +314,14 @@ func generateGraphHTML(siteTitle string) string {
             document.body.classList.add('embed');
         }
 
-        fetch('/graph.json')
+        const pathParts = window.location.pathname.split('/').filter(Boolean);
+        const langPrefix = (pathParts.length > 0 && (pathParts[0] === 'ru' || pathParts[0] === 'en')) ? '/' + pathParts[0] : '';
+        const backLink = document.querySelector('.back-link');
+        if (backLink) {
+            backLink.setAttribute('href', (langPrefix || '') + '/');
+        }
+
+        fetch((langPrefix || '') + '/graph.json')
             .then(r => r.json())
             .then(data => initGraph(data));
 

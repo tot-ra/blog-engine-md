@@ -3,10 +3,12 @@ package renderer
 import (
 	"strings"
 	"testing"
+
+	"github.com/tot-ra/blog-engine/internal/i18n"
 )
 
 func TestRenderTOC_Empty(t *testing.T) {
-	result := RenderTOC(nil)
+	result := RenderTOC(nil, i18n.UI("en"))
 	if result != "" {
 		t.Errorf("Expected empty string for nil items, got %q", result)
 	}
@@ -20,7 +22,7 @@ func TestRenderTOC_Basic(t *testing.T) {
 		}},
 	}
 
-	result := string(RenderTOC(items))
+	result := string(RenderTOC(items, i18n.UI("en")))
 
 	if !strings.Contains(result, `class="toc"`) {
 		t.Error("Expected toc class in output")
@@ -40,7 +42,7 @@ func TestRenderTOC_Basic(t *testing.T) {
 }
 
 func TestRenderSidebar_Empty(t *testing.T) {
-	result := RenderSidebar(nil, "/", 3, true)
+	result := RenderSidebar(nil, "/", 3, true, i18n.UI("en"))
 	if result != "" {
 		t.Errorf("Expected empty string for nil root, got %q", result)
 	}
@@ -61,7 +63,7 @@ func TestRenderSidebar_ActiveState(t *testing.T) {
 		},
 	}
 
-	result := string(RenderSidebar(root, "/docs/about/", 3, true))
+	result := string(RenderSidebar(root, "/docs/about/", 3, true, i18n.UI("en")))
 
 	// "about" should be active
 	if !strings.Contains(result, `aria-current="page"`) {
@@ -92,14 +94,14 @@ func TestRenderSidebar_DefaultCollapsed(t *testing.T) {
 		},
 	}
 
-	result := string(RenderSidebar(root, "/blog/", 4, true))
+	result := string(RenderSidebar(root, "/blog/", 4, true, i18n.UI("en")))
 
 	// First layer section should be collapsed by default.
-	if !strings.Contains(result, `aria-label="Toggle Docs" aria-expanded="false"`) {
+	if !strings.Contains(result, `aria-label="Toggle section Docs" aria-expanded="false"`) {
 		t.Error("Expected first layer section to be collapsed")
 	}
 	// Deeper section should start collapsed when not active.
-	if !strings.Contains(result, `aria-label="Toggle Guide" aria-expanded="false"`) {
+	if !strings.Contains(result, `aria-label="Toggle section Guide" aria-expanded="false"`) {
 		t.Error("Expected deeper section to be collapsed by default")
 	}
 }

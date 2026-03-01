@@ -16,6 +16,7 @@ import (
 	"github.com/tot-ra/blog-engine/internal/config"
 	"github.com/tot-ra/blog-engine/internal/feed"
 	"github.com/tot-ra/blog-engine/internal/graph"
+	"github.com/tot-ra/blog-engine/internal/i18n"
 	"github.com/tot-ra/blog-engine/internal/parser"
 	"github.com/tot-ra/blog-engine/internal/renderer"
 	"github.com/tot-ra/blog-engine/internal/sitemap"
@@ -29,8 +30,10 @@ type SiteBuilder struct {
 	config          *config.SiteConfig
 	templates       *renderer.TemplateEngine
 	pages           map[string]*Page
+	pagesByURL      map[string]*Page
 	navTree         *NavTree
-	blogTimeline    []renderer.TimelineYear
+	blogTimeline    map[string][]renderer.TimelineYear
+	languages       map[string]struct{}
 	processedImages []*assets.ProcessedImage
 	cssBundle       *assets.CSSBundle
 	jsBundle        *assets.JSBundle
@@ -39,8 +42,10 @@ type SiteBuilder struct {
 // NewSiteBuilder creates a new site builder
 func NewSiteBuilder(cfg *config.SiteConfig) *SiteBuilder {
 	return &SiteBuilder{
-		config: cfg,
-		pages:  make(map[string]*Page),
+		config:     cfg,
+		pages:      make(map[string]*Page),
+		pagesByURL: make(map[string]*Page),
+		languages:  buildLanguageSet(cfg),
 	}
 }
 
@@ -62,8 +67,8 @@ func (b *SiteBuilder) Build() error {
 		len(index.MarkdownFiles), len(index.ImageFiles), len(index.AssetFiles))
 
 	// First pass: collect page info for wiki link resolution
-	pageBuilder := NewPageBuilder(b.config.Site.URL)
-	titleToURL := make(map[string]string)
+	pageBuilder := NewPageBuilder(b.config.Site.URL, b.config.I18n.Default, b.languages)
+	titleToURL := make(map[string]map[string]string)
 
 	for _, file := range index.MarkdownFiles {
 		// Quick parse to get title and URL without full rendering
@@ -81,6 +86,7 @@ func (b *SiteBuilder) Build() error {
 			continue
 		}
 
+		lang, _ := detectLanguageAndContentPath(file.RelativePath, b.config.I18n.Default, b.languages)
 		url := pageBuilder.urlGen.Generate(file.RelativePath, fm)
 		title := fm.Title
 		if title == "" {
@@ -91,20 +97,24 @@ func (b *SiteBuilder) Build() error {
 			title = strings.ReplaceAll(title, "_", " ")
 		}
 
+		if _, ok := titleToURL[lang]; !ok {
+			titleToURL[lang] = make(map[string]string)
+		}
 		// Map both exact title and slugified title
-		titleToURL[title] = url
-		titleToURL[parser.GenerateSlug(title)] = url
+		titleToURL[lang][title] = url
+		titleToURL[lang][parser.GenerateSlug(title)] = url
 	}
 
 	// Set up wiki link resolver
+	defaultLangMap := titleToURL[b.config.I18n.Default]
 	pageBuilder.SetPageResolver(func(title string) (string, bool) {
 		// Try exact match first
-		if url, ok := titleToURL[title]; ok {
+		if url, ok := defaultLangMap[title]; ok {
 			return url, true
 		}
 		// Try slugified version
 		slug := parser.GenerateSlug(title)
-		if url, ok := titleToURL[slug]; ok {
+		if url, ok := defaultLangMap[slug]; ok {
 			return url, true
 		}
 		return "", false
@@ -117,6 +127,7 @@ func (b *SiteBuilder) Build() error {
 	}
 	for _, page := range pages {
 		b.pages[page.ID] = page
+		b.pagesByURL[page.URL] = page
 	}
 
 	fmt.Printf("Built %d pages\n", len(b.pages))
@@ -127,9 +138,10 @@ func (b *SiteBuilder) Build() error {
 
 	// Generate section index pages for sections without explicit index
 	sectionGen := NewSectionIndexGenerator()
-	indexPages := sectionGen.GenerateMissing(b.pages, b.navTree)
+	indexPages := sectionGen.GenerateMissing(b.pages, b.navTree, b.config.I18n.Default, b.languages)
 	for _, page := range indexPages {
 		b.pages[page.ID] = page
+		b.pagesByURL[page.URL] = page
 	}
 	if len(indexPages) > 0 {
 		fmt.Printf("Generated %d section index pages\n", len(indexPages))
@@ -137,9 +149,9 @@ func (b *SiteBuilder) Build() error {
 		b.navTree = navBuilder.BuildTree(b.pages)
 	}
 
-	// Create output directory
-	if err := os.MkdirAll(b.config.Build.OutputDir, 0755); err != nil {
-		return fmt.Errorf("failed to create output directory: %w", err)
+	// Reset output directory to avoid stale routes from previous builds.
+	if err := b.prepareOutputDir(); err != nil {
+		return err
 	}
 
 	// Process images
@@ -188,7 +200,10 @@ func (b *SiteBuilder) Build() error {
 	}
 
 	// Precompute blog timeline data used by blog sidebar "time" mode.
-	b.blogTimeline = buildBlogTimeline(b.collectBlogPosts(), 20)
+	b.blogTimeline = make(map[string][]renderer.TimelineYear)
+	for lang, posts := range b.collectBlogPostsByLanguage() {
+		b.blogTimeline[lang] = buildBlogTimeline(posts, 20, lang)
+	}
 
 	// Render pages (after CSS/JS processing so templates can reference bundles)
 	renderPages := make([]*Page, 0, len(b.pages))
@@ -256,6 +271,34 @@ func (b *SiteBuilder) Build() error {
 		}
 	}
 
+	if err := b.ensureDefaultLanguageEntry(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error generating default language entry: %v\n", err)
+	}
+
+	return nil
+}
+
+func (b *SiteBuilder) ensureDefaultLanguageEntry() error {
+	if _, exists := b.pagesByURL["/"]; exists {
+		return nil
+	}
+	target := "/" + strings.Trim(b.config.I18n.Default, "/") + "/"
+	html := "<!doctype html><html><head><meta charset=\"utf-8\"><meta http-equiv=\"refresh\" content=\"0; url=" + target + "\"><link rel=\"canonical\" href=\"" + target + "\"></head><body><a href=\"" + target + "\">Redirecting...</a></body></html>"
+	out := filepath.Join(b.config.Build.OutputDir, "index.html")
+	return os.WriteFile(out, []byte(html), 0644)
+}
+
+func (b *SiteBuilder) prepareOutputDir() error {
+	out := strings.TrimSpace(b.config.Build.OutputDir)
+	if out == "" || out == "." || out == "/" {
+		return fmt.Errorf("unsafe output directory: %q", out)
+	}
+	if err := os.RemoveAll(out); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to fully clean output directory %s: %v\n", out, err)
+	}
+	if err := os.MkdirAll(out, 0755); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
+	}
 	return nil
 }
 
@@ -337,20 +380,9 @@ func (b *SiteBuilder) parallelForEach(total int, fn func(i int) error) []error {
 	return errs
 }
 
-func (b *SiteBuilder) buildPages(files []ContentFile, titleToURL map[string]string) ([]*Page, []error) {
+func (b *SiteBuilder) buildPages(files []ContentFile, titleToURL map[string]map[string]string) ([]*Page, []error) {
 	if len(files) == 0 {
 		return nil, nil
-	}
-
-	resolvePage := func(title string) (string, bool) {
-		if url, ok := titleToURL[title]; ok {
-			return url, true
-		}
-		slug := parser.GenerateSlug(title)
-		if url, ok := titleToURL[slug]; ok {
-			return url, true
-		}
-		return "", false
 	}
 
 	pages := make([]*Page, len(files))
@@ -369,13 +401,24 @@ func (b *SiteBuilder) buildPages(files []ContentFile, titleToURL map[string]stri
 	var wg sync.WaitGroup
 
 	for w := 0; w < workers; w++ {
-		builder := NewPageBuilder(b.config.Site.URL)
-		builder.SetPageResolver(resolvePage)
+		builder := NewPageBuilder(b.config.Site.URL, b.config.I18n.Default, b.languages)
 
 		wg.Add(1)
 		go func(pb *PageBuilder) {
 			defer wg.Done()
 			for job := range jobs {
+				lang, _ := detectLanguageAndContentPath(job.file.RelativePath, b.config.I18n.Default, b.languages)
+				pageMap := titleToURL[lang]
+				pb.SetPageResolver(func(title string) (string, bool) {
+					if url, ok := pageMap[title]; ok {
+						return url, true
+					}
+					slug := parser.GenerateSlug(title)
+					if url, ok := pageMap[slug]; ok {
+						return url, true
+					}
+					return "", false
+				})
 				page, err := pb.Build(job.file)
 				if err != nil {
 					errCh <- fmt.Errorf("%s: %w", job.file.Path, err)
@@ -532,9 +575,19 @@ func selectSidebarRoot(root *renderer.NavNode, currentPath string) *renderer.Nav
 		return root
 	}
 	sectionURL := "/" + parts[0] + "/"
+	if len(parts) > 1 && (parts[1] == "blog" || parts[1] == "docs" || parts[1] == "tags" || parts[1] == "archive") {
+		sectionURL = "/" + parts[0] + "/" + parts[1] + "/"
+	}
 	for _, child := range root.Children {
 		if child.URL == sectionURL {
 			return child
+		}
+		if len(parts) > 1 && child.URL == "/"+parts[0]+"/" {
+			for _, nested := range child.Children {
+				if nested.URL == sectionURL {
+					return nested
+				}
+			}
 		}
 	}
 	return root
@@ -542,12 +595,18 @@ func selectSidebarRoot(root *renderer.NavNode, currentPath string) *renderer.Nav
 
 // renderPage renders a single page to HTML
 func (b *SiteBuilder) renderPage(page *Page) error {
+	if page.Language == "" {
+		page.Language = b.detectLanguageFromURL(page.URL)
+	}
+	ui := i18n.UI(page.Language)
+
 	// Prepare base data
 	data := renderer.PageData{
 		Site: *b.config,
 		Page: renderer.Page{
 			ID:           page.ID,
 			URL:          page.URL,
+			Language:     page.Language,
 			Title:        page.Title,
 			Description:  page.Description,
 			Content:      page.Content,
@@ -559,8 +618,11 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 			Date: page.Frontmatter.Date,
 			Tags: page.Frontmatter.Tags,
 		},
+		UI:      ui,
 		Content: template.HTML(page.Content),
 	}
+	data.Site.Site.Language = page.Language
+	data.Homepage = b.homepageForLanguage(page.Language)
 	if b.cssBundle != nil {
 		data.CSSPath = b.cssBundle.Path
 	}
@@ -568,24 +630,29 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 		data.JSPath = b.jsBundle.Path
 	}
 
+	data.HeaderNav = b.buildHeaderNav(page.Language)
+	data.Languages = b.buildLanguageOptions(page)
+
 	// Generate sidebar
 	rendererRoot := convertNavNode(b.navTree.Root)
 	sidebarRoot := selectSidebarRoot(rendererRoot, page.URL)
-	if strings.HasPrefix(page.URL, "/blog/") {
-		data.Sidebar = renderer.RenderBlogSidebar(sidebarRoot, page.URL, b.config.Navigation.Sidebar.MaxDepth, b.config.Navigation.Sidebar.Collapsed, b.blogTimeline)
+	if strings.Contains(page.URL, "/blog/") {
+		timeline := b.blogTimeline[page.Language]
+		graphURL := fmt.Sprintf("/%s/graph/", page.Language)
+		data.Sidebar = renderer.RenderBlogSidebar(sidebarRoot, page.URL, b.config.Navigation.Sidebar.MaxDepth, b.config.Navigation.Sidebar.Collapsed, timeline, ui, graphURL)
 	} else {
-		data.Sidebar = renderer.RenderSidebar(sidebarRoot, page.URL, b.config.Navigation.Sidebar.MaxDepth, b.config.Navigation.Sidebar.Collapsed)
+		data.Sidebar = renderer.RenderSidebar(sidebarRoot, page.URL, b.config.Navigation.Sidebar.MaxDepth, b.config.Navigation.Sidebar.Collapsed, ui)
 	}
 
 	// Generate TOC (if page has headings and hideToc is not set)
 	if len(page.TOC) > 0 && (page.Frontmatter == nil || !page.Frontmatter.HideToc) {
 		tocItems := convertTocItems(page.TOC)
-		data.TOC = renderer.RenderTOC(tocItems)
+		data.TOC = renderer.RenderTOC(tocItems, ui)
 	}
 
 	// Generate breadcrumbs
 	if b.config.Navigation.Breadcrumbs.Enabled {
-		bcGen := NewBreadcrumbGenerator(b.config.Navigation.Breadcrumbs.HomeLabel)
+		bcGen := NewBreadcrumbGenerator(b.languages)
 		builderCrumbs := bcGen.Generate(page, b.navTree)
 		data.Breadcrumbs = convertBreadcrumbs(builderCrumbs)
 	}
@@ -604,6 +671,7 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 	if err != nil {
 		return err
 	}
+	html = b.localizeInternalLinks(html, page.Language)
 	html = siteFooterRe.ReplaceAllString(html, "")
 
 	// Determine output path
@@ -623,6 +691,99 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 	}
 
 	return nil
+}
+
+func (b *SiteBuilder) homepageForLanguage(lang string) config.HomepageConfig {
+	base := b.config.Homepage
+	code := strings.ToLower(strings.TrimSpace(lang))
+	if code != "" && b.config.HomepageI18n != nil {
+		if hp, ok := b.config.HomepageI18n[code]; ok {
+			return mergeHomepageConfig(base, hp)
+		}
+	}
+	return base
+}
+
+func mergeHomepageConfig(base, override config.HomepageConfig) config.HomepageConfig {
+	out := base
+
+	if override.Enabled {
+		out.Enabled = true
+	}
+
+	if override.Hero.Enabled {
+		out.Hero.Enabled = true
+	}
+	if override.Hero.Background != "" {
+		out.Hero.Background = override.Hero.Background
+	}
+	if override.Hero.Title != "" {
+		out.Hero.Title = override.Hero.Title
+	}
+	if override.Hero.Subtitle != "" {
+		out.Hero.Subtitle = override.Hero.Subtitle
+	}
+	if override.Hero.Description != "" {
+		out.Hero.Description = override.Hero.Description
+	}
+	if override.Hero.VideoEmbed != "" {
+		out.Hero.VideoEmbed = override.Hero.VideoEmbed
+	}
+	if len(override.Hero.CTAButtons) > 0 {
+		out.Hero.CTAButtons = override.Hero.CTAButtons
+	}
+
+	if override.Chat.Enabled {
+		out.Chat.Enabled = true
+	}
+	if override.Chat.BaseURL != "" {
+		out.Chat.BaseURL = override.Chat.BaseURL
+	}
+	if override.Chat.RecipientAgentID != "" {
+		out.Chat.RecipientAgentID = override.Chat.RecipientAgentID
+	}
+	if override.Chat.Title != "" {
+		out.Chat.Title = override.Chat.Title
+	}
+
+	if len(override.Projects) > 0 {
+		out.Projects = override.Projects
+	}
+	if len(override.SocialLinks) > 0 {
+		out.SocialLinks = override.SocialLinks
+	}
+	if override.CustomHTML != "" {
+		out.CustomHTML = override.CustomHTML
+	}
+
+	return out
+}
+
+func (b *SiteBuilder) detectLanguageFromURL(pageURL string) string {
+	trimmed := strings.Trim(pageURL, "/")
+	if trimmed == "" {
+		return b.config.I18n.Default
+	}
+	parts := strings.Split(trimmed, "/")
+	if len(parts) > 0 {
+		first := strings.ToLower(parts[0])
+		if _, ok := b.languages[first]; ok {
+			return first
+		}
+	}
+	return b.config.I18n.Default
+}
+
+func (b *SiteBuilder) localizeInternalLinks(html, lang string) string {
+	prefix := "/" + strings.Trim(lang, "/")
+	if prefix == "/" {
+		prefix = "/" + b.config.I18n.Default
+	}
+	for _, seg := range []string{"blog", "docs", "tags", "archive", "graph"} {
+		html = strings.ReplaceAll(html, "href=\"/"+seg+"/", "href=\""+prefix+"/"+seg+"/")
+		html = strings.ReplaceAll(html, "src=\"/"+seg+"/", "src=\""+prefix+"/"+seg+"/")
+	}
+	return html
 }
 
 // convertTocItems converts builder TocItems to renderer TocItems
@@ -671,6 +832,67 @@ func convertPrevNext(links *PrevNextLinks) *renderer.PrevNextLinks {
 		}
 	}
 	return result
+}
+
+func (b *SiteBuilder) buildHeaderNav(lang string) []renderer.NavLink {
+	ui := i18n.UI(lang)
+	base := "/" + strings.Trim(lang, "/") + "/"
+	if lang == "" {
+		base = "/"
+	}
+	return []renderer.NavLink{
+		{Title: ui.Docs, URL: base + "docs/", Type: "header"},
+		{Title: ui.Blog, URL: base + "blog/", Type: "header"},
+	}
+}
+
+func (b *SiteBuilder) buildLanguageOptions(page *Page) []renderer.LanguageOption {
+	options := make([]renderer.LanguageOption, 0, len(b.config.I18n.Languages))
+	trimmed := strings.Trim(page.URL, "/")
+	parts := []string{}
+	if trimmed != "" {
+		parts = strings.Split(trimmed, "/")
+	}
+	relative := strings.Join(parts, "/")
+	if len(parts) > 0 {
+		if _, ok := b.languages[strings.ToLower(parts[0])]; ok {
+			relative = strings.Join(parts[1:], "/")
+		}
+	}
+	relative = strings.Trim(relative, "/")
+	section := ""
+	if relative != "" {
+		rs := strings.Split(relative, "/")
+		section = rs[0]
+	}
+
+	for _, lang := range b.config.I18n.Languages {
+		code := strings.ToLower(lang.Code)
+		targetPath := "/" + strings.Trim(relative, "/")
+		if targetPath == "/" {
+			targetPath = ""
+		}
+		candidate := "/" + code + "/"
+		if targetPath != "" {
+			candidate = "/" + code + "/" + strings.Trim(targetPath, "/") + "/"
+		}
+
+		if _, ok := b.pagesByURL[candidate]; !ok {
+			if section != "" {
+				candidate = "/" + code + "/" + section + "/"
+			} else {
+				candidate = "/" + code + "/"
+			}
+		}
+
+		options = append(options, renderer.LanguageOption{
+			Code:   code,
+			Label:  lang.Label,
+			URL:    candidate,
+			Active: code == page.Language,
+		})
+	}
+	return options
 }
 
 // copyAssets copies static assets to output directory (non-image, non-CSS/JS files)
@@ -727,7 +949,7 @@ func (b *SiteBuilder) collectBlogPosts() []*Page {
 	return posts
 }
 
-func buildBlogTimeline(posts []*Page, maxPerYear int) []renderer.TimelineYear {
+func buildBlogTimeline(posts []*Page, maxPerYear int, lang string) []renderer.TimelineYear {
 	if maxPerYear <= 0 {
 		maxPerYear = 20
 	}
@@ -774,7 +996,7 @@ func buildBlogTimeline(posts []*Page, maxPerYear int) []renderer.TimelineYear {
 		months := make([]renderer.TimelineMonth, 0, len(monthOrder))
 		for _, m := range monthOrder {
 			months = append(months, renderer.TimelineMonth{
-				MonthLabel: m.String(),
+				MonthLabel: i18n.MonthName(lang, m),
 				Items:      byMonth[m],
 			})
 		}
@@ -785,6 +1007,22 @@ func buildBlogTimeline(posts []*Page, maxPerYear int) []renderer.TimelineYear {
 		})
 	}
 	return result
+}
+
+func (b *SiteBuilder) collectBlogPostsByLanguage() map[string][]*Page {
+	out := make(map[string][]*Page)
+	for _, page := range b.pages {
+		if page.Type != TypeBlog {
+			continue
+		}
+		out[page.Language] = append(out[page.Language], page)
+	}
+	for lang := range out {
+		sort.Slice(out[lang], func(i, j int) bool {
+			return out[lang][i].Frontmatter.Date.After(out[lang][j].Frontmatter.Date)
+		})
+	}
+	return out
 }
 
 // pageSummariesFromPosts converts builder Pages to tags.PageSummary slice
@@ -805,68 +1043,77 @@ func pageSummariesFromPosts(posts []*Page) []tags.PageSummary {
 
 // generateTagPages builds tag index and creates tag list pages
 func (b *SiteBuilder) generateTagPages(blogPosts []*Page) error {
-	summaries := pageSummariesFromPosts(blogPosts)
-	tagIdx := tags.BuildTagIndex(summaries)
-
-	allTags := tagIdx.Tags()
-	if len(allTags) == 0 {
-		return nil
+	postsByLang := make(map[string][]*Page)
+	for _, p := range blogPosts {
+		postsByLang[p.Language] = append(postsByLang[p.Language], p)
 	}
+	total := 0
+	for lang, posts := range postsByLang {
+		summaries := pageSummariesFromPosts(posts)
+		tagIdx := tags.BuildTagIndex(summaries)
 
-	// Generate tag cloud / index page at /tags/
-	tagCloudHTML := b.buildTagCloudHTML(tagIdx, allTags)
-	tagCloudPage := &Page{
-		ID:          "tags",
-		URL:         "/tags/",
-		Title:       "Tags",
-		Description: "All tags",
-		Content:     tagCloudHTML,
-		RawContent:  "",
-		Frontmatter: &parser.Frontmatter{},
-		Type:        TypePage,
-	}
-	b.pages[tagCloudPage.ID] = tagCloudPage
-	if err := b.renderPage(tagCloudPage); err != nil {
-		return fmt.Errorf("failed to render tag cloud page: %w", err)
-	}
-	fmt.Printf("Generated tag cloud page with %d tags\n", len(allTags))
-
-	// Generate individual tag pages
-	for _, tag := range allTags {
-		pages := tagIdx[tag]
-		tagSlug := parser.GenerateSlug(tag)
-		tagPageHTML := b.buildTagPageHTML(tag, pages)
-
-		tagPage := &Page{
-			ID:          "tags-" + tagSlug,
-			URL:         "/tags/" + tagSlug + "/",
-			Title:       "Tag: " + tag,
-			Description: fmt.Sprintf("Pages tagged with \"%s\"", tag),
-			Content:     tagPageHTML,
-			RawContent:  "",
-			Frontmatter: &parser.Frontmatter{Tags: []string{tag}},
-			Type:        TypePage,
-		}
-		b.pages[tagPage.ID] = tagPage
-		if err := b.renderPage(tagPage); err != nil {
-			fmt.Fprintf(os.Stderr, "Error rendering tag page %s: %v\n", tag, err)
+		allTags := tagIdx.Tags()
+		if len(allTags) == 0 {
 			continue
 		}
-	}
-	fmt.Printf("Generated %d tag pages\n", len(allTags))
 
+		ui := i18n.UI(lang)
+		tagCloudHTML := b.buildTagCloudHTML(tagIdx, allTags, lang)
+		tagCloudPage := &Page{
+			ID:          lang + "-tags",
+			URL:         "/" + lang + "/tags/",
+			Language:    lang,
+			Title:       ui.Tags,
+			Description: "All tags",
+			Content:     tagCloudHTML,
+			RawContent:  "",
+			Frontmatter: &parser.Frontmatter{},
+			Type:        TypePage,
+		}
+		b.pages[tagCloudPage.ID] = tagCloudPage
+		b.pagesByURL[tagCloudPage.URL] = tagCloudPage
+		if err := b.renderPage(tagCloudPage); err != nil {
+			return fmt.Errorf("failed to render tag cloud page: %w", err)
+		}
+
+		for _, tag := range allTags {
+			tagPages := tagIdx[tag]
+			tagSlug := parser.GenerateSlug(tag)
+			tagPageHTML := b.buildTagPageHTML(tag, tagPages, lang)
+
+			tagPage := &Page{
+				ID:          lang + "-tags-" + tagSlug,
+				URL:         "/" + lang + "/tags/" + tagSlug + "/",
+				Language:    lang,
+				Title:       "Tag: " + tag,
+				Description: fmt.Sprintf("Pages tagged with \"%s\"", tag),
+				Content:     tagPageHTML,
+				RawContent:  "",
+				Frontmatter: &parser.Frontmatter{Tags: []string{tag}},
+				Type:        TypePage,
+			}
+			b.pages[tagPage.ID] = tagPage
+			b.pagesByURL[tagPage.URL] = tagPage
+			if err := b.renderPage(tagPage); err != nil {
+				fmt.Fprintf(os.Stderr, "Error rendering tag page %s: %v\n", tag, err)
+				continue
+			}
+			total++
+		}
+	}
+	fmt.Printf("Generated %d tag pages\n", total)
 	return nil
 }
 
 // buildTagCloudHTML generates HTML for the tag cloud page
-func (b *SiteBuilder) buildTagCloudHTML(idx tags.TagIndex, allTags []string) string {
+func (b *SiteBuilder) buildTagCloudHTML(idx tags.TagIndex, allTags []string, lang string) string {
 	var sb strings.Builder
 	sb.WriteString("<div class=\"tag-cloud\">\n")
 	sb.WriteString("<ul class=\"tag-list\">\n")
 	for _, tag := range allTags {
 		slug := parser.GenerateSlug(tag)
 		count := idx.Count(tag)
-		sb.WriteString(fmt.Sprintf("  <li><a href=\"/tags/%s/\" class=\"tag\">%s</a> <span class=\"tag-count\">(%d)</span></li>\n", slug, tag, count))
+		sb.WriteString(fmt.Sprintf("  <li><a href=\"/%s/tags/%s/\" class=\"tag\">%s</a> <span class=\"tag-count\">(%d)</span></li>\n", lang, slug, tag, count))
 	}
 	sb.WriteString("</ul>\n")
 	sb.WriteString("</div>\n")
@@ -874,7 +1121,7 @@ func (b *SiteBuilder) buildTagCloudHTML(idx tags.TagIndex, allTags []string) str
 }
 
 // buildTagPageHTML generates HTML for a single tag page
-func (b *SiteBuilder) buildTagPageHTML(tag string, pages []tags.PageSummary) string {
+func (b *SiteBuilder) buildTagPageHTML(tag string, pages []tags.PageSummary, lang string) string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("<h2>Posts tagged \"%s\"</h2>\n", tag))
 	sb.WriteString(fmt.Sprintf("<p>%d post(s)</p>\n", len(pages)))
@@ -882,7 +1129,7 @@ func (b *SiteBuilder) buildTagPageHTML(tag string, pages []tags.PageSummary) str
 	for _, p := range pages {
 		dateStr := ""
 		if !p.Date.IsZero() {
-			dateStr = fmt.Sprintf(" <time>%s</time>", p.Date.Format("2006-01-02"))
+			dateStr = fmt.Sprintf(" <time>%s</time>", i18n.FormatDateLong(p.Date, lang))
 		}
 		sb.WriteString(fmt.Sprintf("  <li><a href=\"%s\">%s</a>%s</li>\n", p.URL, p.Title, dateStr))
 	}
@@ -892,10 +1139,9 @@ func (b *SiteBuilder) buildTagPageHTML(tag string, pages []tags.PageSummary) str
 
 // generateArchivePages builds archive structure and creates archive pages
 func (b *SiteBuilder) generateArchivePages(blogPosts []*Page) error {
-	// Convert to archive.PageSummary
-	var summaries []archive.PageSummary
+	byLang := make(map[string][]archive.PageSummary)
 	for _, p := range blogPosts {
-		summaries = append(summaries, archive.PageSummary{
+		byLang[p.Language] = append(byLang[p.Language], archive.PageSummary{
 			Title:       p.Title,
 			URL:         p.URL,
 			Date:        p.Frontmatter.Date,
@@ -905,62 +1151,68 @@ func (b *SiteBuilder) generateArchivePages(blogPosts []*Page) error {
 		})
 	}
 
-	archiveData := archive.BuildArchive(summaries)
-	if len(archiveData) == 0 {
-		return nil
-	}
+	totalYears := 0
+	for lang, summaries := range byLang {
+		archiveData := archive.BuildArchive(summaries)
+		if len(archiveData) == 0 {
+			continue
+		}
 
-	// Generate main archive page at /archive/
-	archiveHTML := b.buildArchiveIndexHTML(archiveData)
-	archivePage := &Page{
-		ID:          "archive",
-		URL:         "/archive/",
-		Title:       "Archive",
-		Description: "Post archive by date",
-		Content:     archiveHTML,
-		RawContent:  "",
-		Frontmatter: &parser.Frontmatter{},
-		Type:        TypePage,
-	}
-	b.pages[archivePage.ID] = archivePage
-	if err := b.renderPage(archivePage); err != nil {
-		return fmt.Errorf("failed to render archive page: %w", err)
-	}
-
-	// Generate per-year pages
-	for _, year := range archiveData {
-		yearHTML := b.buildArchiveYearHTML(year)
-		yearPage := &Page{
-			ID:          fmt.Sprintf("archive-%d", year.Year),
-			URL:         fmt.Sprintf("/archive/%d/", year.Year),
-			Title:       fmt.Sprintf("Archive: %d", year.Year),
-			Description: fmt.Sprintf("Posts from %d", year.Year),
-			Content:     yearHTML,
+		archiveHTML := b.buildArchiveIndexHTML(archiveData, lang)
+		archivePage := &Page{
+			ID:          lang + "-archive",
+			URL:         "/" + lang + "/archive/",
+			Language:    lang,
+			Title:       i18n.SegmentLabel(lang, "archive"),
+			Description: "Post archive by date",
+			Content:     archiveHTML,
 			RawContent:  "",
 			Frontmatter: &parser.Frontmatter{},
 			Type:        TypePage,
 		}
-		b.pages[yearPage.ID] = yearPage
-		if err := b.renderPage(yearPage); err != nil {
-			fmt.Fprintf(os.Stderr, "Error rendering archive year page %d: %v\n", year.Year, err)
+		b.pages[archivePage.ID] = archivePage
+		b.pagesByURL[archivePage.URL] = archivePage
+		if err := b.renderPage(archivePage); err != nil {
+			return fmt.Errorf("failed to render archive page: %w", err)
 		}
+
+		for _, year := range archiveData {
+			yearHTML := b.buildArchiveYearHTML(year, lang)
+			yearPage := &Page{
+				ID:          fmt.Sprintf("%s-archive-%d", lang, year.Year),
+				URL:         fmt.Sprintf("/%s/archive/%d/", lang, year.Year),
+				Language:    lang,
+				Title:       fmt.Sprintf("%s: %d", i18n.SegmentLabel(lang, "archive"), year.Year),
+				Description: fmt.Sprintf("Posts from %d", year.Year),
+				Content:     yearHTML,
+				RawContent:  "",
+				Frontmatter: &parser.Frontmatter{},
+				Type:        TypePage,
+			}
+			b.pages[yearPage.ID] = yearPage
+			b.pagesByURL[yearPage.URL] = yearPage
+			if err := b.renderPage(yearPage); err != nil {
+				fmt.Fprintf(os.Stderr, "Error rendering archive year page %d: %v\n", year.Year, err)
+			}
+		}
+		totalYears += len(archiveData)
 	}
 
-	fmt.Printf("Generated archive pages (%d years)\n", len(archiveData))
+	fmt.Printf("Generated archive pages (%d years)\n", totalYears)
 	return nil
 }
 
 // buildArchiveIndexHTML generates HTML for the main archive page
-func (b *SiteBuilder) buildArchiveIndexHTML(years []archive.ArchiveYear) string {
+func (b *SiteBuilder) buildArchiveIndexHTML(years []archive.ArchiveYear, lang string) string {
 	var sb strings.Builder
 	sb.WriteString("<div class=\"archive\">\n")
 	for _, year := range years {
-		sb.WriteString(fmt.Sprintf("<h2><a href=\"/archive/%d/\">%d</a> <span class=\"count\">(%d)</span></h2>\n", year.Year, year.Year, year.Count))
+		sb.WriteString(fmt.Sprintf("<h2><a href=\"/%s/archive/%d/\">%d</a> <span class=\"count\">(%d)</span></h2>\n", lang, year.Year, year.Year, year.Count))
 		for _, month := range year.Months {
-			sb.WriteString(fmt.Sprintf("<h3>%s %d</h3>\n", month.Month.String(), month.Year))
+			sb.WriteString(fmt.Sprintf("<h3>%s %d</h3>\n", i18n.MonthName(lang, month.Month), month.Year))
 			sb.WriteString("<ul class=\"post-list\">\n")
 			for _, p := range month.Pages {
-				dateStr := p.Date.Format("Jan 02")
+				dateStr := i18n.FormatDateShort(p.Date, lang)
 				sb.WriteString(fmt.Sprintf("  <li><time>%s</time> <a href=\"%s\">%s</a></li>\n", dateStr, p.URL, p.Title))
 			}
 			sb.WriteString("</ul>\n")
@@ -971,14 +1223,14 @@ func (b *SiteBuilder) buildArchiveIndexHTML(years []archive.ArchiveYear) string 
 }
 
 // buildArchiveYearHTML generates HTML for a single year archive page
-func (b *SiteBuilder) buildArchiveYearHTML(year archive.ArchiveYear) string {
+func (b *SiteBuilder) buildArchiveYearHTML(year archive.ArchiveYear, lang string) string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("<div class=\"archive-year\">\n"))
 	for _, month := range year.Months {
-		sb.WriteString(fmt.Sprintf("<h2>%s</h2>\n", month.Month.String()))
+		sb.WriteString(fmt.Sprintf("<h2>%s</h2>\n", i18n.MonthName(lang, month.Month)))
 		sb.WriteString("<ul class=\"post-list\">\n")
 		for _, p := range month.Pages {
-			dateStr := p.Date.Format("Jan 02")
+			dateStr := i18n.FormatDateShort(p.Date, lang)
 			sb.WriteString(fmt.Sprintf("  <li><time>%s</time> <a href=\"%s\">%s</a></li>\n", dateStr, p.URL, p.Title))
 		}
 		sb.WriteString("</ul>\n")
@@ -1167,6 +1419,36 @@ func (b *SiteBuilder) generateGraph() error {
 	// Write graph HTML page
 	if err := graph.WriteGraphPage(b.config.Build.OutputDir, b.config.Site.Title); err != nil {
 		return fmt.Errorf("failed to write graph page: %w", err)
+	}
+
+	// Mirror graph endpoints under language prefixes.
+	for _, lang := range b.config.I18n.Languages {
+		code := strings.ToLower(strings.TrimSpace(lang.Code))
+		if code == "" {
+			continue
+		}
+		graphDir := filepath.Join(b.config.Build.OutputDir, code, "graph")
+		if err := os.MkdirAll(graphDir, 0755); err != nil {
+			return fmt.Errorf("failed to create language graph dir: %w", err)
+		}
+
+		rootGraphHTML := filepath.Join(b.config.Build.OutputDir, "graph", "index.html")
+		htmlData, err := os.ReadFile(rootGraphHTML)
+		if err != nil {
+			return fmt.Errorf("failed to read root graph HTML: %w", err)
+		}
+		if err := os.WriteFile(filepath.Join(graphDir, "index.html"), htmlData, 0644); err != nil {
+			return fmt.Errorf("failed to write language graph HTML: %w", err)
+		}
+
+		rootGraphJSON := filepath.Join(b.config.Build.OutputDir, "graph.json")
+		jsonData, err := os.ReadFile(rootGraphJSON)
+		if err != nil {
+			return fmt.Errorf("failed to read root graph JSON: %w", err)
+		}
+		if err := os.WriteFile(filepath.Join(b.config.Build.OutputDir, code, "graph.json"), jsonData, 0644); err != nil {
+			return fmt.Errorf("failed to write language graph JSON: %w", err)
+		}
 	}
 
 	fmt.Printf("Generated graph view (%d nodes, %d edges)\n", len(graphData.Nodes), len(graphData.Edges))

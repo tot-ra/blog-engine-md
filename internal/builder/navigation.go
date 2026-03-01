@@ -3,6 +3,8 @@ package builder
 import (
 	"sort"
 	"strings"
+
+	"github.com/tot-ra/blog-engine/internal/i18n"
 )
 
 // NavTree represents the full navigation hierarchy
@@ -119,7 +121,10 @@ func (nb *NavigationBuilder) insertPage(tree *NavTree, page *Page) {
 				}
 			} else {
 				// Create intermediate section node
-				title := capitalizeFirst(seg)
+				title := i18n.SegmentLabel(page.Language, seg)
+				if title == "" {
+					title = capitalizeFirst(seg)
+				}
 				child = &NavNode{
 					ID:       strings.Trim(fullPath, "/"),
 					Title:    title,

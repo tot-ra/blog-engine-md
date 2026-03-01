@@ -32,7 +32,7 @@ func (g *PrevNextGenerator) Generate(page *Page, allPages map[string]*Page, tree
 	if page.Type == TypeBlog {
 		return g.generateForBlog(page, allPages)
 	}
-	return g.generateForDocs(page, tree)
+	return g.generateForDocs(page, allPages, tree)
 }
 
 // generateForBlog generates prev/next for blog posts sorted by date (newest first)
@@ -40,7 +40,7 @@ func (g *PrevNextGenerator) generateForBlog(page *Page, allPages map[string]*Pag
 	// Collect all blog posts
 	var blogPosts []*Page
 	for _, p := range allPages {
-		if p.Type == TypeBlog {
+		if p.Type == TypeBlog && p.Language == page.Language {
 			blogPosts = append(blogPosts, p)
 		}
 	}
@@ -82,12 +82,27 @@ func (g *PrevNextGenerator) generateForBlog(page *Page, allPages map[string]*Pag
 }
 
 // generateForDocs generates prev/next for docs following nav tree order
-func (g *PrevNextGenerator) generateForDocs(page *Page, tree *NavTree) *PrevNextLinks {
+func (g *PrevNextGenerator) generateForDocs(page *Page, allPages map[string]*Page, tree *NavTree) *PrevNextLinks {
 	if tree == nil {
 		return nil
 	}
 
 	pages := tree.FlattenPages()
+	byURL := make(map[string]*Page, len(allPages))
+	for _, p := range allPages {
+		byURL[p.URL] = p
+	}
+	filtered := make([]*NavNode, 0, len(pages))
+	for _, n := range pages {
+		p, ok := byURL[n.URL]
+		if !ok {
+			continue
+		}
+		if p.Type == TypeDoc && p.Language == page.Language {
+			filtered = append(filtered, n)
+		}
+	}
+	pages = filtered
 
 	idx := -1
 	for i, node := range pages {

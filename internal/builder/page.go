@@ -32,6 +32,7 @@ type TocItem struct {
 type Page struct {
 	ID           string
 	URL          string
+	Language     string
 	SourcePath   string
 	Title        string
 	Description  string
@@ -93,14 +94,18 @@ type PageBuilder struct {
 	urlGen       *URLGenerator
 	mdParser     *parser.MarkdownParser
 	pageResolver func(title string) (url string, exists bool)
+	defaultLang  string
+	languages    map[string]struct{}
 }
 
 // NewPageBuilder creates a new page builder
-func NewPageBuilder(baseURL string) *PageBuilder {
+func NewPageBuilder(baseURL, defaultLang string, languages map[string]struct{}) *PageBuilder {
 	return &PageBuilder{
 		urlGen:       NewURLGenerator(baseURL),
 		mdParser:     parser.NewMarkdownParser(),
 		pageResolver: nil, // Will be set later when all pages are known
+		defaultLang:  defaultLang,
+		languages:    languages,
 	}
 }
 
@@ -128,10 +133,12 @@ func (b *PageBuilder) Build(file ContentFile) (*Page, error) {
 		return nil, nil
 	}
 
+	lang, contentPath := detectLanguageAndContentPath(file.RelativePath, b.defaultLang, b.languages)
+
 	// Determine page type
-	pageType := determinePageType(file.RelativePath)
+	pageType := determinePageType(contentPath)
 	if pageType == TypeBlog && fm.Date.IsZero() {
-		fm.Date = inferDateFromFilename(file.RelativePath)
+		fm.Date = inferDateFromFilename(contentPath)
 	}
 
 	// Generate URL
@@ -170,6 +177,7 @@ func (b *PageBuilder) Build(file ContentFile) (*Page, error) {
 	page := &Page{
 		ID:           id,
 		URL:          url,
+		Language:     lang,
 		SourcePath:   file.Path,
 		Title:        title,
 		Description:  fm.Description,
@@ -204,10 +212,11 @@ func inferDateFromFilename(relPath string) time.Time {
 
 // determinePageType determines the page type from the file path
 func determinePageType(relPath string) PageType {
-	if strings.HasPrefix(relPath, "blog/") {
+	path := strings.Trim(strings.ReplaceAll(relPath, "\\", "/"), "/")
+	if strings.HasPrefix(path, "blog/") || path == "blog" {
 		return TypeBlog
 	}
-	if strings.HasPrefix(relPath, "docs/") {
+	if strings.HasPrefix(path, "docs/") || path == "docs" {
 		return TypeDoc
 	}
 	return TypePage

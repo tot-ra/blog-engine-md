@@ -9,12 +9,15 @@ import (
 	"time"
 
 	"github.com/tot-ra/blog-engine/internal/config"
+	"github.com/tot-ra/blog-engine/internal/i18n"
+	"github.com/tot-ra/blog-engine/internal/parser"
 )
 
 // Page represents page data for templates
 type Page struct {
 	ID           string
 	URL          string
+	Language     string
 	Title        string
 	Description  string
 	Content      string
@@ -52,16 +55,28 @@ type PrevNextLinks struct {
 // PageData holds data for template rendering
 type PageData struct {
 	Site        config.SiteConfig
+	Homepage    config.HomepageConfig
 	Page        Page
+	UI          i18n.UIStrings
 	Frontmatter Frontmatter
 	Content     template.HTML
 	CSSPath     string
 	JSPath      string
+	HeaderNav   []NavLink
+	Languages   []LanguageOption
 	// Navigation fields (Phase 2)
 	Sidebar     template.HTML
 	TOC         template.HTML
 	Breadcrumbs []BreadcrumbItem
 	PrevNext    *PrevNextLinks
+}
+
+// LanguageOption represents one language item in the language switcher.
+type LanguageOption struct {
+	Code   string
+	Label  string
+	URL    string
+	Active bool
 }
 
 // TemplateEngine handles template loading and rendering
@@ -78,6 +93,9 @@ func NewTemplateEngine() *TemplateEngine {
 				layout = "2006-01-02"
 			}
 			return t.Format(layout)
+		},
+		"formatDateLocalized": func(t time.Time, lang string) string {
+			return i18n.FormatDateLong(t, lang)
 		},
 		"slugify": func(text string) string {
 			return slugify(text)
@@ -172,14 +190,7 @@ func (e *TemplateEngine) RenderPage(data PageData) (string, error) {
 
 // slugify creates a URL-friendly slug
 func slugify(text string) string {
-	if text == "" {
-		return ""
-	}
-	// Simple slugification
-	text = strings.ToLower(text)
-	text = strings.ReplaceAll(text, " ", "-")
-	text = strings.ReplaceAll(text, "_", "-")
-	return text
+	return parser.GenerateSlug(text)
 }
 
 // defaultTemplates contains built-in templates
@@ -239,6 +250,32 @@ const defaultTemplates = `{{define "base"}}
             display: flex;
             align-items: center;
             gap: 12px;
+        }
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .lang-switcher {
+            display: inline-flex;
+            gap: 4px;
+            padding: 3px;
+            border: 1px solid var(--nav-border);
+            border-radius: 999px;
+            background: var(--nav-bg);
+        }
+        .lang-link {
+            border: 0;
+            border-radius: 999px;
+            padding: 6px 11px;
+            font-size: 0.8em;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .lang-link.is-active {
+            color: #fff;
+            background: var(--nav-active);
         }
         .site-nav a {
             color: var(--text-primary);
@@ -555,7 +592,7 @@ const defaultTemplates = `{{define "base"}}
         /* Article */
         article h1 { font-size: 2em; margin-bottom: 8px; }
         article time { color: var(--text-secondary); font-size: 0.9em; }
-        article .tags { margin: 8px 0 24px; }
+        article .tags { margin: 22px 0 24px; }
         article .tag {
             display: inline-block;
             background: var(--nav-bg);
@@ -564,7 +601,9 @@ const defaultTemplates = `{{define "base"}}
             font-size: 0.85em;
             color: var(--nav-active);
             margin-right: 4px;
+            text-decoration: none;
         }
+        article .tag:hover { text-decoration: underline; }
         article .content { margin-top: 16px; }
         article .content h2 { margin-top: 2em; margin-bottom: 0.5em; }
         article .content h3 { margin-top: 1.5em; margin-bottom: 0.4em; }
@@ -614,23 +653,27 @@ const defaultTemplates = `{{define "base"}}
 <body class="homepage">
     <header class="site-header">
         <div class="header-left">
-            <a class="navbar-logo" href="/">
+            <a class="navbar-logo" href="/{{.Page.Language}}/">
                 <img class="no-transform" src="/assets/img/artjom.webp" alt="Artjom Kurapov">
             </a>
             <nav class="site-nav">
-                <a href="/docs/ob-avtore/">Об авторе</a>
-                <a href="/blog/">Блог</a>
+                {{range .HeaderNav}}<a href="{{.URL}}">{{.Title}}</a>{{end}}
             </nav>
         </div>
-        <button id="theme-toggle" class="theme-toggle" aria-label="Toggle color theme" title="Toggle theme">
-            <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="4"></circle>
-                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
-            </svg>
-            <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3c0 0 0 0 0 0A7 7 0 0 0 21 12.79z"></path>
-            </svg>
-        </button>
+        <div class="header-right">
+            <nav class="lang-switcher" aria-label="Languages">
+                {{range .Languages}}<a class="lang-link{{if .Active}} is-active{{end}}" href="{{.URL}}" hreflang="{{.Code}}">{{.Label}}</a>{{end}}
+            </nav>
+            <button id="theme-toggle" class="theme-toggle" aria-label="{{.UI.ToggleTheme}}" title="{{.UI.ToggleTheme}}">
+                <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="4"></circle>
+                    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
+                </svg>
+                <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3c0 0 0 0 0 0A7 7 0 0 0 21 12.79z"></path>
+                </svg>
+            </button>
+        </div>
     </header>
     <div class="site-layout">
         {{if .Sidebar}}{{.Sidebar}}{{end}}
@@ -668,30 +711,30 @@ const defaultTemplates = `{{define "base"}}
     <h1>{{.Page.Title}}</h1>
     {{if hasDate .Frontmatter.Date}}
     <time datetime="{{.Frontmatter.Date.Format "2006-01-02T15:04:05Z07:00"}}">
-        {{.Frontmatter.Date.Format "January 2, 2006"}}
+        {{formatDateLocalized .Frontmatter.Date .Page.Language}}
     </time>
-    {{end}}
-    {{if .Frontmatter.Tags}}
-    <div class="tags">
-        {{range .Frontmatter.Tags}}
-        <span class="tag">#{{.}}</span>
-        {{end}}
-    </div>
     {{end}}
     <div class="content">
         {{.Content}}
     </div>
+    {{if .Frontmatter.Tags}}
+    <div class="tags">
+        {{range .Frontmatter.Tags}}
+        <a class="tag" href="/{{$.Page.Language}}/tags/{{slugify .}}/">#{{.}}</a>
+        {{end}}
+    </div>
+    {{end}}
     {{if .PrevNext}}
     <nav class="prev-next" aria-label="Page navigation">
         {{if .PrevNext.Prev}}
         <a href="{{.PrevNext.Prev.URL}}" class="prev-link">
-            <span class="prev-label">← Previous</span>
+            <span class="prev-label">← {{.UI.Previous}}</span>
             <span class="prev-title">{{.PrevNext.Prev.Title}}</span>
         </a>
         {{end}}
         {{if .PrevNext.Next}}
         <a href="{{.PrevNext.Next.URL}}" class="next-link">
-            <span class="next-label">Next →</span>
+            <span class="next-label">{{.UI.Next}} →</span>
             <span class="next-title">{{.PrevNext.Next.Title}}</span>
         </a>
         {{end}}
@@ -756,6 +799,32 @@ const defaultTemplates = `{{define "base"}}
             align-items: center;
             gap: 12px;
         }
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .lang-switcher {
+            display: inline-flex;
+            gap: 4px;
+            padding: 3px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            background: var(--bg-secondary);
+        }
+        .lang-link {
+            border: 0;
+            border-radius: 999px;
+            padding: 6px 11px;
+            font-size: 0.8em;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .lang-link.is-active {
+            color: #fff;
+            background: var(--accent);
+        }
         .site-nav a {
             color: var(--text-primary);
             text-decoration: none;
@@ -803,8 +872,9 @@ const defaultTemplates = `{{define "base"}}
             justify-content: center;
             text-align: left;
             padding: 0;
-            {{if .Site.Homepage.Hero.Background}}
-            background: url('{{.Site.Homepage.Hero.Background}}') #20241f no-repeat center center;
+            margin-bottom: 32px;
+            {{if .Homepage.Hero.Background}}
+            background: url('{{.Homepage.Hero.Background}}') #20241f no-repeat center center;
             background-size: cover;
             color: white;
             {{else}}
@@ -819,7 +889,7 @@ const defaultTemplates = `{{define "base"}}
             align-items: stretch;
             justify-content: center;
             padding: 3.9rem 1.25rem;
-            {{if .Site.Homepage.Hero.Background}}
+            {{if .Homepage.Hero.Background}}
             backdrop-filter: blur(6px);
             background-color: rgba(0, 0, 0, 0.15);
             {{end}}
@@ -843,7 +913,7 @@ const defaultTemplates = `{{define "base"}}
         .hero .subtitle {
             font-size: 1.5em;
             margin: 0 0 24px;
-            {{if .Site.Homepage.Hero.Background}}
+            {{if .Homepage.Hero.Background}}
             color: rgba(255,255,255,0.9);
             {{else}}
             color: var(--text-secondary);
@@ -852,7 +922,7 @@ const defaultTemplates = `{{define "base"}}
         .hero .description {
             font-size: 1.1em;
             margin: 0 0 32px;
-            {{if .Site.Homepage.Hero.Background}}
+            {{if .Homepage.Hero.Background}}
             color: rgba(255,255,255,0.8);
             {{else}}
             color: var(--text-secondary);
@@ -897,12 +967,70 @@ const defaultTemplates = `{{define "base"}}
         }
         .btn-secondary {
             background: transparent;
-            color: {{if .Site.Homepage.Hero.Background}}white{{else}}var(--text-primary){{end}};
-            border: 2px solid {{if .Site.Homepage.Hero.Background}}white{{else}}var(--border){{end}};
+            color: {{if .Homepage.Hero.Background}}white{{else}}var(--text-primary){{end}};
+            border: 2px solid {{if .Homepage.Hero.Background}}white{{else}}var(--border){{end}};
         }
         .btn-secondary:hover {
             border-color: var(--accent);
             color: var(--accent);
+        }
+        .hero-chat-toggle {
+            position: absolute;
+            left: 50%;
+            bottom: 0;
+            transform: translate(-50%, 50%);
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            background: #1773ea;
+            color: #fff;
+            font-weight: 700;
+            font-size: 1rem;
+            padding: 12px 22px;
+            border-radius: 999px;
+            cursor: pointer;
+            box-shadow: 0 10px 26px rgba(15, 71, 145, 0.35);
+            z-index: 3;
+        }
+        .hero-chat-toggle:hover {
+            background: #1f82ff;
+        }
+        .hero-chat-toggle-icon {
+            width: 16px;
+            height: 16px;
+            display: block;
+            flex: 0 0 auto;
+            transform: rotate(0deg);
+            transition: transform 0.25s ease;
+        }
+        .hero-chat-toggle[aria-expanded="true"] .hero-chat-toggle-icon {
+            transform: rotate(90deg);
+        }
+        .hero-chat-panel {
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            transition: max-height 0.45s ease, opacity 0.25s ease;
+        }
+        .hero-chat-panel.is-open {
+            max-height: 760px;
+            opacity: 1;
+        }
+        .hero-chat-panel-inner {
+            max-width: none;
+            margin: 0;
+            padding: 18px 20px 28px;
+            width: 100%;
+        }
+        .triangle-chat-root {
+            display: flex;
+            justify-content: center;
+            width: 100%;
+        }
+        .triangle-chat-root > div {
+            width: 100% !important;
+            max-width: none !important;
         }
         /* Content Section */
         .content-section {
@@ -1063,6 +1191,13 @@ const defaultTemplates = `{{define "base"}}
             .hero-content {
                 align-items: stretch;
             }
+            .hero-chat-toggle {
+                padding: 10px 16px;
+                font-size: 0.95rem;
+            }
+            .hero-chat-panel-inner {
+                padding: 14px 12px 20px;
+            }
             .projects-grid { grid-template-columns: 1fr; }
         }
     </style>
@@ -1071,23 +1206,27 @@ const defaultTemplates = `{{define "base"}}
 <body>
     <header class="site-header">
         <div class="header-left">
-            <a class="navbar-logo" href="/">
+            <a class="navbar-logo" href="/{{.Page.Language}}/">
                 <img class="no-transform" src="/assets/img/artjom.webp" alt="Artjom Kurapov">
             </a>
             <nav class="site-nav">
-                <a href="/docs/ob-avtore/">Об авторе</a>
-                <a href="/blog/">Блог</a>
+                {{range .HeaderNav}}<a href="{{.URL}}">{{.Title}}</a>{{end}}
             </nav>
         </div>
-        <button id="theme-toggle" class="theme-toggle" aria-label="Toggle color theme" title="Toggle theme">
-            <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="4"></circle>
-                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
-            </svg>
-            <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3c0 0 0 0 0 0A7 7 0 0 0 21 12.79z"></path>
-            </svg>
-        </button>
+        <div class="header-right">
+            <nav class="lang-switcher" aria-label="Languages">
+                {{range .Languages}}<a class="lang-link{{if .Active}} is-active{{end}}" href="{{.URL}}" hreflang="{{.Code}}">{{.Label}}</a>{{end}}
+            </nav>
+            <button id="theme-toggle" class="theme-toggle" aria-label="{{.UI.ToggleTheme}}" title="{{.UI.ToggleTheme}}">
+                <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="4"></circle>
+                    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
+                </svg>
+                <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3c0 0 0 0 0 0A7 7 0 0 0 21 12.79z"></path>
+                </svg>
+            </button>
+        </div>
     </header>
 
     <!-- Hero Section -->
@@ -1095,12 +1234,12 @@ const defaultTemplates = `{{define "base"}}
         <div class="hero-content">
             <div class="hero-layout">
                 <div class="hero-copy">
-                    <h1>{{if .Site.Homepage.Hero.Title}}{{.Site.Homepage.Hero.Title}}{{else}}{{.Page.Title}}{{end}}</h1>
-                    {{if .Site.Homepage.Hero.Subtitle}}<p class="subtitle">{{.Site.Homepage.Hero.Subtitle}}</p>{{end}}
-                    {{if .Site.Homepage.Hero.Description}}<p class="description">{{.Site.Homepage.Hero.Description}}</p>{{end}}
-                    {{if .Site.Homepage.Hero.CTAButtons}}
+                    <h1>{{if .Homepage.Hero.Title}}{{.Homepage.Hero.Title}}{{else}}{{.Page.Title}}{{end}}</h1>
+                    {{if .Homepage.Hero.Subtitle}}<p class="subtitle">{{.Homepage.Hero.Subtitle}}</p>{{end}}
+                    {{if .Homepage.Hero.Description}}<p class="description">{{.Homepage.Hero.Description}}</p>{{end}}
+                    {{if .Homepage.Hero.CTAButtons}}
                     <div class="hero-cta">
-                        {{range .Site.Homepage.Hero.CTAButtons}}
+                        {{range .Homepage.Hero.CTAButtons}}
                         <a href="{{.URL}}" class="btn {{if eq .Icon "primary"}}btn-primary{{else}}btn-secondary{{end}}">
                             {{.Label}}
                         </a>
@@ -1108,10 +1247,10 @@ const defaultTemplates = `{{define "base"}}
                     </div>
                     {{end}}
                 </div>
-                {{if .Site.Homepage.Hero.VideoEmbed}}
+                {{if .Homepage.Hero.VideoEmbed}}
                 <div class="hero-media">
                     <iframe
-                        src="{{.Site.Homepage.Hero.VideoEmbed}}"
+                        src="{{.Homepage.Hero.VideoEmbed}}"
                         title="Hero video"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                         loading="lazy"
@@ -1122,7 +1261,30 @@ const defaultTemplates = `{{define "base"}}
                 {{end}}
             </div>
         </div>
+        {{if .Homepage.Chat.Enabled}}
+        <button
+            id="hero-chat-toggle"
+            class="hero-chat-toggle"
+            type="button"
+            aria-expanded="false"
+            aria-controls="hero-chat-panel"
+            data-base-url="{{.Homepage.Chat.BaseURL}}"
+            data-recipient-agent-id="{{.Homepage.Chat.RecipientAgentID}}"
+            data-title="{{if .Homepage.Chat.Title}}{{.Homepage.Chat.Title}}{{else}}Chat{{end}}">
+            <svg class="hero-chat-toggle-icon" viewBox="0 0 20 20" aria-hidden="true">
+                <polygon points="4,3 17,10 4,17" fill="currentColor"></polygon>
+            </svg>
+            <span>{{.UI.AskMyAgent}}</span>
+        </button>
+        {{end}}
     </section>
+    {{if .Homepage.Chat.Enabled}}
+    <section id="hero-chat-panel" class="hero-chat-panel" aria-hidden="true">
+        <div class="hero-chat-panel-inner">
+            <div id="triangle-chat-root" class="triangle-chat-root"></div>
+        </div>
+    </section>
+    {{end}}
 
     <!-- Main Content from Markdown -->
     {{if .Content}}
@@ -1132,11 +1294,11 @@ const defaultTemplates = `{{define "base"}}
     {{end}}
 
     <!-- Projects Section -->
-    {{if .Site.Homepage.Projects}}
+    {{if .Homepage.Projects}}
     <section class="content-section">
-        <h2>Projects</h2>
+        <h2>{{.UI.Projects}}</h2>
         <div class="projects-grid">
-            {{range .Site.Homepage.Projects}}
+            {{range .Homepage.Projects}}
             <div class="project-card">
                 {{if .Image}}<img src="{{.Image}}" alt="{{.Title}}" class="project-image">{{end}}
                 <div class="project-content">
@@ -1163,10 +1325,10 @@ const defaultTemplates = `{{define "base"}}
     {{end}}
 
     <!-- Social Links Section -->
-    {{if .Site.Homepage.SocialLinks}}
+    {{if .Homepage.SocialLinks}}
     <section class="social-section">
         <div class="social-grid">
-            {{range .Site.Homepage.SocialLinks}}
+            {{range .Homepage.SocialLinks}}
             <div class="social-group">
                 <h3>{{.Title}}</h3>
                 <ul class="social-links">
@@ -1180,7 +1342,46 @@ const defaultTemplates = `{{define "base"}}
     </section>
     {{end}}
 
-    {{if .Site.Homepage.CustomHTML}}{{.Site.Homepage.CustomHTML}}{{end}}
+    {{if .Homepage.CustomHTML}}{{.Homepage.CustomHTML}}{{end}}
+    {{if .Homepage.Chat.Enabled}}
+    <script type="module">
+        const chatToggle = document.getElementById("hero-chat-toggle");
+        const chatPanel = document.getElementById("hero-chat-panel");
+        const chatRoot = document.getElementById("triangle-chat-root");
+        let triangleWidget = null;
+
+        async function ensureTriangleWidget() {
+            if (triangleWidget || !chatRoot || !chatToggle) {
+                return;
+            }
+            const mod = await import("/assets/triangle/embed.mjs");
+            const baseUrl = chatToggle.dataset.baseUrl || window.location.origin;
+            const recipientAgentId = chatToggle.dataset.recipientAgentId || "";
+            const title = chatToggle.dataset.title || "Chat";
+            triangleWidget = mod.createTriangleWidget({
+                baseUrl: baseUrl,
+                recipientAgentId: recipientAgentId,
+                title: title,
+                mount: chatRoot
+            });
+        }
+
+        if (chatToggle && chatPanel) {
+            chatToggle.addEventListener("click", async function() {
+                const isOpen = chatPanel.classList.toggle("is-open");
+                chatPanel.setAttribute("aria-hidden", isOpen ? "false" : "true");
+                chatToggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+                if (isOpen) {
+                    await ensureTriangleWidget();
+                    const input = chatRoot ? chatRoot.querySelector("[data-role=input]") : null;
+                    if (input && typeof input.focus === "function") {
+                        setTimeout(function() { input.focus(); }, 30);
+                    }
+                }
+            });
+        }
+    </script>
+    {{end}}
     {{if .JSPath}}<script defer src="{{.JSPath}}"></script>{{end}}
 </body>
 </html>

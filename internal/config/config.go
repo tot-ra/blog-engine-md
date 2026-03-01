@@ -3,34 +3,38 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
 
 // SiteConfig represents the complete site configuration
 type SiteConfig struct {
-	Site       Site             `yaml:"site"`
-	Author     Author           `yaml:"author"`
-	Build      Build            `yaml:"build"`
-	Navigation Navigation       `yaml:"navigation"`
-	Assets     AssetsConfig     `yaml:"assets"`
-	Feeds      FeedsConfig      `yaml:"feeds"`
-	Sitemap    SitemapConfig    `yaml:"sitemap"`
-	Tags       TagsConfig       `yaml:"tags"`
-	Archive    ArchiveConfig    `yaml:"archive"`
-	Pagination PaginationConfig `yaml:"pagination"`
-	Advanced   AdvancedConfig   `yaml:"advanced"`
-	SEO        SEOConfig        `yaml:"seo"`
-	Homepage   HomepageConfig   `yaml:"homepage"` // Homepage customization
+	Site         Site                      `yaml:"site"`
+	I18n         I18nConfig                `yaml:"i18n"`
+	Author       Author                    `yaml:"author"`
+	Build        Build                     `yaml:"build"`
+	Navigation   Navigation                `yaml:"navigation"`
+	Assets       AssetsConfig              `yaml:"assets"`
+	Feeds        FeedsConfig               `yaml:"feeds"`
+	Sitemap      SitemapConfig             `yaml:"sitemap"`
+	Tags         TagsConfig                `yaml:"tags"`
+	Archive      ArchiveConfig             `yaml:"archive"`
+	Pagination   PaginationConfig          `yaml:"pagination"`
+	Advanced     AdvancedConfig            `yaml:"advanced"`
+	SEO          SEOConfig                 `yaml:"seo"`
+	Homepage     HomepageConfig            `yaml:"homepage"` // Homepage customization
+	HomepageI18n map[string]HomepageConfig `yaml:"homepageI18n"`
 }
 
 // HomepageConfig contains homepage-specific settings
 type HomepageConfig struct {
-	Enabled     bool              `yaml:"enabled"`
-	Hero        HeroConfig        `yaml:"hero"`
-	Projects    []ProjectConfig   `yaml:"projects"`
-	SocialLinks []SocialLinkGroup `yaml:"socialLinks"`
-	CustomHTML  string            `yaml:"customHTML"` // Additional custom HTML/JS
+	Enabled     bool               `yaml:"enabled"`
+	Hero        HeroConfig         `yaml:"hero"`
+	Chat        HomepageChatConfig `yaml:"chat"`
+	Projects    []ProjectConfig    `yaml:"projects"`
+	SocialLinks []SocialLinkGroup  `yaml:"socialLinks"`
+	CustomHTML  string             `yaml:"customHTML"` // Additional custom HTML/JS
 }
 
 // HeroConfig contains hero section settings
@@ -42,6 +46,14 @@ type HeroConfig struct {
 	Description string      `yaml:"description"` // Description text
 	VideoEmbed  string      `yaml:"videoEmbed"`  // Optional iframe src for hero video
 	CTAButtons  []CTAButton `yaml:"ctaButtons"`  // Call-to-action buttons
+}
+
+// HomepageChatConfig contains homepage chat widget settings
+type HomepageChatConfig struct {
+	Enabled          bool   `yaml:"enabled"`
+	BaseURL          string `yaml:"baseUrl"`
+	RecipientAgentID string `yaml:"recipientAgentId"`
+	Title            string `yaml:"title"`
 }
 
 // CTAButton represents a call-to-action button
@@ -194,6 +206,18 @@ type Site struct {
 	Favicon  string `yaml:"favicon"`
 }
 
+// I18nConfig contains multilingual site settings.
+type I18nConfig struct {
+	Default   string           `yaml:"default"`
+	Languages []LanguageConfig `yaml:"languages"`
+}
+
+// LanguageConfig contains one available language option.
+type LanguageConfig struct {
+	Code  string `yaml:"code"`
+	Label string `yaml:"label"`
+}
+
 // Author contains author information
 type Author struct {
 	Name   string            `yaml:"name"`
@@ -287,6 +311,13 @@ func DefaultConfig() *SiteConfig {
 		Site: Site{
 			BaseURL:  "/",
 			Language: "en",
+		},
+		I18n: I18nConfig{
+			Default: "en",
+			Languages: []LanguageConfig{
+				{Code: "en", Label: "English"},
+				{Code: "ru", Label: "Русский"},
+			},
 		},
 		Build: Build{
 			ContentDir:      "content",
@@ -399,6 +430,55 @@ func Validate(cfg *SiteConfig) error {
 	}
 	if cfg.Build.ParallelWorkers <= 0 {
 		cfg.Build.ParallelWorkers = 4
+	}
+	if cfg.Site.Language == "" {
+		cfg.Site.Language = "en"
+	}
+	if cfg.I18n.Default == "" {
+		cfg.I18n.Default = cfg.Site.Language
+	}
+	if len(cfg.I18n.Languages) == 0 {
+		cfg.I18n.Languages = []LanguageConfig{
+			{Code: cfg.I18n.Default, Label: strings.ToUpper(cfg.I18n.Default)},
+		}
+	}
+	langs := make([]LanguageConfig, 0, len(cfg.I18n.Languages))
+	seen := make(map[string]struct{}, len(cfg.I18n.Languages))
+	for _, l := range cfg.I18n.Languages {
+		code := strings.ToLower(strings.TrimSpace(l.Code))
+		if code == "" {
+			continue
+		}
+		if _, ok := seen[code]; ok {
+			continue
+		}
+		seen[code] = struct{}{}
+		label := strings.TrimSpace(l.Label)
+		if label == "" {
+			label = strings.ToUpper(code)
+		}
+		langs = append(langs, LanguageConfig{
+			Code:  code,
+			Label: label,
+		})
+	}
+	cfg.I18n.Languages = langs
+	if len(cfg.I18n.Languages) == 0 {
+		return fmt.Errorf("i18n.languages must contain at least one language")
+	}
+	cfg.I18n.Default = strings.ToLower(strings.TrimSpace(cfg.I18n.Default))
+	if cfg.I18n.Default == "" {
+		cfg.I18n.Default = cfg.I18n.Languages[0].Code
+	}
+	hasDefault := false
+	for _, l := range cfg.I18n.Languages {
+		if l.Code == cfg.I18n.Default {
+			hasDefault = true
+			break
+		}
+	}
+	if !hasDefault {
+		cfg.I18n.Languages = append([]LanguageConfig{{Code: cfg.I18n.Default, Label: strings.ToUpper(cfg.I18n.Default)}}, cfg.I18n.Languages...)
 	}
 	return nil
 }

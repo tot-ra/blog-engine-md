@@ -7,8 +7,8 @@ import (
 )
 
 func TestBreadcrumb_RootPage(t *testing.T) {
-	page := &Page{URL: "/", Title: "Home", Frontmatter: &parser.Frontmatter{}}
-	gen := NewBreadcrumbGenerator("Home")
+	page := &Page{URL: "/", Title: "Home", Language: "en", Frontmatter: &parser.Frontmatter{}}
+	gen := NewBreadcrumbGenerator(map[string]struct{}{"en": {}, "ru": {}})
 	crumbs := gen.Generate(page, nil)
 
 	if len(crumbs) != 1 {
@@ -20,15 +20,15 @@ func TestBreadcrumb_RootPage(t *testing.T) {
 }
 
 func TestBreadcrumb_NestedPage(t *testing.T) {
-	page := &Page{URL: "/blog/tech/golang/", Title: "Golang", Frontmatter: &parser.Frontmatter{}}
-	gen := NewBreadcrumbGenerator("Home")
+	page := &Page{URL: "/en/blog/tech/golang/", Title: "Golang", Language: "en", Frontmatter: &parser.Frontmatter{}}
+	gen := NewBreadcrumbGenerator(map[string]struct{}{"en": {}, "ru": {}})
 	crumbs := gen.Generate(page, nil)
 
 	// Home > Blog > Tech > Golang
 	if len(crumbs) != 4 {
 		t.Fatalf("Expected 4 crumbs, got %d", len(crumbs))
 	}
-	if crumbs[0].Title != "Home" || crumbs[0].URL != "/" {
+	if crumbs[0].Title != "Home" || crumbs[0].URL != "/en/" {
 		t.Errorf("First crumb should be Home, got %+v", crumbs[0])
 	}
 	if crumbs[1].Title != "Blog" {
@@ -44,13 +44,13 @@ func TestBreadcrumb_NestedPage(t *testing.T) {
 
 func TestBreadcrumb_WithNavTree(t *testing.T) {
 	pages := map[string]*Page{
-		"p1": {ID: "p1", Title: "My Post", URL: "/blog/my-post/", Type: TypeBlog, Frontmatter: &parser.Frontmatter{}},
+		"p1": {ID: "p1", Title: "My Post", URL: "/en/blog/my-post/", Language: "en", Type: TypeBlog, Frontmatter: &parser.Frontmatter{}},
 	}
 	nb := NewNavigationBuilder()
 	tree := nb.BuildTree(pages)
 
 	page := pages["p1"]
-	gen := NewBreadcrumbGenerator("Home")
+	gen := NewBreadcrumbGenerator(map[string]struct{}{"en": {}, "ru": {}})
 	crumbs := gen.Generate(page, tree)
 
 	// Home > Blog > My Post
@@ -64,8 +64,8 @@ func TestBreadcrumb_WithNavTree(t *testing.T) {
 }
 
 func TestBreadcrumb_UTF8FallbackTitle(t *testing.T) {
-	page := &Page{URL: "/blog/вера/", Title: "Вера", Frontmatter: &parser.Frontmatter{}}
-	gen := NewBreadcrumbGenerator("Home")
+	page := &Page{URL: "/ru/blog/вера/", Title: "Вера", Language: "ru", Frontmatter: &parser.Frontmatter{}}
+	gen := NewBreadcrumbGenerator(map[string]struct{}{"en": {}, "ru": {}})
 	crumbs := gen.Generate(page, nil)
 
 	if len(crumbs) != 3 {

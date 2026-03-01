@@ -5,6 +5,8 @@ import (
 	"html/template"
 	"strings"
 	"time"
+
+	"github.com/tot-ra/blog-engine/internal/i18n"
 )
 
 // NavNode mirrors builder.NavNode for rendering (avoids circular dependency)
@@ -38,7 +40,7 @@ type TimelineYear struct {
 }
 
 // RenderSidebar renders a navigation tree as sidebar HTML, marking the current page as active
-func RenderSidebar(root *NavNode, currentPath string, maxDepth int, collapsed bool) template.HTML {
+func RenderSidebar(root *NavNode, currentPath string, maxDepth int, collapsed bool, ui i18n.UIStrings) template.HTML {
 	if root == nil || len(root.Children) == 0 {
 		return ""
 	}
@@ -48,7 +50,7 @@ func RenderSidebar(root *NavNode, currentPath string, maxDepth int, collapsed bo
 
 	var sb strings.Builder
 	sb.WriteString("<nav class=\"sidebar\" aria-label=\"Navigation\">\n")
-	renderSidebarList(&sb, root.Children, currentPath, 1, maxDepth, collapsed)
+	renderSidebarList(&sb, root.Children, currentPath, 1, maxDepth, collapsed, ui)
 	sb.WriteString("</nav>\n")
 
 	return template.HTML(sb.String())
@@ -56,7 +58,7 @@ func RenderSidebar(root *NavNode, currentPath string, maxDepth int, collapsed bo
 
 // RenderBlogSidebar renders a 3-mode blog sidebar:
 // categories (tree), time (timeline), graph (embedded graph view).
-func RenderBlogSidebar(root *NavNode, currentPath string, maxDepth int, collapsed bool, timeline []TimelineYear) template.HTML {
+func RenderBlogSidebar(root *NavNode, currentPath string, maxDepth int, collapsed bool, timeline []TimelineYear, ui i18n.UIStrings, graphURL string) template.HTML {
 	if root == nil || len(root.Children) == 0 {
 		return ""
 	}
@@ -65,15 +67,15 @@ func RenderBlogSidebar(root *NavNode, currentPath string, maxDepth int, collapse
 	}
 
 	var sb strings.Builder
-	sb.WriteString("<nav class=\"sidebar blog-sidebar\" aria-label=\"Blog navigation\" data-sidebar-mode=\"categories\">\n")
-	sb.WriteString("  <div class=\"sidebar-mode-switch\" role=\"tablist\" aria-label=\"Blog view mode\">\n")
-	sb.WriteString("    <button type=\"button\" class=\"sidebar-mode-btn is-active\" role=\"tab\" aria-selected=\"true\" data-sidebar-mode-btn=\"categories\">Categories</button>\n")
-	sb.WriteString("    <button type=\"button\" class=\"sidebar-mode-btn\" role=\"tab\" aria-selected=\"false\" data-sidebar-mode-btn=\"time\">Time</button>\n")
-	sb.WriteString("    <button type=\"button\" class=\"sidebar-mode-btn\" role=\"tab\" aria-selected=\"false\" data-sidebar-mode-btn=\"graph\">Graph</button>\n")
+	sb.WriteString(fmt.Sprintf("<nav class=\"sidebar blog-sidebar\" aria-label=\"%s\" data-sidebar-mode=\"categories\">\n", template.HTMLEscapeString(ui.BlogNavigation)))
+	sb.WriteString(fmt.Sprintf("  <div class=\"sidebar-mode-switch\" role=\"tablist\" aria-label=\"%s\">\n", template.HTMLEscapeString(ui.BlogViewMode)))
+	sb.WriteString(fmt.Sprintf("    <button type=\"button\" class=\"sidebar-mode-btn is-active\" role=\"tab\" aria-selected=\"true\" data-sidebar-mode-btn=\"categories\">%s</button>\n", template.HTMLEscapeString(ui.Categories)))
+	sb.WriteString(fmt.Sprintf("    <button type=\"button\" class=\"sidebar-mode-btn\" role=\"tab\" aria-selected=\"false\" data-sidebar-mode-btn=\"time\">%s</button>\n", template.HTMLEscapeString(ui.Time)))
+	sb.WriteString(fmt.Sprintf("    <button type=\"button\" class=\"sidebar-mode-btn\" role=\"tab\" aria-selected=\"false\" data-sidebar-mode-btn=\"graph\">%s</button>\n", template.HTMLEscapeString(ui.Graph)))
 	sb.WriteString("  </div>\n")
 
 	sb.WriteString("  <div class=\"sidebar-mode-pane\" data-sidebar-mode-pane=\"categories\">\n")
-	renderSidebarList(&sb, root.Children, currentPath, 1, maxDepth, collapsed)
+	renderSidebarList(&sb, root.Children, currentPath, 1, maxDepth, collapsed, ui)
 	sb.WriteString("  </div>\n")
 
 	sb.WriteString("  <div class=\"sidebar-mode-pane\" data-sidebar-mode-pane=\"time\" hidden>\n")
@@ -81,7 +83,10 @@ func RenderBlogSidebar(root *NavNode, currentPath string, maxDepth int, collapse
 	sb.WriteString("  </div>\n")
 
 	sb.WriteString("  <div class=\"sidebar-mode-pane sidebar-graph-pane\" data-sidebar-mode-pane=\"graph\" hidden>\n")
-	sb.WriteString("    <iframe class=\"sidebar-graph-frame\" title=\"Blog graph view\" data-src=\"/graph/?embed=1\"></iframe>\n")
+	if graphURL == "" {
+		graphURL = "/graph/"
+	}
+	sb.WriteString(fmt.Sprintf("    <iframe class=\"sidebar-graph-frame\" title=\"%s\" data-src=\"%s?embed=1\"></iframe>\n", template.HTMLEscapeString(ui.BlogGraphView), template.HTMLEscapeString(strings.TrimSuffix(graphURL, "/"))))
 	sb.WriteString("  </div>\n")
 	sb.WriteString("</nav>\n")
 
@@ -118,7 +123,7 @@ func renderTimeline(sb *strings.Builder, years []TimelineYear, currentPath strin
 	sb.WriteString("    </div>\n")
 }
 
-func renderSidebarList(sb *strings.Builder, nodes []*NavNode, currentPath string, depth, maxDepth int, collapsed bool) {
+func renderSidebarList(sb *strings.Builder, nodes []*NavNode, currentPath string, depth, maxDepth int, collapsed bool, ui i18n.UIStrings) {
 	if depth > maxDepth {
 		return
 	}
@@ -154,7 +159,7 @@ func renderSidebarList(sb *strings.Builder, nodes []*NavNode, currentPath string
 
 		if node.Type == "section" && hasChildren {
 			sb.WriteString("    <div class=\"sidebar-section-head\">\n")
-			sb.WriteString(fmt.Sprintf("      <button class=\"sidebar-toggle\" type=\"button\" aria-label=\"Toggle %s\" aria-expanded=\"%t\"></button>\n", template.HTMLEscapeString(node.Title), expanded))
+			sb.WriteString(fmt.Sprintf("      <button class=\"sidebar-toggle\" type=\"button\" aria-label=\"%s %s\" aria-expanded=\"%t\"></button>\n", template.HTMLEscapeString(ui.ToggleSectionOf), template.HTMLEscapeString(node.Title), expanded))
 		}
 		if isActive {
 			sb.WriteString(fmt.Sprintf("      <a href=\"%s\" aria-current=\"page\">%s</a>\n", node.URL, template.HTMLEscapeString(node.Title)))
@@ -166,7 +171,7 @@ func renderSidebarList(sb *strings.Builder, nodes []*NavNode, currentPath string
 		}
 
 		if hasChildren {
-			renderSidebarList(sb, node.Children, currentPath, depth+1, maxDepth, collapsed)
+			renderSidebarList(sb, node.Children, currentPath, depth+1, maxDepth, collapsed, ui)
 		}
 
 		sb.WriteString("  </li>\n")
