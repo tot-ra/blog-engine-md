@@ -281,6 +281,86 @@ homepage:
       image: "/img/projects/gratheon.png"
 ```
 
+## Audio Narration (TTS)
+
+Blog Engine can generate and cache narration audio for blog posts and show a built-in player in article pages.
+
+### What it does
+
+- Generates audio for latest `N` blog posts during build
+- Stores generated files under `content/audio/posts` (or custom `audio.outputDir`)
+- Reuses cached files (no re-generation if MP3 already exists)
+- Renders a play/stop + waveform player near article date when `AudioURL` exists
+
+### Audio configuration
+
+```yaml
+audio:
+  enabled: true
+  provider: "edge" # "edge" or "elevenlabs"
+  outputDir: "content/audio/posts"
+  recentPosts: 10      # latest N posts, <=0 means all
+  maxChars: 12000      # input text cap before synthesis
+
+  edge:
+    binary: "edge-tts"
+    rate: "+0%"
+    pitch: "+0Hz"
+    voice: "ru-RU-SvetlanaNeural"
+
+  elevenlabs:
+    apiKeyEnv: "ELEVENLABS_API_KEY"
+    baseUrl: "https://api.elevenlabs.io"
+    modelId: "eleven_multilingual_v2"
+    outputFormat: "mp3_44100_128"
+    defaultVoiceId: "EXAVITQu4vr4xnSDxMaL"
+    stability: 0.45
+    similarityBoost: 0.75
+    style: 0.2
+    speakerBoost: true
+
+  voices:
+    ru: "ru-RU-SvetlanaNeural"
+    en: "en-US-EmmaMultilingualNeural"
+```
+
+### Provider setup
+
+`edge`:
+- Install `edge-tts` (for example via `pipx install edge-tts`)
+- Ensure `edge-tts` is in `PATH`
+
+`elevenlabs`:
+- Set API key in environment or `.env`
+- Example `.env`:
+
+```env
+ELEVENLABS_API_KEY=your_api_key_here
+```
+
+### Speech text normalization
+
+Before synthesis, blog markdown is normalized:
+- strips emoji/symbol-like runes
+- strips markdown tables
+- strips code blocks/inline code
+- converts URLs to domain speech (`link to example.com`)
+- adds extra pauses around headings
+
+### Regeneration behavior
+
+Audio generation is cache-based. Existing MP3 files are reused.
+
+To regenerate:
+
+```bash
+# remove cached audio
+rm -rf content/audio/posts
+
+# build again
+blog-engine build
+```
+
 ## Technical Architecture
 
 ### Module Structure
@@ -360,44 +440,6 @@ internal/
    ├── Generate graph data
    └── Copy static assets
 ```
-
-## Development Phases
-
-### Phase 1: Core (MVP)
-- [ ] Basic markdown → HTML conversion
-- [ ] Folder structure → URL mapping
-- [ ] Simple template rendering
-- [ ] Static asset copying
-
-### Phase 2: Navigation
-- [ ] Sidebar menu generation
-- [ ] Table of contents
-- [ ] Breadcrumbs
-- [ ] Previous/next links
-
-### Phase 3: Assets
-- [ ] Image optimization (WebP)
-- [ ] CSS/JS minification
-- [ ] Responsive images
-
-### Phase 4: Features
-- [ ] Search index
-- [ ] RSS/Atom feeds
-- [ ] Sitemap
-- [ ] Tag pages
-- [ ] Archive pages
-
-### Phase 5: Advanced
-- [ ] Mermaid diagrams
-- [ ] Graph view
-- [ ] Dark mode
-- [ ] Hot reload dev server
-
-### Phase 6: Polish
-- [ ] Incremental builds
-- [ ] Link validation
-- [ ] SEO optimization
-- [ ] Performance tuning
 
 ## CLI Commands
 

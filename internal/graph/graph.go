@@ -445,7 +445,7 @@ func generateGraphHTML(siteTitle string) string {
                 data.nodes.forEach(n => {
                     if (!isVisible(n)) return;
                     const p = worldToScreen(n.x, n.y);
-                    const r = Math.max(2.5, n.size * scale * 1.2);
+                    const r = Math.max(1.8, n.size * scale * 0.7);
                     ctx.beginPath();
                     ctx.arc(p.x, p.y, r, 0, 2 * Math.PI);
                     ctx.fillStyle = n.color;
