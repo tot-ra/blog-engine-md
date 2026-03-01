@@ -623,23 +623,15 @@ const defaultTemplates = `{{define "base"}}
             height: 14px;
             fill: currentColor;
         }
+        .article-audio button .icon-stop { display: none; }
+        .article-audio button.is-playing .icon-play { display: none; }
+        .article-audio button.is-playing .icon-stop { display: block; }
         .article-audio .audio-wave {
-            width: 120px;
+            width: 88px;
             height: 28px;
-            border: 1px solid var(--nav-border);
-            border-radius: 6px;
-            background: #fff;
-        }
-        .article-audio input[type="range"] {
-            width: 140px;
-            accent-color: var(--nav-active);
-        }
-        .audio-time {
-            min-width: 74px;
-            color: var(--text-secondary);
-            font-size: 0.8em;
-            text-align: right;
-            font-variant-numeric: tabular-nums;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
         }
         .article-audio button:disabled {
             opacity: 0.55;
@@ -774,12 +766,9 @@ const defaultTemplates = `{{define "base"}}
         var players = document.querySelectorAll("[data-audio-player]");
         players.forEach(function(container) {
             var audio = container.querySelector("[data-audio-element]");
-            var playBtn = container.querySelector("[data-audio-play]");
-            var stopBtn = container.querySelector("[data-audio-stop]");
-            var seek = container.querySelector("[data-audio-seek]");
-            var timeEl = container.querySelector("[data-audio-time]");
+            var toggleBtn = container.querySelector("[data-audio-toggle]");
             var wave = container.querySelector("[data-audio-wave]");
-            if (!audio || !playBtn || !stopBtn || !seek || !timeEl || !wave) {
+            if (!audio || !toggleBtn || !wave) {
                 return;
             }
             var audioCtx = null;
@@ -787,65 +776,13 @@ const defaultTemplates = `{{define "base"}}
             var analyser = null;
             var waveData = null;
             var rafId = 0;
-            var isSeeking = false;
-            var progressRaf = 0;
 
-            function formatTime(totalSeconds) {
-                if (!isFinite(totalSeconds) || totalSeconds <= 0) {
-                    return "0:00";
-                }
-                var sec = Math.floor(totalSeconds);
-                var m = Math.floor(sec / 60);
-                var s = sec % 60;
-                return m + ":" + String(s).padStart(2, "0");
-            }
-
-            function getTotalDuration() {
-                if (isFinite(audio.duration) && audio.duration > 0) {
-                    return audio.duration;
-                }
-                if (audio.seekable && audio.seekable.length > 0) {
-                    var end = audio.seekable.end(audio.seekable.length - 1);
-                    if (isFinite(end) && end > 0) {
-                        return end;
-                    }
-                }
-                return 0;
-            }
-
-            function updateTimeLabel() {
-                var current = audio.currentTime || 0;
-                var total = getTotalDuration();
-                timeEl.textContent = formatTime(current) + " / " + formatTime(total);
-            }
-
-            function updateSeek() {
-                if (!isSeeking) {
-                    var max = getTotalDuration();
-                    seek.max = String(Math.max(max, 0));
-                    seek.value = String(Math.min(audio.currentTime || 0, max || 0));
-                }
-                updateTimeLabel();
-            }
-
-            function stopProgressLoop() {
-                if (progressRaf) {
-                    cancelAnimationFrame(progressRaf);
-                    progressRaf = 0;
-                }
-            }
-
-            function startProgressLoop() {
-                stopProgressLoop();
-                var tick = function() {
-                    updateSeek();
-                    if (!audio.paused && !audio.ended) {
-                        progressRaf = requestAnimationFrame(tick);
-                    } else {
-                        stopProgressLoop();
-                    }
-                };
-                progressRaf = requestAnimationFrame(tick);
+            function syncToggleState() {
+                var isPlaying = !audio.paused && !audio.ended;
+                toggleBtn.classList.toggle("is-playing", isPlaying);
+                var label = isPlaying ? (toggleBtn.dataset.stopLabel || "Stop") : (toggleBtn.dataset.playLabel || "Play");
+                toggleBtn.setAttribute("aria-label", label);
+                toggleBtn.setAttribute("title", label);
             }
 
             function ensureVisualizer() {
@@ -877,7 +814,7 @@ const defaultTemplates = `{{define "base"}}
                     return;
                 }
                 var dpr = window.devicePixelRatio || 1;
-                var w = Math.max(120, wave.clientWidth || 120);
+                var w = Math.max(88, wave.clientWidth || 88);
                 var h = Math.max(28, wave.clientHeight || 28);
                 if (wave.width !== Math.floor(w * dpr) || wave.height !== Math.floor(h * dpr)) {
                     wave.width = Math.floor(w * dpr);
@@ -913,7 +850,14 @@ const defaultTemplates = `{{define "base"}}
                 }
             }
 
-            playBtn.addEventListener("click", function() {
+            toggleBtn.addEventListener("click", function() {
+                if (!audio.paused && !audio.ended) {
+                    audio.pause();
+                    audio.currentTime = 0;
+                    syncToggleState();
+                    stopWave();
+                    return;
+                }
                 ensureVisualizer();
                 if (audioCtx && audioCtx.state === "suspended") {
                     audioCtx.resume().catch(function() {});
@@ -921,57 +865,22 @@ const defaultTemplates = `{{define "base"}}
                 var started = audio.play();
                 if (started && typeof started.then === "function") {
                     started.then(function() {
-                        playBtn.disabled = true;
-                        stopBtn.disabled = false;
-                        startProgressLoop();
+                        syncToggleState();
                         drawWave();
                     }).catch(function() {});
                     return;
                 }
-                playBtn.disabled = true;
-                stopBtn.disabled = false;
-                startProgressLoop();
+                syncToggleState();
                 drawWave();
             });
-            stopBtn.addEventListener("click", function() {
-                audio.pause();
-                audio.currentTime = 0;
-                playBtn.disabled = false;
-                stopBtn.disabled = true;
-                updateSeek();
-                stopWave();
-                stopProgressLoop();
-            });
-            seek.addEventListener("input", function() {
-                isSeeking = true;
-                var preview = parseFloat(seek.value || "0");
-                timeEl.textContent = formatTime(preview) + " / " + formatTime(audio.duration || 0);
-            });
-            seek.addEventListener("change", function() {
-                var target = parseFloat(seek.value || "0");
-                if (isFinite(target)) {
-                    audio.currentTime = target;
-                }
-                isSeeking = false;
-                updateSeek();
-            });
-            audio.addEventListener("timeupdate", updateSeek);
-            audio.addEventListener("loadedmetadata", updateSeek);
-            audio.addEventListener("durationchange", updateSeek);
-            audio.addEventListener("loadeddata", updateSeek);
-            audio.addEventListener("canplay", updateSeek);
-            audio.addEventListener("progress", updateSeek);
+            audio.addEventListener("pause", syncToggleState);
+            audio.addEventListener("play", syncToggleState);
             audio.addEventListener("ended", function() {
-                playBtn.disabled = false;
-                stopBtn.disabled = true;
-                updateSeek();
+                syncToggleState();
                 stopWave();
-                stopProgressLoop();
             });
 
-            seek.min = "0";
-            seek.step = "0.1";
-            updateSeek();
+            syncToggleState();
         });
     })();
     </script>
@@ -1012,19 +921,15 @@ const defaultTemplates = `{{define "base"}}
         {{if .Page.AudioURL}}
         <div class="article-audio" data-audio-player>
             <audio preload="metadata" src="{{.Page.AudioURL}}" data-audio-element></audio>
-            <button type="button" data-audio-play aria-label="{{.UI.Listen}}" title="{{.UI.Listen}}">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
+            <button type="button" data-audio-toggle data-play-label="{{.UI.Listen}}" data-stop-label="{{.UI.Stop}}" aria-label="{{.UI.Listen}}" title="{{.UI.Listen}}">
+                <svg class="icon-play" viewBox="0 0 24 24" aria-hidden="true">
                     <polygon points="8,5 19,12 8,19"></polygon>
                 </svg>
-            </button>
-            <button type="button" data-audio-stop disabled aria-label="{{.UI.Stop}}" title="{{.UI.Stop}}">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
+                <svg class="icon-stop" viewBox="0 0 24 24" aria-hidden="true">
                     <rect x="7" y="7" width="10" height="10"></rect>
                 </svg>
             </button>
-            <input type="range" value="0" data-audio-seek aria-label="{{.UI.PlaybackPos}}">
             <canvas class="audio-wave" data-audio-wave></canvas>
-            <span class="audio-time" data-audio-time>0:00 / 0:00</span>
         </div>
         {{end}}
     </div>
