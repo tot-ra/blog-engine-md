@@ -95,12 +95,6 @@ func (g *SectionIndexGenerator) generateIndexPage(node *NavNode, pages map[strin
 			for _, post := range posts {
 				sb.WriteString("  <article class=\"section-article-preview\">\n")
 				sb.WriteString(fmt.Sprintf("    <h2><a href=\"%s\">%s</a></h2>\n", template.HTMLEscapeString(post.URL), template.HTMLEscapeString(post.Title)))
-				if post.Frontmatter != nil && !post.Frontmatter.Date.IsZero() {
-					sb.WriteString(fmt.Sprintf("    <time datetime=\"%s\">%s</time>\n",
-						post.Frontmatter.Date.Format(time.RFC3339),
-						post.Frontmatter.Date.Format("2006-01-02"),
-					))
-				}
 				excerpt := extractPreviewText(post.RawContent, 2, 320)
 				if excerpt == "" {
 					excerpt = strings.TrimSpace(post.Description)
