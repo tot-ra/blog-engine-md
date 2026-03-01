@@ -375,17 +375,11 @@ const defaultTemplates = `{{define "base"}}
             color: var(--text-secondary);
             margin: 4px 0;
         }
-        .timeline-year h5 {
-            font-size: 0.78em;
-            color: var(--text-secondary);
-            margin: 8px 0 4px;
-            text-transform: uppercase;
-            letter-spacing: 0.03em;
-        }
         .timeline-list {
             list-style: none;
             margin: 0;
             padding: 0;
+            margin-bottom: 8px;
         }
         .timeline-list li a {
             display: block;
@@ -639,6 +633,29 @@ const defaultTemplates = `{{define "base"}}
         .section-index { list-style: none; padding: 0; }
         .section-index li { padding: 6px 0; border-bottom: 1px solid var(--nav-border); }
         .section-index li a { font-weight: 500; }
+        .section-article-list {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        .section-article-preview {
+            border-bottom: 1px solid var(--nav-border);
+            padding-bottom: 12px;
+        }
+        .section-article-preview h2 {
+            margin: 0 0 4px;
+            font-size: 1.05em;
+        }
+        .section-article-preview time {
+            display: block;
+            color: var(--text-secondary);
+            font-size: 0.83em;
+            margin-bottom: 6px;
+        }
+        .section-article-preview p {
+            margin: 0;
+            color: var(--text-secondary);
+        }
         /* Responsive */
         @media (max-width: 1200px) {
             .toc { display: none; }

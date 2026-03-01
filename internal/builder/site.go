@@ -9,7 +9,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/tot-ra/blog-engine/internal/archive"
 	"github.com/tot-ra/blog-engine/internal/assets"
@@ -202,7 +201,7 @@ func (b *SiteBuilder) Build() error {
 	// Precompute blog timeline data used by blog sidebar "time" mode.
 	b.blogTimeline = make(map[string][]renderer.TimelineYear)
 	for lang, posts := range b.collectBlogPostsByLanguage() {
-		b.blogTimeline[lang] = buildBlogTimeline(posts, 20, lang)
+		b.blogTimeline[lang] = buildBlogTimeline(posts, 20)
 	}
 
 	// Render pages (after CSS/JS processing so templates can reference bundles)
@@ -975,7 +974,7 @@ func (b *SiteBuilder) collectBlogPosts() []*Page {
 	return posts
 }
 
-func buildBlogTimeline(posts []*Page, maxPerYear int, lang string) []renderer.TimelineYear {
+func buildBlogTimeline(posts []*Page, maxPerYear int) []renderer.TimelineYear {
 	if maxPerYear <= 0 {
 		maxPerYear = 20
 	}
@@ -1004,32 +1003,18 @@ func buildBlogTimeline(posts []*Page, maxPerYear int, lang string) []renderer.Ti
 			pages = pages[:maxPerYear]
 		}
 
-		monthOrder := make([]time.Month, 0, 12)
-		byMonth := make(map[time.Month][]renderer.TimelineItem)
+		items := make([]renderer.TimelineItem, 0, len(pages))
 		for _, p := range pages {
-			m := p.Frontmatter.Date.Month()
-			if _, exists := byMonth[m]; !exists {
-				monthOrder = append(monthOrder, m)
-			}
-			byMonth[m] = append(byMonth[m], renderer.TimelineItem{
+			items = append(items, renderer.TimelineItem{
 				Title: p.Title,
 				URL:   p.URL,
 				Date:  p.Frontmatter.Date,
 			})
 		}
-		sort.Slice(monthOrder, func(i, j int) bool { return monthOrder[i] > monthOrder[j] })
-
-		months := make([]renderer.TimelineMonth, 0, len(monthOrder))
-		for _, m := range monthOrder {
-			months = append(months, renderer.TimelineMonth{
-				MonthLabel: i18n.MonthName(lang, m),
-				Items:      byMonth[m],
-			})
-		}
 
 		result = append(result, renderer.TimelineYear{
-			Year:   year,
-			Months: months,
+			Year:  year,
+			Items: items,
 		})
 	}
 	return result

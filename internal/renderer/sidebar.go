@@ -27,16 +27,10 @@ type TimelineItem struct {
 	Date  time.Time
 }
 
-// TimelineMonth groups timeline items by month.
-type TimelineMonth struct {
-	MonthLabel string
-	Items      []TimelineItem
-}
-
 // TimelineYear groups timeline items by year.
 type TimelineYear struct {
-	Year   int
-	Months []TimelineMonth
+	Year  int
+	Items []TimelineItem
 }
 
 // RenderSidebar renders a navigation tree as sidebar HTML, marking the current page as active
@@ -97,27 +91,24 @@ func renderTimeline(sb *strings.Builder, years []TimelineYear, currentPath strin
 	sb.WriteString("    <div class=\"sidebar-timeline\">\n")
 	for _, year := range years {
 		sb.WriteString(fmt.Sprintf("      <section class=\"timeline-year\"><h4>%d</h4>\n", year.Year))
-		for _, month := range year.Months {
-			sb.WriteString(fmt.Sprintf("        <h5>%s</h5>\n", template.HTMLEscapeString(month.MonthLabel)))
-			sb.WriteString("        <ul class=\"timeline-list\">\n")
-			for _, item := range month.Items {
-				if item.URL == "" {
-					continue
-				}
-				if currentPath == item.URL {
-					sb.WriteString(fmt.Sprintf("          <li class=\"active\"><a href=\"%s\" aria-current=\"page\">%s</a></li>\n",
-						item.URL,
-						template.HTMLEscapeString(item.Title),
-					))
-					continue
-				}
-				sb.WriteString(fmt.Sprintf("          <li><a href=\"%s\">%s</a></li>\n",
+		sb.WriteString("        <ul class=\"timeline-list\">\n")
+		for _, item := range year.Items {
+			if item.URL == "" {
+				continue
+			}
+			if currentPath == item.URL {
+				sb.WriteString(fmt.Sprintf("          <li class=\"active\"><a href=\"%s\" aria-current=\"page\">%s</a></li>\n",
 					item.URL,
 					template.HTMLEscapeString(item.Title),
 				))
+				continue
 			}
-			sb.WriteString("        </ul>\n")
+			sb.WriteString(fmt.Sprintf("          <li><a href=\"%s\">%s</a></li>\n",
+				item.URL,
+				template.HTMLEscapeString(item.Title),
+			))
 		}
+		sb.WriteString("        </ul>\n")
 		sb.WriteString("      </section>\n")
 	}
 	sb.WriteString("    </div>\n")
