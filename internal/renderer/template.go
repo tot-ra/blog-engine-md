@@ -55,20 +55,21 @@ type PrevNextLinks struct {
 
 // PageData holds data for template rendering
 type PageData struct {
-	Site           config.SiteConfig
-	Homepage       config.HomepageConfig
-	Page           Page
-	CanonicalURL   string
-	SocialImageURL string
-	OpenGraphType  string
-	SocialCard     string
-	UI             i18n.UIStrings
-	Frontmatter    Frontmatter
-	Content        template.HTML
-	CSSPath        string
-	JSPath         string
-	HeaderNav      []NavLink
-	Languages      []LanguageOption
+	Site            config.SiteConfig
+	Homepage        config.HomepageConfig
+	Page            Page
+	CanonicalURL    string
+	SocialImageURL  string
+	OpenGraphType   string
+	SocialCard      string
+	MetaDescription string
+	UI              i18n.UIStrings
+	Frontmatter     Frontmatter
+	Content         template.HTML
+	CSSPath         string
+	JSPath          string
+	HeaderNav       []NavLink
+	Languages       []LanguageOption
 	// Navigation fields (Phase 2)
 	Sidebar     template.HTML
 	TOC         template.HTML
@@ -206,20 +207,20 @@ const defaultTemplates = `{{define "base"}}
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{.Page.Title}}{{if .Site.Site.Title}} | {{.Site.Site.Title}}{{end}}</title>
-    {{if .Page.Description}}
-    <meta name="description" content="{{.Page.Description}}">
+    {{if .MetaDescription}}
+    <meta name="description" content="{{.MetaDescription}}">
     {{end}}
     {{if .Site.SEO.Enabled}}
     {{if .CanonicalURL}}<link rel="canonical" href="{{.CanonicalURL}}">{{end}}
     <meta property="og:title" content="{{.Page.Title}}">
-    {{if .Page.Description}}<meta property="og:description" content="{{.Page.Description}}">{{end}}
+    {{if .MetaDescription}}<meta property="og:description" content="{{.MetaDescription}}">{{end}}
     <meta property="og:type" content="{{.OpenGraphType}}">
     {{if .CanonicalURL}}<meta property="og:url" content="{{.CanonicalURL}}">{{end}}
     {{if .SocialImageURL}}<meta property="og:image" content="{{.SocialImageURL}}">{{end}}
     {{if .Site.Site.Title}}<meta property="og:site_name" content="{{.Site.Site.Title}}">{{end}}
     <meta name="twitter:card" content="{{.SocialCard}}">
     <meta name="twitter:title" content="{{.Page.Title}}">
-    {{if .Page.Description}}<meta name="twitter:description" content="{{.Page.Description}}">{{end}}
+    {{if .MetaDescription}}<meta name="twitter:description" content="{{.MetaDescription}}">{{end}}
     {{if .SocialImageURL}}<meta name="twitter:image" content="{{.SocialImageURL}}">{{end}}
     {{if .Site.SEO.Twitter.Site}}<meta name="twitter:site" content="{{.Site.SEO.Twitter.Site}}">{{end}}
     {{if .Site.SEO.Twitter.Creator}}<meta name="twitter:creator" content="{{.Site.SEO.Twitter.Creator}}">{{end}}
@@ -993,18 +994,18 @@ const defaultTemplates = `{{define "base"}}
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{.Page.Title}}{{if .Site.Site.Title}} — {{.Site.Site.Title}}{{end}}</title>
-    {{if .Page.Description}}<meta name="description" content="{{.Page.Description}}">{{end}}
+    {{if .MetaDescription}}<meta name="description" content="{{.MetaDescription}}">{{end}}
     {{if .Site.SEO.Enabled}}
     {{if .CanonicalURL}}<link rel="canonical" href="{{.CanonicalURL}}">{{end}}
     <meta property="og:title" content="{{.Page.Title}}">
-    {{if .Page.Description}}<meta property="og:description" content="{{.Page.Description}}">{{end}}
+    {{if .MetaDescription}}<meta property="og:description" content="{{.MetaDescription}}">{{end}}
     <meta property="og:type" content="{{.OpenGraphType}}">
     {{if .CanonicalURL}}<meta property="og:url" content="{{.CanonicalURL}}">{{end}}
     {{if .SocialImageURL}}<meta property="og:image" content="{{.SocialImageURL}}">{{end}}
     {{if .Site.Site.Title}}<meta property="og:site_name" content="{{.Site.Site.Title}}">{{end}}
     <meta name="twitter:card" content="{{.SocialCard}}">
     <meta name="twitter:title" content="{{.Page.Title}}">
-    {{if .Page.Description}}<meta name="twitter:description" content="{{.Page.Description}}">{{end}}
+    {{if .MetaDescription}}<meta name="twitter:description" content="{{.MetaDescription}}">{{end}}
     {{if .SocialImageURL}}<meta name="twitter:image" content="{{.SocialImageURL}}">{{end}}
     {{if .Site.SEO.Twitter.Site}}<meta name="twitter:site" content="{{.Site.SEO.Twitter.Site}}">{{end}}
     {{if .Site.SEO.Twitter.Creator}}<meta name="twitter:creator" content="{{.Site.SEO.Twitter.Creator}}">{{end}}
