@@ -3,6 +3,7 @@ package builder
 import (
 	"fmt"
 	"html/template"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -23,6 +24,7 @@ import (
 )
 
 var siteFooterRe = regexp.MustCompile(`(?s)<footer class="site-footer">.*?</footer>`)
+var firstImageSrcRe = regexp.MustCompile(`(?is)<img[^>]+src\s*=\s*['"]([^'"]+)['"]`)
 
 // SiteBuilder orchestrates the site building process
 type SiteBuilder struct {
@@ -658,6 +660,16 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 		UI:      ui,
 		Content: template.HTML(page.Content),
 	}
+	data.CanonicalURL = b.absolutePageURL(page.URL)
+	data.OpenGraphType = "website"
+	if page.Type == TypeBlog {
+		data.OpenGraphType = "article"
+	}
+	data.SocialImageURL = b.resolveSocialImageURL(page)
+	data.SocialCard = "summary"
+	if data.SocialImageURL != "" {
+		data.SocialCard = "summary_large_image"
+	}
 	data.Site.Site.Language = page.Language
 	data.Homepage = b.homepageForLanguage(page.Language)
 	if b.cssBundle != nil {
@@ -809,6 +821,79 @@ func (b *SiteBuilder) detectLanguageFromURL(pageURL string) string {
 		}
 	}
 	return b.config.I18n.Default
+}
+
+func (b *SiteBuilder) absolutePageURL(pagePath string) string {
+	if pagePath == "" {
+		pagePath = "/"
+	}
+	if strings.HasPrefix(pagePath, "http://") || strings.HasPrefix(pagePath, "https://") {
+		return pagePath
+	}
+	base := strings.TrimSuffix(strings.TrimSpace(b.config.Site.URL), "/")
+	if base == "" {
+		return pagePath
+	}
+	if strings.HasPrefix(pagePath, "/") {
+		return base + pagePath
+	}
+	return base + "/" + pagePath
+}
+
+func (b *SiteBuilder) resolveSocialImageURL(page *Page) string {
+	if page != nil && page.Type == TypeBlog {
+		if src := extractFirstImageSrc(page.Content); src != "" {
+			if resolved := b.resolveAssetURL(src, page.URL); resolved != "" {
+				return resolved
+			}
+		}
+	}
+	return b.resolveAssetURL(strings.TrimSpace(b.config.SEO.DefaultImage), page.URL)
+}
+
+func (b *SiteBuilder) resolveAssetURL(src, pageURL string) string {
+	src = strings.TrimSpace(src)
+	if src == "" {
+		return ""
+	}
+	if strings.HasPrefix(src, "http://") || strings.HasPrefix(src, "https://") {
+		return src
+	}
+
+	baseURL := strings.TrimSpace(b.config.Site.URL)
+	if strings.HasPrefix(src, "//") {
+		siteURL, err := url.Parse(baseURL)
+		if err != nil || siteURL.Scheme == "" {
+			return "https:" + src
+		}
+		return siteURL.Scheme + ":" + src
+	}
+
+	if strings.HasPrefix(src, "/") {
+		if baseURL == "" {
+			return src
+		}
+		return strings.TrimSuffix(baseURL, "/") + src
+	}
+
+	pageAbs := b.absolutePageURL(pageURL)
+	base, err := url.Parse(pageAbs)
+	if err != nil {
+		return src
+	}
+	ref, err := url.Parse(src)
+	if err != nil {
+		return src
+	}
+	return base.ResolveReference(ref).String()
+}
+
+func extractFirstImageSrc(html string) string {
+	matches := firstImageSrcRe.FindStringSubmatch(html)
+	if len(matches) > 1 {
+		return strings.TrimSpace(matches[1])
+	}
+	return ""
 }
 
 func (b *SiteBuilder) localizeInternalLinks(html, lang string) string {

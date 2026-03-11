@@ -129,6 +129,9 @@ advanced:
     allowToggle: true
 
 seo:
-  defaultTitle: "Blog Engine MD"
-  titleSeparator: " — "
-  generateSocialMeta: true
+  enabled: true
+  defaultDescription: "A high-performance static site generator"
+  defaultImage: "/assets/images/sample.svg"
+  twitter:
+    site: ""
+    creator: ""

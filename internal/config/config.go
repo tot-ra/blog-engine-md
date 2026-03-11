@@ -453,6 +453,9 @@ func DefaultConfig() *SiteConfig {
 				"en": "EXAVITQu4vr4xnSDxMaL",
 			},
 		},
+		SEO: SEOConfig{
+			Enabled: true,
+		},
 	}
 }
 
