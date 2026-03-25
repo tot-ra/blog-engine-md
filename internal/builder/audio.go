@@ -193,7 +193,8 @@ func (b *SiteBuilder) audioFilePathAndURL(page *Page) (string, string, error) {
 		slug = "post"
 	}
 
-	sum := sha1.Sum([]byte(page.URL))
+	hashInput := fmt.Sprintf("%s|%s", page.URL, page.RawContent)
+	sum := sha1.Sum([]byte(hashInput))
 	hash := hex.EncodeToString(sum[:])[:10]
 	filename := fmt.Sprintf("%s-%s.mp3", slug, hash)
 	absPath := filepath.Join(absBaseDir, lang, filename)
