@@ -1233,52 +1233,12 @@ const defaultTemplates = `{{define "base"}}
             border-color: var(--accent);
             color: var(--accent);
         }
-        .hero-chat-toggle {
-            position: absolute;
-            left: 50%;
-            bottom: 0;
-            transform: translate(-50%, 50%);
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.35);
-            background: #1773ea;
-            color: #fff;
-            font-weight: 700;
-            font-size: 1rem;
-            padding: 12px 22px;
-            border-radius: 999px;
-            cursor: pointer;
-            box-shadow: 0 10px 26px rgba(15, 71, 145, 0.35);
-            z-index: 3;
-        }
-        .hero-chat-toggle:hover {
-            background: #1f82ff;
-        }
-        .hero-chat-toggle-icon {
-            width: 16px;
-            height: 16px;
-            display: block;
-            flex: 0 0 auto;
-            transform: rotate(0deg);
-            transition: transform 0.25s ease;
-        }
-        .hero-chat-toggle[aria-expanded="true"] .hero-chat-toggle-icon {
-            transform: rotate(90deg);
-        }
         .hero-chat-panel {
-            max-height: 0;
-            opacity: 0;
-            overflow: hidden;
-            transition: max-height 0.45s ease, opacity 0.25s ease;
-        }
-        .hero-chat-panel.is-open {
-            max-height: 760px;
-            opacity: 1;
+            overflow: visible;
         }
         .hero-chat-panel-inner {
-            max-width: none;
-            margin: 0;
+            max-width: 800px;
+            margin: 0 auto;
             padding: 18px 20px 28px;
             width: 100%;
         }
@@ -1289,7 +1249,7 @@ const defaultTemplates = `{{define "base"}}
         }
         .triangle-chat-root > div {
             width: 100% !important;
-            max-width: none !important;
+            max-width: 800px !important;
         }
         /* Content Section */
         .content-section {
@@ -1450,10 +1410,6 @@ const defaultTemplates = `{{define "base"}}
             .hero-content {
                 align-items: stretch;
             }
-            .hero-chat-toggle {
-                padding: 10px 16px;
-                font-size: 0.95rem;
-            }
             .hero-chat-panel-inner {
                 padding: 14px 12px 20px;
             }
@@ -1520,27 +1476,17 @@ const defaultTemplates = `{{define "base"}}
                 {{end}}
             </div>
         </div>
-        {{if .Homepage.Chat.Enabled}}
-        <button
-            id="hero-chat-toggle"
-            class="hero-chat-toggle"
-            type="button"
-            aria-expanded="false"
-            aria-controls="hero-chat-panel"
-            data-base-url="{{.Homepage.Chat.BaseURL}}"
-            data-recipient-agent-id="{{.Homepage.Chat.RecipientAgentID}}"
-            data-title="{{if .Homepage.Chat.Title}}{{.Homepage.Chat.Title}}{{else}}Chat{{end}}">
-            <svg class="hero-chat-toggle-icon" viewBox="0 0 20 20" aria-hidden="true">
-                <polygon points="4,3 17,10 4,17" fill="currentColor"></polygon>
-            </svg>
-            <span>{{.UI.AskMyAgent}}</span>
-        </button>
-        {{end}}
     </section>
     {{if .Homepage.Chat.Enabled}}
-    <section id="hero-chat-panel" class="hero-chat-panel" aria-hidden="true">
+    <section id="hero-chat-panel" class="hero-chat-panel">
         <div class="hero-chat-panel-inner">
-            <div id="triangle-chat-root" class="triangle-chat-root"></div>
+            <div
+                id="triangle-chat-root"
+                class="triangle-chat-root"
+                data-base-url="{{.Homepage.Chat.BaseURL}}"
+                data-recipient-agent-id="{{.Homepage.Chat.RecipientAgentID}}"
+                data-title="{{if .Homepage.Chat.Title}}{{.Homepage.Chat.Title}}{{else}}Chat{{end}}">
+            </div>
         </div>
     </section>
     {{end}}
@@ -1604,19 +1550,17 @@ const defaultTemplates = `{{define "base"}}
     {{if .Homepage.CustomHTML}}{{.Homepage.CustomHTML}}{{end}}
     {{if .Homepage.Chat.Enabled}}
     <script type="module">
-        const chatToggle = document.getElementById("hero-chat-toggle");
-        const chatPanel = document.getElementById("hero-chat-panel");
         const chatRoot = document.getElementById("triangle-chat-root");
         let triangleWidget = null;
 
         async function ensureTriangleWidget() {
-            if (triangleWidget || !chatRoot || !chatToggle) {
+            if (triangleWidget || !chatRoot) {
                 return;
             }
             const mod = await import("/assets/triangle/embed.js");
-            const baseUrl = chatToggle.dataset.baseUrl || window.location.origin;
-            const recipientAgentId = chatToggle.dataset.recipientAgentId || "";
-            const title = chatToggle.dataset.title || "Chat";
+            const baseUrl = chatRoot.dataset.baseUrl || window.location.origin;
+            const recipientAgentId = chatRoot.dataset.recipientAgentId || "";
+            const title = chatRoot.dataset.title || "Chat";
             triangleWidget = mod.createTriangleWidget({
                 baseUrl: baseUrl,
                 recipientAgentId: recipientAgentId,
@@ -1625,20 +1569,7 @@ const defaultTemplates = `{{define "base"}}
             });
         }
 
-        if (chatToggle && chatPanel) {
-            chatToggle.addEventListener("click", async function() {
-                const isOpen = chatPanel.classList.toggle("is-open");
-                chatPanel.setAttribute("aria-hidden", isOpen ? "false" : "true");
-                chatToggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
-                if (isOpen) {
-                    await ensureTriangleWidget();
-                    const input = chatRoot ? chatRoot.querySelector("[data-role=input]") : null;
-                    if (input && typeof input.focus === "function") {
-                        setTimeout(function() { input.focus(); }, 30);
-                    }
-                }
-            });
-        }
+        void ensureTriangleWidget();
     </script>
     {{end}}
     {{if .JSPath}}<script defer src="{{.JSPath}}"></script>{{end}}
