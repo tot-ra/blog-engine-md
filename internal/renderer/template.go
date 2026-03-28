@@ -1613,7 +1613,7 @@ const defaultTemplates = `{{define "base"}}
             if (triangleWidget || !chatRoot || !chatToggle) {
                 return;
             }
-            const mod = await import("/assets/triangle/embed.mjs");
+            const mod = await import("/assets/triangle/embed.js");
             const baseUrl = chatToggle.dataset.baseUrl || window.location.origin;
             const recipientAgentId = chatToggle.dataset.recipientAgentId || "";
             const title = chatToggle.dataset.title || "Chat";
