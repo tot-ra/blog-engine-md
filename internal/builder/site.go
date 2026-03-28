@@ -194,7 +194,9 @@ func (b *SiteBuilder) Build() error {
 	if b.config.Assets.JS.Enabled {
 		var jsFiles []string
 		for _, f := range index.AssetFiles {
-			if strings.HasSuffix(f.Path, ".js") {
+			rel := filepath.ToSlash(f.RelativePath)
+			// Keep ES module files (e.g. content/triangle/*.js) as standalone assets.
+			if strings.HasSuffix(f.Path, ".js") && !strings.HasPrefix(rel, "triangle/") {
 				jsFiles = append(jsFiles, f.Path)
 			}
 		}
@@ -235,6 +237,9 @@ func (b *SiteBuilder) Build() error {
 	// Copy remaining static assets (non-image, non-CSS/JS)
 	if err := b.copyAssets(index); err != nil {
 		return fmt.Errorf("failed to copy assets: %w", err)
+	}
+	if err := b.copyTriangleModules(); err != nil {
+		return fmt.Errorf("failed to copy triangle modules: %w", err)
 	}
 
 	// Remove legacy footer blocks from generated pages.
@@ -1173,7 +1178,8 @@ func (b *SiteBuilder) copyAssets(index *ContentIndex) error {
 		file := index.AssetFiles[i]
 		// Skip CSS/JS files (already processed)
 		ext := strings.ToLower(filepath.Ext(file.Path))
-		if ext == ".css" || ext == ".js" {
+		rel := filepath.ToSlash(file.RelativePath)
+		if ext == ".css" || (ext == ".js" && !strings.HasPrefix(rel, "triangle/")) {
 			return nil
 		}
 
@@ -1200,6 +1206,47 @@ func (b *SiteBuilder) copyAssets(index *ContentIndex) error {
 	})
 	if len(errs) > 0 {
 		return errs[0]
+	}
+
+	return nil
+}
+
+// copyTriangleModules ensures chat widget module files are available as standalone assets.
+func (b *SiteBuilder) copyTriangleModules() error {
+	srcDir := filepath.Join(b.config.Build.ContentDir, "triangle")
+	entries, err := os.ReadDir(srcDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+
+	dstDir := filepath.Join(b.config.Build.OutputDir, "assets", "triangle")
+	if err := os.MkdirAll(dstDir, 0755); err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		ext := strings.ToLower(filepath.Ext(name))
+		if ext != ".js" && ext != ".mjs" {
+			continue
+		}
+
+		srcPath := filepath.Join(srcDir, name)
+		dstPath := filepath.Join(dstDir, name)
+
+		data, err := os.ReadFile(srcPath)
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(dstPath, data, 0644); err != nil {
+			return err
+		}
 	}
 
 	return nil
