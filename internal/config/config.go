@@ -198,10 +198,25 @@ type ElevenLabsConfig struct {
 
 // Navigation contains navigation settings
 type Navigation struct {
+	Header      HeaderConfig      `yaml:"header"`
 	Sidebar     SidebarConfig     `yaml:"sidebar"`
 	TOC         TOCConfig         `yaml:"toc"`
 	Breadcrumbs BreadcrumbsConfig `yaml:"breadcrumbs"`
 	PrevNext    PrevNextConfig    `yaml:"prevNext"`
+}
+
+// HeaderConfig contains header navigation settings
+type HeaderConfig struct {
+	Enabled bool         `yaml:"enabled"`
+	Items   []HeaderItem `yaml:"items"`
+}
+
+// HeaderItem contains one configurable header navigation item.
+type HeaderItem struct {
+	Title     string            `yaml:"title"`
+	TitleI18n map[string]string `yaml:"titleI18n"`
+	Path      string            `yaml:"path"`
+	URL       string            `yaml:"url"`
 }
 
 // SidebarConfig contains sidebar settings
@@ -361,6 +376,13 @@ func DefaultConfig() *SiteConfig {
 			ParallelWorkers: 4,
 		},
 		Navigation: Navigation{
+			Header: HeaderConfig{
+				Enabled: true,
+				Items: []HeaderItem{
+					{Title: "Docs", Path: "docs"},
+					{Title: "Blog", Path: "blog"},
+				},
+			},
 			Sidebar: SidebarConfig{
 				Collapsed:    false,
 				MaxDepth:     3,

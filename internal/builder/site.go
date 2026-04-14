@@ -1115,15 +1115,56 @@ func convertPrevNext(links *PrevNextLinks) *renderer.PrevNextLinks {
 }
 
 func (b *SiteBuilder) buildHeaderNav(lang string) []renderer.NavLink {
-	ui := i18n.UI(lang)
-	base := "/" + strings.Trim(lang, "/") + "/"
+	if !b.config.Navigation.Header.Enabled {
+		return nil
+	}
+	items := b.config.Navigation.Header.Items
+	if len(items) == 0 {
+		ui := i18n.UI(lang)
+		items = []config.HeaderItem{
+			{Title: ui.Docs, Path: "docs"},
+			{Title: ui.Blog, Path: "blog"},
+		}
+	}
+
+	nav := make([]renderer.NavLink, 0, len(items))
+	for _, item := range items {
+		title := strings.TrimSpace(item.Title)
+		if localized, ok := item.TitleI18n[strings.ToLower(lang)]; ok && strings.TrimSpace(localized) != "" {
+			title = strings.TrimSpace(localized)
+		}
+		if title == "" {
+			continue
+		}
+
+		target := strings.TrimSpace(item.URL)
+		if target == "" && strings.TrimSpace(item.Path) != "" {
+			target = buildLanguageScopedURL(lang, item.Path)
+		}
+		if target == "" {
+			continue
+		}
+
+		nav = append(nav, renderer.NavLink{Title: title, URL: target, Type: "header"})
+	}
+	return nav
+}
+
+func buildLanguageScopedURL(lang, path string) string {
+	trimmedPath := strings.Trim(path, "/")
+	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+		return path
+	}
+	if trimmedPath == "" {
+		if lang == "" {
+			return "/"
+		}
+		return "/" + strings.Trim(lang, "/") + "/"
+	}
 	if lang == "" {
-		base = "/"
+		return "/" + trimmedPath + "/"
 	}
-	return []renderer.NavLink{
-		{Title: ui.Docs, URL: base + "docs/", Type: "header"},
-		{Title: ui.Blog, URL: base + "blog/", Type: "header"},
-	}
+	return "/" + strings.Trim(lang, "/") + "/" + trimmedPath + "/"
 }
 
 func (b *SiteBuilder) buildLanguageOptions(page *Page) []renderer.LanguageOption {

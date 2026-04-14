@@ -44,10 +44,22 @@ func RenderSidebar(root *NavNode, currentPath string, maxDepth int, collapsed bo
 
 	var sb strings.Builder
 	sb.WriteString("<nav class=\"sidebar\" aria-label=\"Navigation\">\n")
-	renderSidebarList(&sb, root.Children, currentPath, 1, maxDepth, collapsed, ui)
+	renderSidebarList(&sb, filterRegularSidebarNodes(root.Children), currentPath, 1, maxDepth, collapsed, ui)
 	sb.WriteString("</nav>\n")
 
 	return template.HTML(sb.String())
+}
+
+func filterRegularSidebarNodes(nodes []*NavNode) []*NavNode {
+	filtered := make([]*NavNode, 0, len(nodes))
+	for _, node := range nodes {
+		trimmed := strings.TrimSuffix(node.URL, "/")
+		if strings.HasSuffix(trimmed, "/blog") {
+			continue
+		}
+		filtered = append(filtered, node)
+	}
+	return filtered
 }
 
 // RenderBlogSidebar renders a 3-mode blog sidebar:

@@ -522,6 +522,19 @@ const defaultTemplates = `{{define "base"}}
             padding: 24px 40px;
             max-width: 800px;
         }
+        .embed {
+            width: 100%;
+            max-width: 800px;
+            margin: 24px auto;
+        }
+        .embed iframe {
+            display: block;
+            width: min(100%, 800px);
+            aspect-ratio: 16 / 9;
+            height: auto;
+            border: 0;
+            border-radius: 12px;
+        }
         /* Breadcrumbs */
         .breadcrumbs {
             list-style: none;
@@ -1377,6 +1390,19 @@ const defaultTemplates = `{{define "base"}}
             max-width: 800px;
             margin: 0 auto;
             padding: 40px 20px;
+        }
+        .embed {
+            width: 100%;
+            max-width: 800px;
+            margin: 24px auto;
+        }
+        .embed iframe {
+            display: block;
+            width: min(100%, 800px);
+            aspect-ratio: 16 / 9;
+            height: auto;
+            border: 0;
+            border-radius: 12px;
         }
         .main-content h2 {
             margin-top: 40px;
