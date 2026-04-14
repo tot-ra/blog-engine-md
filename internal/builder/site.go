@@ -617,15 +617,29 @@ func selectSidebarRoot(root *renderer.NavNode, currentPath string) *renderer.Nav
 	if len(parts) == 0 || parts[0] == "" {
 		return root
 	}
+
 	sectionURL := "/" + parts[0] + "/"
-	if len(parts) > 1 && (parts[1] == "blog" || parts[1] == "docs" || parts[1] == "tags" || parts[1] == "archive") {
+	langRootURL := sectionURL
+	if len(parts) > 1 {
 		sectionURL = "/" + parts[0] + "/" + parts[1] + "/"
 	}
+
+	hasLangRoot := false
+	for _, child := range root.Children {
+		if child.URL == langRootURL {
+			hasLangRoot = true
+			break
+		}
+	}
+	if !hasLangRoot {
+		sectionURL = "/" + parts[0] + "/"
+	}
+
 	for _, child := range root.Children {
 		if child.URL == sectionURL {
 			return child
 		}
-		if len(parts) > 1 && child.URL == "/"+parts[0]+"/" {
+		if len(parts) > 1 && child.URL == langRootURL {
 			for _, nested := range child.Children {
 				if nested.URL == sectionURL {
 					return nested
