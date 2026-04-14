@@ -44,9 +44,6 @@ func (t *ImageTransformer) Transform(html string) string {
 			return match
 		}
 		src := srcMatch[1]
-		if src == "/assets/img/artjom.webp" {
-			return match
-		}
 
 		// Extract alt
 		alt := ""

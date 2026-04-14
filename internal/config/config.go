@@ -237,6 +237,7 @@ type Site struct {
 	URL      string `yaml:"url"`
 	BaseURL  string `yaml:"baseUrl"`
 	Language string `yaml:"language"`
+	Logo     string `yaml:"logo"`
 	Favicon  string `yaml:"favicon"`
 }
 
@@ -486,6 +487,9 @@ func Validate(cfg *SiteConfig) error {
 	}
 	if cfg.Site.URL == "" {
 		return fmt.Errorf("site.url is required")
+	}
+	if cfg.Site.Logo == "" {
+		cfg.Site.Logo = "/assets/img/artjom.webp"
 	}
 	if cfg.Build.ContentDir == "" {
 		cfg.Build.ContentDir = "content"
