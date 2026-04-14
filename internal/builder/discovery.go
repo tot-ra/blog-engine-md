@@ -77,6 +77,13 @@ func Discover(root string) (*ContentIndex, error) {
 			Size:         info.Size(),
 		}
 
+		normalizedRelPath := filepath.ToSlash(relPath)
+		if strings.HasPrefix(normalizedRelPath, "files/") {
+			file.ContentType = TypeAsset
+			index.AssetFiles = append(index.AssetFiles, file)
+			return nil
+		}
+
 		// Classify file
 		ext := strings.ToLower(filepath.Ext(path))
 		switch ext {

@@ -238,6 +238,9 @@ func (b *SiteBuilder) Build() error {
 	if err := b.copyAssets(index); err != nil {
 		return fmt.Errorf("failed to copy assets: %w", err)
 	}
+	if err := b.copyConfiguredLogo(); err != nil {
+		return fmt.Errorf("failed to copy configured logo: %w", err)
+	}
 	if err := b.copyTriangleModules(); err != nil {
 		return fmt.Errorf("failed to copy triangle modules: %w", err)
 	}
@@ -1208,6 +1211,36 @@ func (b *SiteBuilder) copyAssets(index *ContentIndex) error {
 		return errs[0]
 	}
 
+	return nil
+}
+
+func (b *SiteBuilder) copyConfiguredLogo() error {
+	logoPath := strings.TrimSpace(b.config.Site.Logo)
+	if logoPath == "" || !strings.HasPrefix(logoPath, "/assets/") {
+		return nil
+	}
+
+	relLogoPath := strings.TrimPrefix(logoPath, "/")
+	srcPath := filepath.Join(b.config.Build.ContentDir, relLogoPath)
+	if _, err := os.Stat(srcPath); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+
+	outputPath := filepath.Join(b.config.Build.OutputDir, relLogoPath)
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
+		return fmt.Errorf("failed to create logo directory: %w", err)
+	}
+
+	data, err := os.ReadFile(srcPath)
+	if err != nil {
+		return fmt.Errorf("failed to read logo asset: %w", err)
+	}
+	if err := os.WriteFile(outputPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write logo asset: %w", err)
+	}
 	return nil
 }
 
