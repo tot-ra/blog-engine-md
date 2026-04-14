@@ -138,6 +138,16 @@ func (nb *NavigationBuilder) insertPage(tree *NavTree, page *Page) {
 			tree.ByPath[fullPath] = child
 		}
 
+		if isLast {
+			if child.Type == "section" {
+				child.ID = page.ID
+				child.Title = page.Title
+				if page.Frontmatter != nil {
+					child.Order = page.Frontmatter.Order
+				}
+			}
+		}
+
 		current = child
 	}
 }

@@ -165,6 +165,7 @@ func (b *PageBuilder) Build(file ContentFile) (*Page, error) {
 	} else {
 		processedContent = parser.SimpleWikiLinkProcessor(remaining)
 	}
+	processedContent = parser.TransformEmbeds(processedContent)
 
 	// Render markdown to HTML
 	htmlContent, err := b.mdParser.Render(processedContent)
