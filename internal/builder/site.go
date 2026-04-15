@@ -742,7 +742,7 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 	sidebarRoot := selectSidebarRoot(rendererRoot, page.URL)
 	sidebarSectionKey := ""
 	switch {
-	case strings.Contains(page.URL, "/about/my_performance/"):
+	case strings.Contains(page.URL, fmt.Sprintf("/%s/my_performance/", page.Language)) || strings.Contains(page.URL, "/about/my_performance/"):
 		sidebarSectionKey = "my_performance"
 		targetURL := fmt.Sprintf("/%s/about/my_performance/", page.Language)
 		if found := findSidebarNodeByURL(rendererRoot, targetURL); found != nil {
