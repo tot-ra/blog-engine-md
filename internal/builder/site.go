@@ -741,10 +741,17 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 		}
 	}
 
-	// Render template
-	html, err := b.templates.RenderPage(data)
-	if err != nil {
-		return err
+	var html string
+	if page.Frontmatter != nil && strings.TrimSpace(page.Frontmatter.RedirectURL) != "" {
+		target := strings.TrimSpace(page.Frontmatter.RedirectURL)
+		html = "<!doctype html><html><head><meta charset=\"utf-8\"><meta http-equiv=\"refresh\" content=\"0; url=" + target + "\"><link rel=\"canonical\" href=\"" + target + "\"></head><body><a href=\"" + target + "\">Redirecting...</a></body></html>"
+	} else {
+		// Render template
+		rendered, err := b.templates.RenderPage(data)
+		if err != nil {
+			return err
+		}
+		html = rendered
 	}
 	html = b.localizeInternalLinks(html, page.Language)
 	html = siteFooterRe.ReplaceAllString(html, "")
