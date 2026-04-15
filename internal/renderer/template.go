@@ -780,7 +780,7 @@ const defaultTemplates = `{{define "base"}}
             </nav>
         </div>
         <div class="header-right">
-            <nav class="lang-switcher" aria-label="Languages">
+            <nav class="lang-switcher" aria-label="{{.UI.Languages}}">
                 {{range .Languages}}<a class="lang-link{{if .Active}} is-active{{end}}" href="{{.URL}}" hreflang="{{.Code}}">{{.Label}}</a>{{end}}
             </nav>
             <button id="theme-toggle" class="theme-toggle" aria-label="{{.UI.ToggleTheme}}" title="{{.UI.ToggleTheme}}">
@@ -820,7 +820,7 @@ const defaultTemplates = `{{define "base"}}
             function syncToggleState() {
                 var isPlaying = !audio.paused && !audio.ended;
                 toggleBtn.classList.toggle("is-playing", isPlaying);
-                var label = isPlaying ? (toggleBtn.dataset.stopLabel || "Stop") : (toggleBtn.dataset.playLabel || "Play");
+                var label = isPlaying ? (toggleBtn.dataset.stopLabel || "Stop") : (toggleBtn.dataset.playLabel || "Listen");
                 toggleBtn.setAttribute("aria-label", label);
                 toggleBtn.setAttribute("title", label);
             }
@@ -936,7 +936,7 @@ const defaultTemplates = `{{define "base"}}
 {{define "content"}}
 <article>
     {{if .Breadcrumbs}}
-    <nav aria-label="Breadcrumb">
+    <nav aria-label="{{.UI.Breadcrumb}}">
         <ol class="breadcrumbs">
             {{range .Breadcrumbs}}
             <li>
@@ -985,7 +985,7 @@ const defaultTemplates = `{{define "base"}}
     </div>
     {{end}}
     {{if .PrevNext}}
-    <nav class="prev-next" aria-label="Page navigation">
+    <nav class="prev-next" aria-label="{{.UI.PageNavigation}}">
         {{if .PrevNext.Prev}}
         <a href="{{.PrevNext.Prev.URL}}" class="prev-link">
             <span class="prev-label">← {{.UI.Previous}}</span>
@@ -1458,7 +1458,7 @@ const defaultTemplates = `{{define "base"}}
             </nav>
         </div>
         <div class="header-right">
-            <nav class="lang-switcher" aria-label="Languages">
+            <nav class="lang-switcher" aria-label="{{.UI.Languages}}">
                 {{range .Languages}}<a class="lang-link{{if .Active}} is-active{{end}}" href="{{.URL}}" hreflang="{{.Code}}">{{.Label}}</a>{{end}}
             </nav>
             <button id="theme-toggle" class="theme-toggle" aria-label="{{.UI.ToggleTheme}}" title="{{.UI.ToggleTheme}}">
@@ -1495,7 +1495,7 @@ const defaultTemplates = `{{define "base"}}
                 <div class="hero-media">
                     <iframe
                         src="{{.Homepage.Hero.VideoEmbed}}"
-                        title="Hero video"
+                        title="{{.UI.HeroVideo}}"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                         loading="lazy"
                         referrerpolicy="strict-origin-when-cross-origin"
@@ -1514,7 +1514,7 @@ const defaultTemplates = `{{define "base"}}
                 class="triangle-chat-root"
                 data-base-url="{{.Homepage.Chat.BaseURL}}"
                 data-recipient-agent-id="{{.Homepage.Chat.RecipientAgentID}}"
-                data-title="{{if .Homepage.Chat.Title}}{{.Homepage.Chat.Title}}{{else}}Chat{{end}}">
+                data-title="{{if .Homepage.Chat.Title}}{{.Homepage.Chat.Title}}{{else}}{{.UI.Chat}}{{end}}">
             </div>
         </div>
     </section>
@@ -1589,7 +1589,7 @@ const defaultTemplates = `{{define "base"}}
             const mod = await import("/assets/triangle/embed.js");
             const baseUrl = chatRoot.dataset.baseUrl || window.location.origin;
             const recipientAgentId = chatRoot.dataset.recipientAgentId || "";
-            const title = chatRoot.dataset.title || "Chat";
+            const title = chatRoot.dataset.title || "{{.UI.Chat}}";
             triangleWidget = mod.createTriangleWidget({
                 baseUrl: baseUrl,
                 recipientAgentId: recipientAgentId,

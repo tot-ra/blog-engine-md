@@ -11,6 +11,7 @@ type UIStrings struct {
 	Home            string
 	Blog            string
 	Docs            string
+	Languages       string
 	Navigation      string
 	ViewMode        string
 	Tags            string
@@ -18,6 +19,8 @@ type UIStrings struct {
 	Time            string
 	Graph           string
 	OnThisPage      string
+	Breadcrumb      string
+	PageNavigation  string
 	Previous        string
 	Next            string
 	Listen          string
@@ -27,6 +30,8 @@ type UIStrings struct {
 	ToggleTheme     string
 	AskMyAgent      string
 	Projects        string
+	Chat            string
+	HeroVideo       string
 	BlogNavigation  string
 	BlogViewMode    string
 	BlogGraphView   string
@@ -78,6 +83,21 @@ var enMonthsStandalone = map[time.Month]string{
 	time.December:  "December",
 }
 
+var etMonthsStandalone = map[time.Month]string{
+	time.January:   "Jaanuar",
+	time.February:  "Veebruar",
+	time.March:     "Marts",
+	time.April:     "Aprill",
+	time.May:       "Mai",
+	time.June:      "Juuni",
+	time.July:      "Juuli",
+	time.August:    "August",
+	time.September: "September",
+	time.October:   "Oktoober",
+	time.November:  "November",
+	time.December:  "Detsember",
+}
+
 // NormalizeLanguage normalizes language code and defaults to "en".
 func NormalizeLanguage(lang string) string {
 	l := strings.ToLower(strings.TrimSpace(lang))
@@ -91,8 +111,10 @@ func NormalizeLanguage(lang string) string {
 		l = l[:idx]
 	}
 	switch l {
-	case "ru":
+	case "ru", "rus":
 		return "ru"
+	case "et", "est":
+		return "et"
 	default:
 		return "en"
 	}
@@ -106,6 +128,7 @@ func UI(lang string) UIStrings {
 			Home:            "Главная",
 			Blog:            "Блог",
 			Docs:            "Документы",
+			Languages:       "Языки",
 			Navigation:      "Навигация",
 			ViewMode:        "Режим просмотра",
 			Tags:            "Теги",
@@ -113,6 +136,8 @@ func UI(lang string) UIStrings {
 			Time:            "Время",
 			Graph:           "Граф",
 			OnThisPage:      "На этой странице",
+			Breadcrumb:      "Хлебные крошки",
+			PageNavigation:  "Навигация по странице",
 			Previous:        "Предыдущая",
 			Next:            "Следующая",
 			Listen:          "Слушать",
@@ -122,16 +147,50 @@ func UI(lang string) UIStrings {
 			ToggleTheme:     "Сменить тему",
 			AskMyAgent:      "Спросить моего агента",
 			Projects:        "Проекты",
+			Chat:            "Чат",
+			HeroVideo:       "Видео",
 			BlogNavigation:  "Навигация по блогу",
 			BlogViewMode:    "Режим просмотра блога",
 			BlogGraphView:   "Граф блога",
 			ToggleSectionOf: "Переключить раздел",
+		}
+	case "et":
+		return UIStrings{
+			Home:            "Avaleht",
+			Blog:            "Blogi",
+			Docs:            "Dokumendid",
+			Languages:       "Keeled",
+			Navigation:      "Navigeerimine",
+			ViewMode:        "Vaade",
+			Tags:            "Sildid",
+			Categories:      "Kategooriad",
+			Time:            "Aeg",
+			Graph:           "Graaf",
+			OnThisPage:      "Sellel lehel",
+			Breadcrumb:      "Leivapururada",
+			PageNavigation:  "Lehe navigeerimine",
+			Previous:        "Eelmine",
+			Next:            "Järgmine",
+			Listen:          "Kuula",
+			Stop:            "Peata",
+			Rewind:          "Algusesse",
+			PlaybackPos:     "Taasesituse asukoht",
+			ToggleTheme:     "Vaheta teemat",
+			AskMyAgent:      "Küsi minu agendilt",
+			Projects:        "Projektid",
+			Chat:            "Vestlus",
+			HeroVideo:       "Tutvustusvideo",
+			BlogNavigation:  "Blogi navigeerimine",
+			BlogViewMode:    "Blogi vaade",
+			BlogGraphView:   "Blogi graaf",
+			ToggleSectionOf: "Lülita jaotis",
 		}
 	default:
 		return UIStrings{
 			Home:            "Home",
 			Blog:            "Blog",
 			Docs:            "Docs",
+			Languages:       "Languages",
 			Navigation:      "Navigation",
 			ViewMode:        "View mode",
 			Tags:            "Tags",
@@ -139,6 +198,8 @@ func UI(lang string) UIStrings {
 			Time:            "Time",
 			Graph:           "Graph",
 			OnThisPage:      "On this page",
+			Breadcrumb:      "Breadcrumb",
+			PageNavigation:  "Page navigation",
 			Previous:        "Previous",
 			Next:            "Next",
 			Listen:          "Listen",
@@ -148,6 +209,8 @@ func UI(lang string) UIStrings {
 			ToggleTheme:     "Toggle theme",
 			AskMyAgent:      "Ask my agent",
 			Projects:        "Projects",
+			Chat:            "Chat",
+			HeroVideo:       "Hero video",
 			BlogNavigation:  "Blog navigation",
 			BlogViewMode:    "Blog view mode",
 			BlogGraphView:   "Blog graph view",
@@ -158,8 +221,14 @@ func UI(lang string) UIStrings {
 
 // MonthName returns a standalone month label.
 func MonthName(lang string, m time.Month) string {
-	if NormalizeLanguage(lang) == "ru" {
+	switch NormalizeLanguage(lang) {
+	case "ru":
 		if s, ok := ruMonthsStandalone[m]; ok {
+			return s
+		}
+		return m.String()
+	case "et":
+		if s, ok := etMonthsStandalone[m]; ok {
 			return s
 		}
 		return m.String()
@@ -175,12 +244,16 @@ func FormatDateLong(t time.Time, lang string) string {
 	if t.IsZero() {
 		return ""
 	}
-	if NormalizeLanguage(lang) == "ru" {
+	switch NormalizeLanguage(lang) {
+	case "ru":
 		month := ruMonthsGenitive[t.Month()]
 		if month == "" {
 			month = strings.ToLower(t.Month().String())
 		}
 		return fmt.Sprintf("%d %s %d", t.Day(), month, t.Year())
+	case "et":
+		month := strings.ToLower(MonthName("et", t.Month()))
+		return fmt.Sprintf("%d. %s %d", t.Day(), month, t.Year())
 	}
 	return t.Format("January 2, 2006")
 }
@@ -190,12 +263,15 @@ func FormatDateShort(t time.Time, lang string) string {
 	if t.IsZero() {
 		return ""
 	}
-	if NormalizeLanguage(lang) == "ru" {
+	switch NormalizeLanguage(lang) {
+	case "ru":
 		month := ruMonthsGenitive[t.Month()]
 		if month == "" {
 			month = strings.ToLower(t.Month().String())
 		}
 		return fmt.Sprintf("%02d %s", t.Day(), month)
+	case "et":
+		return t.Format("02 Jan")
 	}
 	return t.Format("Jan 02")
 }
@@ -216,6 +292,19 @@ func SegmentLabel(lang, segment string) string {
 			return "Архив"
 		case "graph":
 			return "Граф"
+		}
+	case "et":
+		switch seg {
+		case "blog":
+			return "Blogi"
+		case "docs":
+			return "Dokumendid"
+		case "tags":
+			return "Sildid"
+		case "archive":
+			return "Arhiiv"
+		case "graph":
+			return "Graaf"
 		}
 	default:
 		switch seg {
