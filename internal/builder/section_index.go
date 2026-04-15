@@ -20,6 +20,8 @@ type SectionChild struct {
 	IsSection   bool
 }
 
+var sectionClassTitleRe = regexp.MustCompile(`(?i)^\s*\d+(?:\s*-\s*\d+)?\s*klass\b`)
+
 // SectionIndexGenerator generates index pages for directories without explicit index.md
 type SectionIndexGenerator struct{}
 
@@ -69,50 +71,14 @@ func (g *SectionIndexGenerator) GenerateMissing(pages map[string]*Page, tree *Na
 // generateIndexPage creates an index page for a section node
 func (g *SectionIndexGenerator) generateIndexPage(node *NavNode, pages map[string]*Page, defaultLang string, languages map[string]struct{}) *Page {
 	// Collect children info
-	var children []SectionChild
-	for _, child := range node.Children {
-		sc := SectionChild{
-			Title:     child.Title,
-			URL:       child.URL,
-			IsSection: child.Type == "section",
-		}
-		children = append(children, sc)
-	}
-
-	// Sort: sections first, then alphabetical
-	sort.SliceStable(children, func(i, j int) bool {
-		if children[i].IsSection != children[j].IsSection {
-			return children[i].IsSection
-		}
-		return strings.ToLower(children[i].Title) < strings.ToLower(children[j].Title)
-	})
+	children := sectionChildrenFromNode(node)
 
 	var sb strings.Builder
 	if strings.HasSuffix(strings.TrimSuffix(node.URL, "/"), "/blog") {
-		posts := collectBlogPostsForSection(node.URL, pages)
-		if len(posts) > 0 {
-			sb.WriteString("<div class=\"section-article-list\">\n")
-			for _, post := range posts {
-				sb.WriteString("  <article class=\"section-article-preview\">\n")
-				sb.WriteString(fmt.Sprintf("    <h2><a href=\"%s\">%s</a></h2>\n", template.HTMLEscapeString(post.URL), template.HTMLEscapeString(post.Title)))
-				excerpt := extractPreviewText(post.RawContent, 2, 320)
-				if excerpt == "" {
-					excerpt = strings.TrimSpace(post.Description)
-				}
-				if excerpt != "" {
-					sb.WriteString(fmt.Sprintf("    <p>%s</p>\n", template.HTMLEscapeString(excerpt)))
-				}
-				sb.WriteString("  </article>\n")
-			}
-			sb.WriteString("</div>\n")
-		}
+		sb.WriteString(sectionBlogPostsHTML(node.URL, pages))
 	}
 	if sb.Len() == 0 {
-		sb.WriteString("<ul class=\"section-index\">\n")
-		for _, child := range children {
-			sb.WriteString(fmt.Sprintf("  <li><a href=\"%s\">%s</a></li>\n", template.HTMLEscapeString(child.URL), template.HTMLEscapeString(child.Title)))
-		}
-		sb.WriteString("</ul>\n")
+		sb.WriteString(sectionChildrenHTML(children))
 	}
 
 	pageType := determinePageType(strings.TrimPrefix(node.URL, "/"))
@@ -142,11 +108,105 @@ func (g *SectionIndexGenerator) generateIndexPage(node *NavNode, pages map[strin
 	}
 }
 
+func sectionChildrenFromNode(node *NavNode) []SectionChild {
+	if node == nil || len(node.Children) == 0 {
+		return nil
+	}
+
+	children := make([]SectionChild, 0, len(node.Children))
+	for _, child := range node.Children {
+		if child == nil {
+			continue
+		}
+		children = append(children, SectionChild{
+			Title:     child.Title,
+			URL:       child.URL,
+			IsSection: child.Type == "section",
+		})
+	}
+	return children
+}
+
+func sectionChildrenHTML(children []SectionChild) string {
+	if len(children) == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	if shouldUseSectionMatrix(children) {
+		children = onlyClassLikeSectionChildren(children)
+		sb.WriteString("<div class=\"section-index-grid section-index-matrix\">\n")
+		for _, child := range children {
+			sb.WriteString(fmt.Sprintf("  <a class=\"section-index-card\" href=\"%s\">%s</a>\n", template.HTMLEscapeString(child.URL), template.HTMLEscapeString(child.Title)))
+		}
+		sb.WriteString("</div>\n")
+		return sb.String()
+	}
+
+	sb.WriteString("<ul class=\"section-index\">\n")
+	for _, child := range children {
+		sb.WriteString(fmt.Sprintf("  <li><a href=\"%s\">%s</a></li>\n", template.HTMLEscapeString(child.URL), template.HTMLEscapeString(child.Title)))
+	}
+	sb.WriteString("</ul>\n")
+	return sb.String()
+}
+
+func sectionBlogPostsHTML(sectionURL string, pages map[string]*Page) string {
+	posts := collectBlogPostsForSection(sectionURL, pages)
+	if len(posts) == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString("<div class=\"section-article-list\">\n")
+	for _, post := range posts {
+		sb.WriteString("  <article class=\"section-article-preview\">\n")
+		sb.WriteString(fmt.Sprintf("    <h2><a href=\"%s\">%s</a></h2>\n", template.HTMLEscapeString(post.URL), template.HTMLEscapeString(post.Title)))
+		excerpt := extractPreviewText(post.RawContent, 2, 320)
+		if excerpt == "" {
+			excerpt = strings.TrimSpace(post.Description)
+		}
+		if excerpt != "" {
+			sb.WriteString(fmt.Sprintf("    <p>%s</p>\n", template.HTMLEscapeString(excerpt)))
+		}
+		sb.WriteString("  </article>\n")
+	}
+	sb.WriteString("</div>\n")
+	return sb.String()
+}
+
+func shouldUseSectionMatrix(children []SectionChild) bool {
+	if len(children) < 4 {
+		return false
+	}
+
+	classLike := len(onlyClassLikeSectionChildren(children))
+	return classLike >= 4
+}
+
+func onlyClassLikeSectionChildren(children []SectionChild) []SectionChild {
+	filtered := make([]SectionChild, 0, len(children))
+	for _, child := range children {
+		if sectionClassTitleRe.MatchString(child.Title) {
+			filtered = append(filtered, child)
+		}
+	}
+	return filtered
+}
+
 func collectBlogPostsForSection(sectionURL string, pages map[string]*Page) []*Page {
 	posts := make([]*Page, 0)
 	for _, page := range pages {
 		if page == nil || page.Type != TypeBlog || page.URL == "" {
 			continue
+		}
+		if page.URL == sectionURL {
+			continue
+		}
+		if page.Frontmatter != nil {
+			if page.Frontmatter.HideNav || strings.TrimSpace(page.Frontmatter.RedirectURL) != "" {
+				continue
+			}
 		}
 		// Keep only content pages discovered from source markdown files.
 		if strings.TrimSpace(page.SourcePath) == "" {

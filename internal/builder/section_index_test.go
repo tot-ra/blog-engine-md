@@ -136,3 +136,127 @@ func TestSectionIndexGenerator_BlogSectionUsesPostPreviewsInDateOrder(t *testing
 		t.Fatalf("expected date-desc order Latest -> Older -> Oldest, got: %s", content)
 	}
 }
+
+func TestSectionIndexGenerator_UsesFrontmatterOrderForSectionChildren(t *testing.T) {
+	pages := map[string]*Page{
+		"en-home": {
+			ID:          "en-home",
+			URL:         "/en/",
+			Language:    "en",
+			Title:       "Home",
+			Frontmatter: &parser.Frontmatter{},
+			Type:        TypePage,
+		},
+		"en-docs-zebra": {
+			ID:       "en-docs-zebra",
+			URL:      "/en/docs/zebra/",
+			Language: "en",
+			Title:    "Zebra",
+			Frontmatter: &parser.Frontmatter{
+				Order: 3,
+			},
+			Type: TypeDoc,
+		},
+		"en-docs-alpha": {
+			ID:       "en-docs-alpha",
+			URL:      "/en/docs/alpha/",
+			Language: "en",
+			Title:    "Alpha",
+			Frontmatter: &parser.Frontmatter{
+				Order: 2,
+			},
+			Type: TypeDoc,
+		},
+		"en-docs-beta": {
+			ID:       "en-docs-beta",
+			URL:      "/en/docs/beta/",
+			Language: "en",
+			Title:    "Beta",
+			Frontmatter: &parser.Frontmatter{
+				Order: 1,
+			},
+			Type: TypeDoc,
+		},
+	}
+
+	tree := NewNavigationBuilder().BuildTree(pages)
+	languages := map[string]struct{}{"en": {}}
+	generated := NewSectionIndexGenerator().GenerateMissing(pages, tree, "en", languages)
+
+	var docsIndex *Page
+	for _, page := range generated {
+		if page.URL == "/en/docs/" {
+			docsIndex = page
+			break
+		}
+	}
+	if docsIndex == nil {
+		t.Fatalf("expected generated /en/docs/ index page")
+	}
+
+	betaPos := strings.Index(docsIndex.Content, ">Beta<")
+	alphaPos := strings.Index(docsIndex.Content, ">Alpha<")
+	zebraPos := strings.Index(docsIndex.Content, ">Zebra<")
+	if betaPos == -1 || alphaPos == -1 || zebraPos == -1 {
+		t.Fatalf("expected ordered children in generated content, got: %s", docsIndex.Content)
+	}
+	if !(betaPos < alphaPos && alphaPos < zebraPos) {
+		t.Fatalf("expected order Beta -> Alpha -> Zebra, got: %s", docsIndex.Content)
+	}
+}
+
+func TestSectionChildrenHTML_MatrixOnlyIncludesClassLikeChildren(t *testing.T) {
+	children := []SectionChild{
+		{Title: "1-3 klass", URL: "/est/study/EG/1klass/"},
+		{Title: "4-6 klass", URL: "/est/study/EG/4klass/"},
+		{Title: "7 klass", URL: "/est/study/EG/7klass/"},
+		{Title: "8 klass", URL: "/est/study/EG/8klass/"},
+		{Title: "Laulud", URL: "/est/study/EG/playlist/"},
+	}
+
+	content := sectionChildrenHTML(children)
+	if !strings.Contains(content, "1-3 klass") || !strings.Contains(content, "8 klass") {
+		t.Fatalf("expected class-like children in matrix, got: %s", content)
+	}
+	if strings.Contains(content, "Laulud") {
+		t.Fatalf("expected non-class child to be omitted from matrix, got: %s", content)
+	}
+}
+
+func TestSectionBlogPostsHTML_RendersArticlePreviews(t *testing.T) {
+	pages := map[string]*Page{
+		"post-1": {
+			ID:         "post-1",
+			URL:        "/rus/blog/post-1/",
+			Title:      "Post 1",
+			Type:       TypeBlog,
+			SourcePath: "/tmp/post-1.md",
+			RawContent: "First sentence. Second sentence.",
+			Frontmatter: &parser.Frontmatter{
+				Date: time.Date(2026, time.January, 2, 0, 0, 0, 0, time.UTC),
+			},
+		},
+		"post-2": {
+			ID:         "post-2",
+			URL:        "/rus/blog/post-2/",
+			Title:      "Post 2",
+			Type:       TypeBlog,
+			SourcePath: "/tmp/post-2.md",
+			RawContent: "Another preview here.",
+			Frontmatter: &parser.Frontmatter{
+				Date: time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC),
+			},
+		},
+	}
+
+	content := sectionBlogPostsHTML("/rus/blog/", pages)
+	if !strings.Contains(content, "section-article-preview") {
+		t.Fatalf("expected article preview markup, got: %s", content)
+	}
+	if strings.Contains(content, "<ul class=\"section-index\">") {
+		t.Fatalf("expected preview list instead of generic section list, got: %s", content)
+	}
+	if !(strings.Index(content, "Post 1") < strings.Index(content, "Post 2")) {
+		t.Fatalf("expected newest post first, got: %s", content)
+	}
+}

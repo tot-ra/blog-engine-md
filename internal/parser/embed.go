@@ -19,6 +19,7 @@ const (
 var (
 	// Explicit embed syntax: ::youtube[VIDEO_ID]
 	explicitEmbedRegex = regexp.MustCompile(`^::(youtube|vimeo)\[([^\]]+)\]\s*$`)
+	markdownLinkOnlyRegex = regexp.MustCompile(`^\[([^\]]*)\]\((https?://[^)]+)\)\s*$`)
 
 	// YouTube URL patterns
 	youtubeURLRegex = regexp.MustCompile(`(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/)([a-zA-Z0-9_-]{11})`)
@@ -43,11 +44,27 @@ func TransformEmbeds(content string) string {
 			result = append(result, renderEmbed(provider, id))
 			continue
 		}
+		if match := markdownLinkOnlyRegex.FindStringSubmatch(trimmed); match != nil {
+			if provider, id, ok := detectEmbed(match[2]); ok {
+				result = append(result, renderEmbed(provider, id))
+				continue
+			}
+		}
 
 		result = append(result, line)
 	}
 
 	return strings.Join(result, "\n")
+}
+
+func detectEmbed(rawURL string) (EmbedProvider, string, bool) {
+	if match := youtubeURLRegex.FindStringSubmatch(rawURL); match != nil {
+		return EmbedYouTube, match[1], true
+	}
+	if match := vimeoURLRegex.FindStringSubmatch(rawURL); match != nil {
+		return EmbedVimeo, match[1], true
+	}
+	return "", "", false
 }
 
 func renderEmbed(provider EmbedProvider, id string) string {

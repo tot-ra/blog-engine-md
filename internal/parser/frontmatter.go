@@ -20,6 +20,8 @@ type Frontmatter struct {
 	Order       int       `yaml:"order"`
 	HideToc     bool      `yaml:"hideToc"`
 	HideNav     bool      `yaml:"hideNav"`
+	ShowChildren bool     `yaml:"showChildren"`
+	HideChildren bool     `yaml:"hideChildren"`
 	Layout      string    `yaml:"layout"` // Custom layout template name (e.g., "homepage")
 	RedirectURL string    `yaml:"redirectUrl"`
 }
@@ -54,6 +56,8 @@ func ParseFrontmatter(content string) (*Frontmatter, string, error) {
 		Order       int         `yaml:"order"`
 		HideToc     bool        `yaml:"hideToc"`
 		HideNav     bool        `yaml:"hideNav"`
+		ShowChildren bool       `yaml:"showChildren"`
+		HideChildren bool       `yaml:"hideChildren"`
 		Layout      string      `yaml:"layout"`
 		RedirectURL string      `yaml:"redirectUrl"`
 	}
@@ -70,6 +74,8 @@ func ParseFrontmatter(content string) (*Frontmatter, string, error) {
 	fm.Order = raw.Order
 	fm.HideToc = raw.HideToc
 	fm.HideNav = raw.HideNav
+	fm.ShowChildren = raw.ShowChildren
+	fm.HideChildren = raw.HideChildren
 	fm.Layout = raw.Layout
 	fm.RedirectURL = raw.RedirectURL
 

@@ -2,6 +2,7 @@ package builder
 
 import (
 	"sort"
+	"strings"
 )
 
 // NavLink represents a navigation link (previous or next)
@@ -41,6 +42,11 @@ func (g *PrevNextGenerator) generateForBlog(page *Page, allPages map[string]*Pag
 	var blogPosts []*Page
 	for _, p := range allPages {
 		if p.Type == TypeBlog && p.Language == page.Language {
+			if p.Frontmatter != nil {
+				if p.Frontmatter.HideNav || strings.TrimSpace(p.Frontmatter.RedirectURL) != "" {
+					continue
+				}
+			}
 			blogPosts = append(blogPosts, p)
 		}
 	}

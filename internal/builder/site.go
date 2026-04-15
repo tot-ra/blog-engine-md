@@ -691,6 +691,10 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 		}
 	}
 	ui := i18n.UI(page.Language)
+	renderedContent := page.Content
+	if strings.TrimSpace(page.SourcePath) != "" {
+		renderedContent += b.sectionChildrenContent(page)
+	}
 
 	// Prepare base data
 	data := renderer.PageData{
@@ -701,7 +705,7 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 			Language:     page.Language,
 			Title:        page.Title,
 			Description:  page.Description,
-			Content:      page.Content,
+			Content:      renderedContent,
 			AudioURL:     page.AudioURL,
 			Type:         string(page.Type),
 			ModifiedTime: page.ModifiedTime,
@@ -712,7 +716,7 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 			Tags: page.Frontmatter.Tags,
 		},
 		UI:      ui,
-		Content: template.HTML(page.Content),
+		Content: template.HTML(renderedContent),
 	}
 	data.CanonicalURL = b.absolutePageURL(page.URL)
 	data.OpenGraphType = "website"
@@ -843,6 +847,28 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 	}
 
 	return nil
+}
+
+func (b *SiteBuilder) sectionChildrenContent(page *Page) string {
+	if b.navTree == nil || page == nil || page.URL == "" {
+		return ""
+	}
+	if page.Frontmatter != nil && page.Frontmatter.HideChildren {
+		return ""
+	}
+	if strings.HasSuffix(strings.TrimSuffix(page.URL, "/"), "/blog") {
+		return sectionBlogPostsHTML(page.URL, b.pagesByURL)
+	}
+	if page.Frontmatter == nil || !page.Frontmatter.ShowChildren {
+		return ""
+	}
+
+	node, ok := b.navTree.ByPath[page.URL]
+	if !ok || node == nil || len(node.Children) == 0 {
+		return ""
+	}
+
+	return sectionChildrenHTML(sectionChildrenFromNode(node))
 }
 
 func (b *SiteBuilder) homepageForLanguage(lang string) config.HomepageConfig {

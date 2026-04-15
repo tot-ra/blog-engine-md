@@ -65,6 +65,31 @@ func TestBuildTree_Ordering(t *testing.T) {
 	}
 }
 
+func TestBuildTree_OrderingPrefersExplicitOrderOverNodeType(t *testing.T) {
+	pages := map[string]*Page{
+		"root": {ID: "root", Title: "Root", URL: "/docs/mixed/", Type: TypeDoc, Frontmatter: &parser.Frontmatter{}},
+		"section-child": {ID: "section-child", Title: "Section Child", URL: "/docs/mixed/section-child/nested/", Type: TypeDoc, Frontmatter: &parser.Frontmatter{Order: 2}},
+		"page-child": {ID: "page-child", Title: "Page Child", URL: "/docs/mixed/page-child/", Type: TypeDoc, Frontmatter: &parser.Frontmatter{Order: 1}},
+	}
+
+	nb := NewNavigationBuilder()
+	tree := nb.BuildTree(pages)
+
+	node := tree.ByPath["/docs/mixed/"]
+	if node == nil {
+		t.Fatal("Expected /docs/mixed/ node")
+	}
+	if len(node.Children) != 2 {
+		t.Fatalf("Expected 2 children under /docs/mixed/, got %d", len(node.Children))
+	}
+	if node.Children[0].Title != "Page Child" {
+		t.Fatalf("Expected first child 'Page Child', got %q", node.Children[0].Title)
+	}
+	if node.Children[1].Title != "Section-child" {
+		t.Fatalf("Expected second child 'Section Child', got %q", node.Children[1].Title)
+	}
+}
+
 func TestBuildTree_HideNav(t *testing.T) {
 	pages := map[string]*Page{
 		"p1": {ID: "p1", Title: "Visible", URL: "/docs/visible/", Type: TypeDoc, Frontmatter: &parser.Frontmatter{}},

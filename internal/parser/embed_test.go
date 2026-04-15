@@ -66,3 +66,36 @@ func TestTransformEmbeds_MultipleEmbeds(t *testing.T) {
 		t.Error("expected vimeo embed")
 	}
 }
+
+func TestTransformEmbeds_StandaloneMarkdownYouTubeLink(t *testing.T) {
+	input := `[Video](https://www.youtube.com/watch?v=dQw4w9WgXcQ)`
+
+	result := TransformEmbeds(input)
+
+	if !strings.Contains(result, `class="embed embed-youtube"`) {
+		t.Error("expected youtube embed class from standalone markdown link")
+	}
+	if strings.Contains(result, `[Video](`) {
+		t.Error("expected standalone markdown link to be replaced")
+	}
+}
+
+func TestTransformEmbeds_StandaloneMarkdownVimeoLink(t *testing.T) {
+	input := `[Video](https://vimeo.com/123456789)`
+
+	result := TransformEmbeds(input)
+
+	if !strings.Contains(result, `class="embed embed-vimeo"`) {
+		t.Error("expected vimeo embed class from standalone markdown link")
+	}
+}
+
+func TestTransformEmbeds_InlineMarkdownLinkStaysLink(t *testing.T) {
+	input := `Intro [Video](https://www.youtube.com/watch?v=dQw4w9WgXcQ) outro.`
+
+	result := TransformEmbeds(input)
+
+	if result != input {
+		t.Error("expected inline markdown link to stay unchanged")
+	}
+}

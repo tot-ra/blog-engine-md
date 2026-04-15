@@ -156,10 +156,6 @@ func (nb *NavigationBuilder) insertPage(tree *NavTree, page *Page) {
 func (nb *NavigationBuilder) sortChildren(node *NavNode) {
 	sort.SliceStable(node.Children, func(i, j int) bool {
 		a, b := node.Children[i], node.Children[j]
-		// Sections first, then pages
-		if a.Type != b.Type {
-			return a.Type == "section"
-		}
 		// By Order (0 treated as unordered, goes after ordered items)
 		if a.Order != b.Order {
 			if a.Order == 0 {
@@ -169,6 +165,10 @@ func (nb *NavigationBuilder) sortChildren(node *NavNode) {
 				return true
 			}
 			return a.Order < b.Order
+		}
+		// Sections first, then pages when neither side has a stronger explicit order
+		if a.Type != b.Type {
+			return a.Type == "section"
 		}
 		// Alphabetical by title
 		return strings.ToLower(a.Title) < strings.ToLower(b.Title)
