@@ -118,7 +118,7 @@ const builtinScripts = `
       });
     });
 
-    var modeSidebars = document.querySelectorAll('.blog-sidebar[data-sidebar-mode]');
+    var modeSidebars = document.querySelectorAll('[data-sidebar-mode]');
     modeSidebars.forEach(function(sidebar, idx) {
       var layout = document.querySelector('.site-layout');
       var storageKey = 'blog-sidebar-mode:' + idx;
@@ -161,9 +161,9 @@ const builtinScripts = `
         });
       });
 
-      var savedMode = 'categories';
+      var savedMode = sidebar.getAttribute('data-sidebar-default-mode') || 'categories';
       try {
-        savedMode = localStorage.getItem(storageKey) || 'categories';
+        savedMode = localStorage.getItem(storageKey) || savedMode;
       } catch (_) {}
       applyMode(savedMode);
     });

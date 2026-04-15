@@ -5,6 +5,18 @@ site:
   baseUrl: "/"
   language: "en"
 
+i18n:
+  default: "en"
+  browserRedirect:
+    enabled: false
+  languages:
+    - code: "en"
+      label: "English"
+      aliases: ["en", "en-us", "en-gb"]
+    - code: "ru"
+      label: "Русский"
+      aliases: ["ru", "ru-ru"]
+
 author:
   name: "Demo Author"
   email: "demo@example.com"

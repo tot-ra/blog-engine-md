@@ -221,9 +221,18 @@ type HeaderItem struct {
 
 // SidebarConfig contains sidebar settings
 type SidebarConfig struct {
-	Collapsed    bool `yaml:"collapsed"`
-	MaxDepth     int  `yaml:"maxDepth"`
-	IncludeIndex bool `yaml:"includeIndex"`
+	Collapsed    bool                            `yaml:"collapsed"`
+	MaxDepth     int                             `yaml:"maxDepth"`
+	IncludeIndex bool                            `yaml:"includeIndex"`
+	Sections     map[string]SidebarSectionConfig `yaml:"sections"`
+}
+
+// SidebarSectionConfig contains per-section sidebar behavior settings.
+type SidebarSectionConfig struct {
+	DefaultMode string `yaml:"defaultMode"`
+	EnableTime  bool   `yaml:"enableTime"`
+	EnableGraph bool   `yaml:"enableGraph"`
+	GraphPath   string `yaml:"graphPath"`
 }
 
 // TOCConfig contains table of contents settings
@@ -258,14 +267,21 @@ type Site struct {
 
 // I18nConfig contains multilingual site settings.
 type I18nConfig struct {
-	Default   string           `yaml:"default"`
-	Languages []LanguageConfig `yaml:"languages"`
+	Default         string                `yaml:"default"`
+	BrowserRedirect BrowserRedirectConfig `yaml:"browserRedirect"`
+	Languages       []LanguageConfig      `yaml:"languages"`
 }
 
 // LanguageConfig contains one available language option.
 type LanguageConfig struct {
-	Code  string `yaml:"code"`
-	Label string `yaml:"label"`
+	Code    string   `yaml:"code"`
+	Label   string   `yaml:"label"`
+	Aliases []string `yaml:"aliases"`
+}
+
+// BrowserRedirectConfig controls language selection for the root URL.
+type BrowserRedirectConfig struct {
+	Enabled bool `yaml:"enabled"`
 }
 
 // Author contains author information
@@ -602,9 +618,23 @@ func Validate(cfg *SiteConfig) error {
 		if label == "" {
 			label = strings.ToUpper(code)
 		}
+		aliases := make([]string, 0, len(l.Aliases))
+		aliasSeen := make(map[string]struct{}, len(l.Aliases)+1)
+		for _, alias := range l.Aliases {
+			normalized := strings.ToLower(strings.TrimSpace(alias))
+			if normalized == "" {
+				continue
+			}
+			if _, ok := aliasSeen[normalized]; ok {
+				continue
+			}
+			aliasSeen[normalized] = struct{}{}
+			aliases = append(aliases, normalized)
+		}
 		langs = append(langs, LanguageConfig{
-			Code:  code,
-			Label: label,
+			Code:    code,
+			Label:   label,
+			Aliases: aliases,
 		})
 	}
 	cfg.I18n.Languages = langs

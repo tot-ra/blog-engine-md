@@ -10,7 +10,7 @@ func TestLoad(t *testing.T) {
 	// Create a temporary config file
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.yaml")
-	
+
 	configContent := `
 site:
   title: "Test Site"
@@ -114,5 +114,46 @@ func TestDefaultConfig(t *testing.T) {
 
 	if cfg.Build.ParallelWorkers != 4 {
 		t.Errorf("Expected 4 parallel workers, got %d", cfg.Build.ParallelWorkers)
+	}
+}
+
+func TestLoadNormalizesLanguageAliases(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	configContent := `
+site:
+  title: "Test Site"
+  url: "https://example.com"
+
+i18n:
+  default: "rus"
+  browserRedirect:
+    enabled: true
+  languages:
+    - code: "RUS"
+      label: "Русский"
+      aliases: ["ru", "RU-ru", "ru"]
+    - code: "EST"
+      label: "Eesti"
+      aliases: ["et", "ET-EE"]
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("Failed to write test config: %v", err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	if !cfg.I18n.BrowserRedirect.Enabled {
+		t.Fatalf("expected browser redirect to be enabled")
+	}
+	if got := cfg.I18n.Languages[0].Aliases; len(got) != 2 || got[0] != "ru" || got[1] != "ru-ru" {
+		t.Fatalf("unexpected normalized aliases for rus: %#v", got)
+	}
+	if got := cfg.I18n.Languages[1].Aliases; len(got) != 2 || got[0] != "et" || got[1] != "et-ee" {
+		t.Fatalf("unexpected normalized aliases for est: %#v", got)
 	}
 }

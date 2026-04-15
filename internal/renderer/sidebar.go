@@ -62,41 +62,78 @@ func filterRegularSidebarNodes(nodes []*NavNode) []*NavNode {
 	return filtered
 }
 
-// RenderBlogSidebar renders a 3-mode blog sidebar:
-// categories (tree), time (timeline), graph (embedded graph view).
-func RenderBlogSidebar(root *NavNode, currentPath string, maxDepth int, collapsed bool, timeline []TimelineYear, ui i18n.UIStrings, graphURL string) template.HTML {
+// RenderModeSidebar renders a navigation sidebar with optional categories/time/graph modes.
+func RenderModeSidebar(root *NavNode, currentPath string, maxDepth int, collapsed bool, timeline []TimelineYear, ui i18n.UIStrings, graphURL string, defaultMode string, showGraph bool) template.HTML {
+	return renderModeSidebar(root, currentPath, maxDepth, collapsed, timeline, ui, graphURL, defaultMode, showGraph, ui.Navigation, ui.ViewMode, ui.Graph)
+}
+
+func renderModeSidebar(root *NavNode, currentPath string, maxDepth int, collapsed bool, timeline []TimelineYear, ui i18n.UIStrings, graphURL, defaultMode string, showGraph bool, navigationLabel, viewModeLabel, graphTitle string) template.HTML {
 	if root == nil || len(root.Children) == 0 {
 		return ""
 	}
 	if maxDepth <= 0 {
 		maxDepth = 3
 	}
+	if defaultMode == "" {
+		defaultMode = "categories"
+	}
+	if defaultMode != "categories" && defaultMode != "time" && defaultMode != "graph" {
+		defaultMode = "categories"
+	}
+	if defaultMode == "graph" && !showGraph {
+		defaultMode = "categories"
+	}
+	if defaultMode == "time" && len(timeline) == 0 {
+		defaultMode = "categories"
+	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("<nav class=\"sidebar blog-sidebar\" aria-label=\"%s\" data-sidebar-mode=\"categories\">\n", template.HTMLEscapeString(ui.BlogNavigation)))
-	sb.WriteString(fmt.Sprintf("  <div class=\"sidebar-mode-switch\" role=\"tablist\" aria-label=\"%s\">\n", template.HTMLEscapeString(ui.BlogViewMode)))
-	sb.WriteString(fmt.Sprintf("    <button type=\"button\" class=\"sidebar-mode-btn is-active\" role=\"tab\" aria-selected=\"true\" data-sidebar-mode-btn=\"categories\">%s</button>\n", template.HTMLEscapeString(ui.Categories)))
-	sb.WriteString(fmt.Sprintf("    <button type=\"button\" class=\"sidebar-mode-btn\" role=\"tab\" aria-selected=\"false\" data-sidebar-mode-btn=\"time\">%s</button>\n", template.HTMLEscapeString(ui.Time)))
-	sb.WriteString(fmt.Sprintf("    <button type=\"button\" class=\"sidebar-mode-btn\" role=\"tab\" aria-selected=\"false\" data-sidebar-mode-btn=\"graph\">%s</button>\n", template.HTMLEscapeString(ui.Graph)))
+	sb.WriteString(fmt.Sprintf("<nav class=\"sidebar blog-sidebar\" aria-label=\"%s\" data-sidebar-mode=\"%s\" data-sidebar-default-mode=\"%s\">\n", template.HTMLEscapeString(navigationLabel), template.HTMLEscapeString(defaultMode), template.HTMLEscapeString(defaultMode)))
+	sb.WriteString(fmt.Sprintf("  <div class=\"sidebar-mode-switch\" role=\"tablist\" aria-label=\"%s\">\n", template.HTMLEscapeString(viewModeLabel)))
+	sb.WriteString(fmt.Sprintf("    <button type=\"button\" class=\"sidebar-mode-btn%s\" role=\"tab\" aria-selected=\"%t\" data-sidebar-mode-btn=\"categories\">%s</button>\n", activeModeClass(defaultMode, "categories"), defaultMode == "categories", template.HTMLEscapeString(ui.Categories)))
+	if len(timeline) > 0 {
+		sb.WriteString(fmt.Sprintf("    <button type=\"button\" class=\"sidebar-mode-btn%s\" role=\"tab\" aria-selected=\"%t\" data-sidebar-mode-btn=\"time\">%s</button>\n", activeModeClass(defaultMode, "time"), defaultMode == "time", template.HTMLEscapeString(ui.Time)))
+	}
+	if showGraph {
+		sb.WriteString(fmt.Sprintf("    <button type=\"button\" class=\"sidebar-mode-btn%s\" role=\"tab\" aria-selected=\"%t\" data-sidebar-mode-btn=\"graph\">%s</button>\n", activeModeClass(defaultMode, "graph"), defaultMode == "graph", template.HTMLEscapeString(ui.Graph)))
+	}
 	sb.WriteString("  </div>\n")
 
-	sb.WriteString("  <div class=\"sidebar-mode-pane\" data-sidebar-mode-pane=\"categories\">\n")
+	sb.WriteString(fmt.Sprintf("  <div class=\"sidebar-mode-pane\" data-sidebar-mode-pane=\"categories\"%s>\n", hiddenAttr(defaultMode != "categories")))
 	renderSidebarList(&sb, root.Children, currentPath, 1, maxDepth, collapsed, ui)
 	sb.WriteString("  </div>\n")
 
-	sb.WriteString("  <div class=\"sidebar-mode-pane\" data-sidebar-mode-pane=\"time\" hidden>\n")
-	renderTimeline(&sb, timeline, currentPath)
-	sb.WriteString("  </div>\n")
-
-	sb.WriteString("  <div class=\"sidebar-mode-pane sidebar-graph-pane\" data-sidebar-mode-pane=\"graph\" hidden>\n")
-	if graphURL == "" {
-		graphURL = "/graph/"
+	if len(timeline) > 0 {
+		sb.WriteString(fmt.Sprintf("  <div class=\"sidebar-mode-pane\" data-sidebar-mode-pane=\"time\"%s>\n", hiddenAttr(defaultMode != "time")))
+		renderTimeline(&sb, timeline, currentPath)
+		sb.WriteString("  </div>\n")
 	}
-	sb.WriteString(fmt.Sprintf("    <iframe class=\"sidebar-graph-frame\" title=\"%s\" data-src=\"%s?embed=1\"></iframe>\n", template.HTMLEscapeString(ui.BlogGraphView), template.HTMLEscapeString(strings.TrimSuffix(graphURL, "/"))))
-	sb.WriteString("  </div>\n")
+
+	if showGraph {
+		sb.WriteString(fmt.Sprintf("  <div class=\"sidebar-mode-pane sidebar-graph-pane\" data-sidebar-mode-pane=\"graph\"%s>\n", hiddenAttr(defaultMode != "graph")))
+		if graphURL == "" {
+			graphURL = "/graph/"
+		}
+		sb.WriteString(fmt.Sprintf("    <iframe class=\"sidebar-graph-frame\" title=\"%s\" data-src=\"%s?embed=1\"></iframe>\n", template.HTMLEscapeString(graphTitle), template.HTMLEscapeString(strings.TrimSuffix(graphURL, "/"))))
+		sb.WriteString("  </div>\n")
+	}
 	sb.WriteString("</nav>\n")
 
 	return template.HTML(sb.String())
+}
+
+func activeModeClass(currentMode, mode string) string {
+	if currentMode == mode {
+		return " is-active"
+	}
+	return ""
+}
+
+func hiddenAttr(hidden bool) string {
+	if hidden {
+		return " hidden"
+	}
+	return ""
 }
 
 func renderTimeline(sb *strings.Builder, years []TimelineYear, currentPath string) {

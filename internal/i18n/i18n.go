@@ -11,6 +11,8 @@ type UIStrings struct {
 	Home            string
 	Blog            string
 	Docs            string
+	Navigation      string
+	ViewMode        string
 	Tags            string
 	Categories      string
 	Time            string
@@ -104,6 +106,8 @@ func UI(lang string) UIStrings {
 			Home:            "Главная",
 			Blog:            "Блог",
 			Docs:            "Документы",
+			Navigation:      "Навигация",
+			ViewMode:        "Режим просмотра",
 			Tags:            "Теги",
 			Categories:      "Категории",
 			Time:            "Время",
@@ -128,6 +132,8 @@ func UI(lang string) UIStrings {
 			Home:            "Home",
 			Blog:            "Blog",
 			Docs:            "Docs",
+			Navigation:      "Navigation",
+			ViewMode:        "View mode",
 			Tags:            "Tags",
 			Categories:      "Categories",
 			Time:            "Time",

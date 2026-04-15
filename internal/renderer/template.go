@@ -360,6 +360,7 @@ const defaultTemplates = `{{define "base"}}
             display: flex;
             flex-direction: column;
             gap: 12px;
+            overflow: hidden;
         }
         .sidebar-mode-switch {
             display: grid;
@@ -385,14 +386,16 @@ const defaultTemplates = `{{define "base"}}
             background: var(--nav-active);
         }
         .sidebar-mode-pane {
+            flex: 1;
             min-height: 0;
+            overflow-y: auto;
         }
         .sidebar-timeline {
             display: flex;
             flex-direction: column;
             gap: 10px;
-            max-height: calc(100vh - 130px);
-            overflow-y: auto;
+            max-height: none;
+            overflow: visible;
             padding-right: 2px;
         }
         .timeline-year h4 {

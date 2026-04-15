@@ -299,8 +299,7 @@ func (b *SiteBuilder) ensureDefaultLanguageEntry() error {
 	if _, exists := b.pagesByURL["/"]; exists {
 		return nil
 	}
-	target := "/" + strings.Trim(b.config.I18n.Default, "/") + "/"
-	html := "<!doctype html><html><head><meta charset=\"utf-8\"><meta http-equiv=\"refresh\" content=\"0; url=" + target + "\"><link rel=\"canonical\" href=\"" + target + "\"></head><body><a href=\"" + target + "\">Redirecting...</a></body></html>"
+	html := rootRedirectHTML(b.config)
 	out := filepath.Join(b.config.Build.OutputDir, "index.html")
 	return os.WriteFile(out, []byte(html), 0644)
 }
@@ -650,6 +649,36 @@ func selectSidebarRoot(root *renderer.NavNode, currentPath string) *renderer.Nav
 	return root
 }
 
+func findSidebarNodeByURL(root *renderer.NavNode, targetURL string) *renderer.NavNode {
+	if root == nil {
+		return nil
+	}
+	if root.URL == targetURL {
+		return root
+	}
+	for _, child := range root.Children {
+		if found := findSidebarNodeByURL(child, targetURL); found != nil {
+			return found
+		}
+	}
+	return nil
+}
+
+func cloneSidebarNodeWithoutURL(root *renderer.NavNode, excludeURL string) *renderer.NavNode {
+	if root == nil {
+		return nil
+	}
+	cloned := *root
+	cloned.Children = make([]*renderer.NavNode, 0, len(root.Children))
+	for _, child := range root.Children {
+		if child == nil || child.URL == excludeURL {
+			continue
+		}
+		cloned.Children = append(cloned.Children, cloneSidebarNodeWithoutURL(child, excludeURL))
+	}
+	return &cloned
+}
+
 // renderPage renders a single page to HTML
 func (b *SiteBuilder) renderPage(page *Page) error {
 	if page.Language == "" {
@@ -711,10 +740,51 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 	// Generate sidebar
 	rendererRoot := convertNavNode(b.navTree.Root)
 	sidebarRoot := selectSidebarRoot(rendererRoot, page.URL)
+	sidebarSectionKey := ""
+	switch {
+	case strings.Contains(page.URL, "/about/my_performance/"):
+		sidebarSectionKey = "my_performance"
+		targetURL := fmt.Sprintf("/%s/about/my_performance/", page.Language)
+		if found := findSidebarNodeByURL(rendererRoot, targetURL); found != nil {
+			sidebarRoot = found
+		}
+	case strings.Contains(page.URL, "/students_performance/"):
+		sidebarSectionKey = "students_performance"
+		targetURL := fmt.Sprintf("/%s/students_performance/", page.Language)
+		if found := findSidebarNodeByURL(rendererRoot, targetURL); found != nil {
+			sidebarRoot = found
+		}
+	case strings.Contains(page.URL, fmt.Sprintf("/%s/about/", page.Language)):
+		excludeURL := fmt.Sprintf("/%s/about/my_performance/", page.Language)
+		sidebarRoot = cloneSidebarNodeWithoutURL(sidebarRoot, excludeURL)
+	}
 	if strings.Contains(page.URL, "/blog/") {
 		timeline := b.blogTimeline[page.Language]
 		graphURL := fmt.Sprintf("/%s/graph/", page.Language)
-		data.Sidebar = renderer.RenderBlogSidebar(sidebarRoot, page.URL, b.config.Navigation.Sidebar.MaxDepth, b.config.Navigation.Sidebar.Collapsed, timeline, ui, graphURL)
+		sectionCfg := b.sidebarSectionConfig("blog")
+		if !sectionCfg.EnableTime {
+			timeline = nil
+		}
+		defaultMode := sectionCfg.DefaultMode
+		if strings.TrimSpace(defaultMode) == "" {
+			defaultMode = "categories"
+		}
+		data.Sidebar = renderer.RenderModeSidebar(sidebarRoot, page.URL, b.config.Navigation.Sidebar.MaxDepth, b.config.Navigation.Sidebar.Collapsed, timeline, ui, graphURL, defaultMode, sectionCfg.EnableGraph)
+	} else if strings.Contains(page.URL, "/study/") || sidebarSectionKey != "" {
+		sectionKey := "study"
+		if sidebarSectionKey != "" {
+			sectionKey = sidebarSectionKey
+		}
+		sectionCfg := b.sidebarSectionConfig(sectionKey)
+		var timeline []renderer.TimelineYear
+		if sectionCfg.EnableTime {
+			timeline = b.buildSectionTimeline(sidebarRoot, page.Language, 20)
+		}
+		defaultMode := sectionCfg.DefaultMode
+		if strings.TrimSpace(defaultMode) == "" {
+			defaultMode = "categories"
+		}
+		data.Sidebar = renderer.RenderModeSidebar(sidebarRoot, page.URL, b.config.Navigation.Sidebar.MaxDepth, b.config.Navigation.Sidebar.Collapsed, timeline, ui, "", defaultMode, false)
 	} else {
 		data.Sidebar = renderer.RenderSidebar(sidebarRoot, page.URL, b.config.Navigation.Sidebar.MaxDepth, b.config.Navigation.Sidebar.Collapsed, ui)
 	}
@@ -1423,6 +1493,58 @@ func (b *SiteBuilder) collectBlogPostsByLanguage() map[string][]*Page {
 		})
 	}
 	return out
+}
+
+func (b *SiteBuilder) sidebarSectionConfig(section string) config.SidebarSectionConfig {
+	cfg := config.SidebarSectionConfig{
+		DefaultMode: "categories",
+		EnableTime:  true,
+		EnableGraph: section == "blog",
+	}
+	if section == "" || b.config == nil {
+		return cfg
+	}
+	if custom, ok := b.config.Navigation.Sidebar.Sections[section]; ok {
+		if strings.TrimSpace(custom.DefaultMode) != "" {
+			cfg.DefaultMode = strings.TrimSpace(custom.DefaultMode)
+		}
+		cfg.EnableTime = custom.EnableTime
+		cfg.EnableGraph = custom.EnableGraph
+	}
+	return cfg
+}
+
+func (b *SiteBuilder) buildSectionTimeline(root *renderer.NavNode, language string, maxPerYear int) []renderer.TimelineYear {
+	if root == nil || root.URL == "" {
+		return nil
+	}
+
+	var pages []*Page
+	for _, page := range b.pages {
+		if page == nil || page.Language != language {
+			continue
+		}
+		if page.URL == root.URL || !strings.HasPrefix(page.URL, root.URL) {
+			continue
+		}
+		if page.Frontmatter != nil {
+			if page.Frontmatter.HideNav || strings.TrimSpace(page.Frontmatter.RedirectURL) != "" {
+				continue
+			}
+			if page.Frontmatter.Date.IsZero() {
+				continue
+			}
+		} else {
+			continue
+		}
+		pages = append(pages, page)
+	}
+
+	sort.Slice(pages, func(i, j int) bool {
+		return pages[i].Frontmatter.Date.After(pages[j].Frontmatter.Date)
+	})
+
+	return buildBlogTimeline(pages, maxPerYear)
 }
 
 // pageSummariesFromPosts converts builder Pages to tags.PageSummary slice
