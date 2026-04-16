@@ -88,6 +88,8 @@ navigation:
     homeLabel: "Home"
   prevNext:
     enabled: true
+    sameCategoryOnly: false
+    sections: {}
 
 assets:
   images:

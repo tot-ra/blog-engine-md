@@ -250,12 +250,12 @@ func (b *SiteBuilder) Build() error {
 		fmt.Fprintf(os.Stderr, "Error stripping site footers: %v\n", err)
 	}
 
-	// Collect blog posts sorted by date descending (used by tags, archive, feeds)
+	// Collect blog posts sorted by date descending (used by archive, feeds)
 	blogPosts := b.collectBlogPosts()
 
 	// Generate tag pages
 	if b.config.Tags.Enabled {
-		if err := b.generateTagPages(blogPosts); err != nil {
+		if err := b.generateTagPages(b.collectTagPages()); err != nil {
 			fmt.Fprintf(os.Stderr, "Error generating tag pages: %v\n", err)
 		}
 	}
@@ -817,8 +817,9 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 	}
 
 	// Generate prev/next links
-	if b.config.Navigation.PrevNext.Enabled {
-		pnGen := NewPrevNextGenerator()
+	prevNextCfg := b.prevNextConfigForPage(page)
+	if prevNextCfg.Enabled {
+		pnGen := NewPrevNextGenerator(prevNextCfg.SameCategoryOnly)
 		links := pnGen.Generate(page, b.pages, b.navTree)
 		if links != nil {
 			data.PrevNext = convertPrevNext(links)
@@ -1259,6 +1260,10 @@ func (b *SiteBuilder) buildHeaderNav(lang string) []renderer.NavLink {
 
 	nav := make([]renderer.NavLink, 0, len(items))
 	for _, item := range items {
+		if !headerItemVisibleForLanguage(item, lang) {
+			continue
+		}
+
 		title := strings.TrimSpace(item.Title)
 		if localized, ok := item.TitleI18n[strings.ToLower(lang)]; ok && strings.TrimSpace(localized) != "" {
 			title = strings.TrimSpace(localized)
@@ -1282,6 +1287,21 @@ func (b *SiteBuilder) buildHeaderNav(lang string) []renderer.NavLink {
 		nav = append(nav, renderer.NavLink{Title: title, URL: target, Type: "header"})
 	}
 	return nav
+}
+
+func headerItemVisibleForLanguage(item config.HeaderItem, lang string) bool {
+	if len(item.Languages) == 0 {
+		return true
+	}
+
+	current := strings.ToLower(strings.TrimSpace(lang))
+	for _, allowed := range item.Languages {
+		if strings.ToLower(strings.TrimSpace(allowed)) == current {
+			return true
+		}
+	}
+
+	return false
 }
 
 func buildLanguageScopedURL(lang, path string) string {
@@ -1476,6 +1496,36 @@ func (b *SiteBuilder) collectBlogPosts() []*Page {
 	return posts
 }
 
+// collectTagPages returns all source-backed pages with tags, sorted newest first.
+func (b *SiteBuilder) collectTagPages() []*Page {
+	var pages []*Page
+	for _, page := range b.pages {
+		if page == nil || page.Frontmatter == nil || len(page.Frontmatter.Tags) == 0 {
+			continue
+		}
+		// Generated utility pages should not appear in the tag index.
+		if page.SourcePath == "" {
+			continue
+		}
+		pages = append(pages, page)
+	}
+	sort.Slice(pages, func(i, j int) bool {
+		di := pages[i].Frontmatter.Date
+		dj := pages[j].Frontmatter.Date
+		switch {
+		case di.Equal(dj):
+			return pages[i].URL < pages[j].URL
+		case di.IsZero():
+			return false
+		case dj.IsZero():
+			return true
+		default:
+			return di.After(dj)
+		}
+	})
+	return pages
+}
+
 func buildBlogTimeline(posts []*Page, maxPerYear int) []renderer.TimelineYear {
 	if maxPerYear <= 0 {
 		maxPerYear = 20
@@ -1557,6 +1607,75 @@ func (b *SiteBuilder) sidebarSectionConfig(section string) config.SidebarSection
 	return cfg
 }
 
+func (b *SiteBuilder) prevNextConfigForPage(page *Page) config.PrevNextConfig {
+	cfg := b.config.Navigation.PrevNext
+	if len(cfg.Sections) == 0 {
+		return cfg
+	}
+
+	matches := make([]string, 0, len(cfg.Sections))
+	overridesByPath := make(map[string]config.PrevNextSectionConfig, len(cfg.Sections))
+	for sectionPath := range cfg.Sections {
+		normalized := normalizePrevNextSectionPath(sectionPath)
+		if normalized == "" {
+			continue
+		}
+		overridesByPath[normalized] = cfg.Sections[sectionPath]
+		if prevNextSectionMatches(normalized, page.URL, b.languages) {
+			matches = append(matches, normalized)
+		}
+	}
+
+	sort.SliceStable(matches, func(i, j int) bool {
+		if len(matches[i]) != len(matches[j]) {
+			return len(matches[i]) < len(matches[j])
+		}
+		return matches[i] < matches[j]
+	})
+
+	for _, normalized := range matches {
+		override := overridesByPath[normalized]
+		if override.Enabled != nil {
+			cfg.Enabled = *override.Enabled
+		}
+		if override.SameCategoryOnly != nil {
+			cfg.SameCategoryOnly = *override.SameCategoryOnly
+		}
+	}
+
+	return cfg
+}
+
+func normalizePrevNextSectionPath(sectionPath string) string {
+	trimmed := strings.Trim(strings.TrimSpace(sectionPath), "/")
+	if trimmed == "" {
+		return ""
+	}
+	return "/" + trimmed + "/"
+}
+
+func prevNextSectionMatches(sectionPath, pageURL string, languages map[string]struct{}) bool {
+	candidates := []string{normalizePrevNextSectionPath(pageURL)}
+
+	trimmed := strings.Trim(strings.TrimSpace(pageURL), "/")
+	if trimmed != "" {
+		segments := strings.Split(trimmed, "/")
+		if len(segments) > 1 {
+			if _, ok := languages[segments[0]]; ok {
+				candidates = append(candidates, "/"+strings.Join(segments[1:], "/")+"/")
+			}
+		}
+	}
+
+	for _, candidate := range candidates {
+		if candidate == sectionPath || strings.HasPrefix(candidate, sectionPath) {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (b *SiteBuilder) buildSectionTimeline(root *renderer.NavNode, language string, maxPerYear int) []renderer.TimelineYear {
 	if root == nil || root.URL == "" {
 		return nil
@@ -1606,10 +1725,10 @@ func pageSummariesFromPosts(posts []*Page) []tags.PageSummary {
 	return summaries
 }
 
-// generateTagPages builds tag index and creates tag list pages
-func (b *SiteBuilder) generateTagPages(blogPosts []*Page) error {
+// generateTagPages builds tag index and creates tag list pages.
+func (b *SiteBuilder) generateTagPages(taggedPages []*Page) error {
 	postsByLang := make(map[string][]*Page)
-	for _, p := range blogPosts {
+	for _, p := range taggedPages {
 		postsByLang[p.Language] = append(postsByLang[p.Language], p)
 	}
 	total := 0
@@ -1688,8 +1807,8 @@ func (b *SiteBuilder) buildTagCloudHTML(idx tags.TagIndex, allTags []string, lan
 // buildTagPageHTML generates HTML for a single tag page
 func (b *SiteBuilder) buildTagPageHTML(tag string, pages []tags.PageSummary, lang string) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("<h2>Posts tagged \"%s\"</h2>\n", tag))
-	sb.WriteString(fmt.Sprintf("<p>%d post(s)</p>\n", len(pages)))
+	sb.WriteString(fmt.Sprintf("<h2>Pages tagged \"%s\"</h2>\n", tag))
+	sb.WriteString(fmt.Sprintf("<p>%d page(s)</p>\n", len(pages)))
 	sb.WriteString("<ul class=\"post-list\">\n")
 	for _, p := range pages {
 		dateStr := ""

@@ -18,7 +18,7 @@ func TestPrevNext_BlogByDate(t *testing.T) {
 			Frontmatter: &parser.Frontmatter{Date: now.Add(-48 * time.Hour)}},
 	}
 
-	gen := NewPrevNextGenerator()
+	gen := NewPrevNextGenerator(false)
 
 	// Middle post: prev=Newest, next=Oldest
 	links := gen.Generate(pages["p2"], pages, nil)
@@ -62,7 +62,7 @@ func TestPrevNext_DocsByTreeOrder(t *testing.T) {
 	nb := NewNavigationBuilder()
 	tree := nb.BuildTree(pages)
 
-	gen := NewPrevNextGenerator()
+	gen := NewPrevNextGenerator(false)
 	links := gen.Generate(pages["p1"], pages, tree)
 
 	if links == nil {
@@ -73,5 +73,55 @@ func TestPrevNext_DocsByTreeOrder(t *testing.T) {
 	}
 	if links.Next == nil || links.Next.Title != "Second" {
 		t.Errorf("Expected next=Second, got %+v", links.Next)
+	}
+}
+
+func TestPrevNext_DocsSameCategoryOnly(t *testing.T) {
+	pages := map[string]*Page{
+		"p1": {ID: "p1", Title: "First", URL: "/est/study/mahtra_pohikool/2klass/first/", Language: "est", Type: TypeDoc,
+			Frontmatter: &parser.Frontmatter{Order: 1}},
+		"p2": {ID: "p2", Title: "Second", URL: "/est/study/mahtra_pohikool/2klass/second/", Language: "est", Type: TypeDoc,
+			Frontmatter: &parser.Frontmatter{Order: 2}},
+		"p3": {ID: "p3", Title: "Third", URL: "/est/study/mahtra_pohikool/3klass/third/", Language: "est", Type: TypeDoc,
+			Frontmatter: &parser.Frontmatter{Order: 1}},
+	}
+
+	tree := NewNavigationBuilder().BuildTree(pages)
+	gen := NewPrevNextGenerator(true)
+
+	links := gen.Generate(pages["p2"], pages, tree)
+	if links == nil {
+		t.Fatal("Expected prev/next links")
+	}
+	if links.Prev == nil || links.Prev.Title != "First" {
+		t.Fatalf("Expected prev=First, got %+v", links.Prev)
+	}
+	if links.Next != nil {
+		t.Fatalf("Expected no next link across sibling sections, got %+v", links.Next)
+	}
+}
+
+func TestPrevNext_TypePageUsesDocsOrdering(t *testing.T) {
+	pages := map[string]*Page{
+		"p1": {ID: "p1", Title: "First", URL: "/est/study/mahtra_pohikool/2klass/first/", Language: "est", Type: TypePage,
+			Frontmatter: &parser.Frontmatter{Order: 1}},
+		"p2": {ID: "p2", Title: "Second", URL: "/est/study/mahtra_pohikool/2klass/second/", Language: "est", Type: TypePage,
+			Frontmatter: &parser.Frontmatter{Order: 2}},
+		"section": {ID: "section", Title: "2 klass", URL: "/est/study/mahtra_pohikool/2klass/", Language: "est", Type: TypePage,
+			Frontmatter: &parser.Frontmatter{Order: 1}},
+	}
+
+	tree := NewNavigationBuilder().BuildTree(pages)
+	gen := NewPrevNextGenerator(true)
+
+	links := gen.Generate(pages["p1"], pages, tree)
+	if links == nil {
+		t.Fatal("Expected prev/next links")
+	}
+	if links.Prev != nil {
+		t.Fatalf("Expected no previous link for first page, got %+v", links.Prev)
+	}
+	if links.Next == nil || links.Next.Title != "Second" {
+		t.Fatalf("Expected next=Second, got %+v", links.Next)
 	}
 }

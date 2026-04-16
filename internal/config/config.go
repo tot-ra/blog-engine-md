@@ -30,13 +30,13 @@ type SiteConfig struct {
 
 // HomepageConfig contains homepage-specific settings
 type HomepageConfig struct {
-	Enabled     bool               `yaml:"enabled"`
-	Hero        HeroConfig         `yaml:"hero"`
-	Chat        HomepageChatConfig `yaml:"chat"`
-	HideProjects bool              `yaml:"hideProjects"`
-	Projects    []ProjectConfig    `yaml:"projects"`
-	SocialLinks []SocialLinkGroup  `yaml:"socialLinks"`
-	CustomHTML  string             `yaml:"customHTML"` // Additional custom HTML/JS
+	Enabled      bool               `yaml:"enabled"`
+	Hero         HeroConfig         `yaml:"hero"`
+	Chat         HomepageChatConfig `yaml:"chat"`
+	HideProjects bool               `yaml:"hideProjects"`
+	Projects     []ProjectConfig    `yaml:"projects"`
+	SocialLinks  []SocialLinkGroup  `yaml:"socialLinks"`
+	CustomHTML   string             `yaml:"customHTML"` // Additional custom HTML/JS
 }
 
 // HeroConfig contains hero section settings
@@ -217,6 +217,7 @@ type HeaderItem struct {
 	Title     string            `yaml:"title"`
 	TitleI18n map[string]string `yaml:"titleI18n"`
 	PathI18n  map[string]string `yaml:"pathI18n"`
+	Languages []string          `yaml:"languages"`
 	Path      string            `yaml:"path"`
 	URL       string            `yaml:"url"`
 }
@@ -252,8 +253,16 @@ type BreadcrumbsConfig struct {
 
 // PrevNextConfig contains prev/next navigation settings
 type PrevNextConfig struct {
-	Enabled          bool `yaml:"enabled"`
-	SameCategoryOnly bool `yaml:"sameCategoryOnly"`
+	Enabled          bool                             `yaml:"enabled"`
+	SameCategoryOnly bool                             `yaml:"sameCategoryOnly"`
+	Sections         map[string]PrevNextSectionConfig `yaml:"sections"`
+}
+
+// PrevNextSectionConfig contains path-scoped prev/next overrides.
+// Pointer fields allow inheritance from broader/global settings.
+type PrevNextSectionConfig struct {
+	Enabled          *bool `yaml:"enabled"`
+	SameCategoryOnly *bool `yaml:"sameCategoryOnly"`
 }
 
 // Site contains site-wide settings
@@ -418,6 +427,7 @@ func DefaultConfig() *SiteConfig {
 			PrevNext: PrevNextConfig{
 				Enabled:          true,
 				SameCategoryOnly: false,
+				Sections:         map[string]PrevNextSectionConfig{},
 			},
 		},
 		Feeds: FeedsConfig{

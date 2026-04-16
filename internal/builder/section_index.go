@@ -21,6 +21,7 @@ type SectionChild struct {
 }
 
 var sectionClassTitleRe = regexp.MustCompile(`(?i)^\s*\d+(?:\s*-\s*\d+)?\s*klass\b`)
+var sectionClassURLRe = regexp.MustCompile(`(?i)/(?:\d+(?:-\d+)?)klass/$`)
 
 // SectionIndexGenerator generates index pages for directories without explicit index.md
 type SectionIndexGenerator struct{}
@@ -187,11 +188,18 @@ func shouldUseSectionMatrix(children []SectionChild) bool {
 func onlyClassLikeSectionChildren(children []SectionChild) []SectionChild {
 	filtered := make([]SectionChild, 0, len(children))
 	for _, child := range children {
-		if sectionClassTitleRe.MatchString(child.Title) {
+		if isClassLikeSectionChild(child) {
 			filtered = append(filtered, child)
 		}
 	}
 	return filtered
+}
+
+func isClassLikeSectionChild(child SectionChild) bool {
+	if sectionClassTitleRe.MatchString(strings.TrimSpace(child.Title)) {
+		return true
+	}
+	return sectionClassURLRe.MatchString(strings.TrimSpace(child.URL))
 }
 
 func collectBlogPostsForSection(sectionURL string, pages map[string]*Page) []*Page {

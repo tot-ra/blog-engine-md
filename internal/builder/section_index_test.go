@@ -238,6 +238,21 @@ func TestSectionChildrenHTML_UsesMatrixForTwoClassChildren(t *testing.T) {
 	}
 }
 
+func TestSectionChildrenHTML_UsesMatrixForClassURLsWithoutSpacedTitles(t *testing.T) {
+	children := []SectionChild{
+		{Title: "2klass", URL: "/est/study/mahtra_pohikool/2klass/"},
+		{Title: "3klass", URL: "/est/study/mahtra_pohikool/3klass/"},
+	}
+
+	content := sectionChildrenHTML(children)
+	if !strings.Contains(content, "section-index-card") {
+		t.Fatalf("expected matrix card markup for class-like URLs, got: %s", content)
+	}
+	if strings.Contains(content, "<ul class=\"section-index\">") {
+		t.Fatalf("expected matrix instead of list for class-like URLs, got: %s", content)
+	}
+}
+
 func TestSectionBlogPostsHTML_RendersArticlePreviews(t *testing.T) {
 	pages := map[string]*Page{
 		"post-1": {

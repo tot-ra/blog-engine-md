@@ -1,6 +1,7 @@
 package builder
 
 import (
+	"path"
 	"sort"
 	"strings"
 )
@@ -19,11 +20,13 @@ type PrevNextLinks struct {
 }
 
 // PrevNextGenerator generates previous/next page links
-type PrevNextGenerator struct{}
+type PrevNextGenerator struct {
+	sameCategoryOnly bool
+}
 
 // NewPrevNextGenerator creates a new prev/next generator
-func NewPrevNextGenerator() *PrevNextGenerator {
-	return &PrevNextGenerator{}
+func NewPrevNextGenerator(sameCategoryOnly bool) *PrevNextGenerator {
+	return &PrevNextGenerator{sameCategoryOnly: sameCategoryOnly}
 }
 
 // Generate creates prev/next links for a page.
@@ -46,6 +49,9 @@ func (g *PrevNextGenerator) generateForBlog(page *Page, allPages map[string]*Pag
 				if p.Frontmatter.HideNav || strings.TrimSpace(p.Frontmatter.RedirectURL) != "" {
 					continue
 				}
+			}
+			if g.sameCategoryOnly && siblingGroupURL(p.URL) != siblingGroupURL(page.URL) {
+				continue
 			}
 			blogPosts = append(blogPosts, p)
 		}
@@ -104,7 +110,10 @@ func (g *PrevNextGenerator) generateForDocs(page *Page, allPages map[string]*Pag
 		if !ok {
 			continue
 		}
-		if p.Type == TypeDoc && p.Language == page.Language {
+		if p.Type != TypeBlog && p.Language == page.Language {
+			if g.sameCategoryOnly && siblingGroupURL(p.URL) != siblingGroupURL(page.URL) {
+				continue
+			}
 			filtered = append(filtered, n)
 		}
 	}
@@ -132,4 +141,17 @@ func (g *PrevNextGenerator) generateForDocs(page *Page, allPages map[string]*Pag
 	}
 
 	return links
+}
+
+func siblingGroupURL(pageURL string) string {
+	trimmed := strings.Trim(strings.TrimSpace(pageURL), "/")
+	if trimmed == "" {
+		return "/"
+	}
+
+	dir := path.Dir("/" + trimmed)
+	if dir == "." || dir == "/" {
+		return "/"
+	}
+	return strings.TrimSuffix(dir, "/") + "/"
 }
