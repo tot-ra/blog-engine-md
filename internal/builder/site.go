@@ -744,6 +744,14 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 	// Generate sidebar
 	rendererRoot := convertNavNode(b.navTree.Root)
 	sidebarRoot := selectSidebarRoot(rendererRoot, page.URL)
+	hideSidebar := false
+	if page.Language != "" {
+		normalizedURL := strings.Trim(page.URL, "/")
+		switch normalizedURL {
+		case fmt.Sprintf("%s/music", page.Language), fmt.Sprintf("%s/projects", page.Language):
+			hideSidebar = true
+		}
+	}
 	sidebarSectionKey := ""
 	switch {
 	case strings.Contains(page.URL, fmt.Sprintf("/%s/my_performance/", page.Language)) || strings.Contains(page.URL, "/about/my_performance/"):
@@ -762,7 +770,9 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 		excludeURL := fmt.Sprintf("/%s/about/my_performance/", page.Language)
 		sidebarRoot = cloneSidebarNodeWithoutURL(sidebarRoot, excludeURL)
 	}
-	if strings.Contains(page.URL, "/blog/") {
+	if hideSidebar {
+		data.Sidebar = ""
+	} else if strings.Contains(page.URL, "/blog/") {
 		timeline := b.blogTimeline[page.Language]
 		graphURL := fmt.Sprintf("/%s/graph/", page.Language)
 		sectionCfg := b.sidebarSectionConfig("blog")
@@ -922,6 +932,9 @@ func mergeHomepageConfig(base, override config.HomepageConfig) config.HomepageCo
 	}
 	if override.Chat.Title != "" {
 		out.Chat.Title = override.Chat.Title
+	}
+	if override.HideProjects {
+		out.HideProjects = true
 	}
 
 	if len(override.Projects) > 0 {
@@ -1255,8 +1268,12 @@ func (b *SiteBuilder) buildHeaderNav(lang string) []renderer.NavLink {
 		}
 
 		target := strings.TrimSpace(item.URL)
-		if target == "" && strings.TrimSpace(item.Path) != "" {
-			target = buildLanguageScopedURL(lang, item.Path)
+		path := strings.TrimSpace(item.Path)
+		if localizedPath, ok := item.PathI18n[strings.ToLower(lang)]; ok && strings.TrimSpace(localizedPath) != "" {
+			path = strings.TrimSpace(localizedPath)
+		}
+		if target == "" && path != "" {
+			target = buildLanguageScopedURL(lang, path)
 		}
 		if target == "" {
 			continue

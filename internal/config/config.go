@@ -33,6 +33,7 @@ type HomepageConfig struct {
 	Enabled     bool               `yaml:"enabled"`
 	Hero        HeroConfig         `yaml:"hero"`
 	Chat        HomepageChatConfig `yaml:"chat"`
+	HideProjects bool              `yaml:"hideProjects"`
 	Projects    []ProjectConfig    `yaml:"projects"`
 	SocialLinks []SocialLinkGroup  `yaml:"socialLinks"`
 	CustomHTML  string             `yaml:"customHTML"` // Additional custom HTML/JS
@@ -215,6 +216,7 @@ type HeaderConfig struct {
 type HeaderItem struct {
 	Title     string            `yaml:"title"`
 	TitleI18n map[string]string `yaml:"titleI18n"`
+	PathI18n  map[string]string `yaml:"pathI18n"`
 	Path      string            `yaml:"path"`
 	URL       string            `yaml:"url"`
 }

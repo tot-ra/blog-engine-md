@@ -758,6 +758,54 @@ const defaultTemplates = `{{define "base"}}
             margin: 0;
             color: var(--text-secondary);
         }
+        .projects-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+            margin: 32px 0 0;
+        }
+        .project-card {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .project-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px var(--shadow);
+        }
+        .project-image {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+            background: var(--border);
+            display: block;
+        }
+        .project-content {
+            padding: 20px;
+        }
+        .project-content h3 {
+            margin: 0 0 8px;
+            font-size: 1.25em;
+        }
+        .project-content p {
+            margin: 0 0 16px;
+            color: var(--text-secondary);
+            font-size: 0.95em;
+        }
+        .project-tags {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .project-tag {
+            font-size: 0.8em;
+            padding: 4px 10px;
+            background: var(--bg-primary);
+            border-radius: 20px;
+            color: var(--text-secondary);
+        }
         /* Responsive */
         @media (max-width: 1200px) {
             .toc { display: none; }
@@ -765,11 +813,12 @@ const defaultTemplates = `{{define "base"}}
         @media (max-width: 768px) {
             .sidebar { display: none; }
             .site-content { padding: 16px; }
+            .projects-grid { grid-template-columns: 1fr; }
         }
     </style>
     {{if .CSSPath}}<link rel="stylesheet" href="{{.CSSPath}}">{{end}}
 </head>
-<body class="homepage">
+<body class="{{if .Page.Layout}}page-layout-{{.Page.Layout}}{{else}}page-layout-page{{end}}">
     <header class="site-header">
         <div class="header-left">
             <a class="navbar-logo" href="/{{.Page.Language}}/">
@@ -933,6 +982,10 @@ const defaultTemplates = `{{define "base"}}
 {{template "base" .}}
 {{end}}
 
+{{define "projects"}}
+{{template "base" .}}
+{{end}}
+
 {{define "content"}}
 <article>
     {{if .Breadcrumbs}}
@@ -977,6 +1030,32 @@ const defaultTemplates = `{{define "base"}}
     <div class="content">
         {{.Content}}
     </div>
+    {{if and (eq .Page.Layout "projects") .Homepage.Projects}}
+    <section class="projects-grid" aria-label="{{.UI.Projects}}">
+        {{range .Homepage.Projects}}
+        <div class="project-card">
+            {{if .Image}}<img src="{{.Image}}" alt="{{.Title}}" class="project-image">{{end}}
+            <div class="project-content">
+                <h3>
+                    {{if .URL}}
+                    <a href="{{.URL}}">{{.Title}}</a>
+                    {{else if .GitHub}}
+                    <a href="{{.GitHub}}">{{.Title}}</a>
+                    {{else}}
+                    {{.Title}}
+                    {{end}}
+                </h3>
+                <p>{{.Description}}</p>
+                {{if .Tags}}
+                <div class="project-tags">
+                    {{range .Tags}}<span class="project-tag">{{.}}</span>{{end}}
+                </div>
+                {{end}}
+            </div>
+        </div>
+        {{end}}
+    </section>
+    {{end}}
     {{if .Frontmatter.Tags}}
     <div class="tags">
         {{range .Frontmatter.Tags}}
@@ -1528,7 +1607,7 @@ const defaultTemplates = `{{define "base"}}
     {{end}}
 
     <!-- Projects Section -->
-    {{if .Homepage.Projects}}
+    {{if and (not .Homepage.HideProjects) .Homepage.Projects}}
     <section class="content-section">
         <h2>{{.UI.Projects}}</h2>
         <div class="projects-grid">
