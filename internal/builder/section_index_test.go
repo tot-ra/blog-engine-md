@@ -223,6 +223,21 @@ func TestSectionChildrenHTML_MatrixOnlyIncludesClassLikeChildren(t *testing.T) {
 	}
 }
 
+func TestSectionChildrenHTML_UsesMatrixForTwoClassChildren(t *testing.T) {
+	children := []SectionChild{
+		{Title: "2 klass", URL: "/est/study/mahtra_pohikool/2klass/"},
+		{Title: "3 klass", URL: "/est/study/mahtra_pohikool/3klass/"},
+	}
+
+	content := sectionChildrenHTML(children)
+	if !strings.Contains(content, "section-index-card") {
+		t.Fatalf("expected matrix card markup for two class children, got: %s", content)
+	}
+	if strings.Contains(content, "<ul class=\"section-index\">") {
+		t.Fatalf("expected matrix instead of list for two class children, got: %s", content)
+	}
+}
+
 func TestSectionBlogPostsHTML_RendersArticlePreviews(t *testing.T) {
 	pages := map[string]*Page{
 		"post-1": {

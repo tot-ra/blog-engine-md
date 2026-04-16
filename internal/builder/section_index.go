@@ -176,12 +176,12 @@ func sectionBlogPostsHTML(sectionURL string, pages map[string]*Page) string {
 }
 
 func shouldUseSectionMatrix(children []SectionChild) bool {
-	if len(children) < 4 {
+	if len(children) < 2 {
 		return false
 	}
 
 	classLike := len(onlyClassLikeSectionChildren(children))
-	return classLike >= 4
+	return classLike >= 2
 }
 
 func onlyClassLikeSectionChildren(children []SectionChild) []SectionChild {
