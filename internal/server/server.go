@@ -200,6 +200,7 @@ func mimeType(ext string) string {
 		".mjs":   "application/javascript",
 		".json":  "application/json",
 		".xml":   "application/xml",
+		".pdf":   "application/pdf",
 		".svg":   "image/svg+xml",
 		".png":   "image/png",
 		".jpg":   "image/jpeg",
