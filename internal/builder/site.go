@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 
 	"github.com/tot-ra/blog-engine/internal/archive"
@@ -752,27 +753,18 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 			hideSidebar = true
 		}
 	}
-	sidebarSectionKey := ""
-	switch {
-	case strings.Contains(page.URL, fmt.Sprintf("/%s/my_performance/", page.Language)) || strings.Contains(page.URL, "/about/my_performance/"):
-		sidebarSectionKey = "my_performance"
-		targetURL := fmt.Sprintf("/%s/about/my_performance/", page.Language)
+	sidebarSectionKey, matchedSectionCfg := b.matchingSidebarSection(page)
+	if targetURL := localizedSectionURL(page.Language, matchedSectionCfg.SidebarRoot); targetURL != "" {
 		if found := findSidebarNodeByURL(rendererRoot, targetURL); found != nil {
 			sidebarRoot = found
 		}
-	case strings.Contains(page.URL, "/students_performance/"):
-		sidebarSectionKey = "students_performance"
-		targetURL := fmt.Sprintf("/%s/students_performance/", page.Language)
-		if found := findSidebarNodeByURL(rendererRoot, targetURL); found != nil {
-			sidebarRoot = found
-		}
-	case strings.Contains(page.URL, fmt.Sprintf("/%s/about/", page.Language)):
-		excludeURL := fmt.Sprintf("/%s/about/my_performance/", page.Language)
+	}
+	for _, excludeURL := range b.sidebarExcludeURLs(page) {
 		sidebarRoot = cloneSidebarNodeWithoutURL(sidebarRoot, excludeURL)
 	}
 	if hideSidebar {
 		data.Sidebar = ""
-	} else if strings.Contains(page.URL, "/blog/") {
+	} else if page.Type == TypeBlog {
 		timeline := b.blogTimeline[page.Language]
 		graphURL := fmt.Sprintf("/%s/graph/", page.Language)
 		sectionCfg := b.sidebarSectionConfig("blog")
@@ -784,12 +776,8 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 			defaultMode = "categories"
 		}
 		data.Sidebar = renderer.RenderModeSidebar(sidebarRoot, page.URL, b.config.Navigation.Sidebar.MaxDepth, b.config.Navigation.Sidebar.Collapsed, timeline, ui, graphURL, defaultMode, sectionCfg.EnableGraph)
-	} else if strings.Contains(page.URL, "/study/") || sidebarSectionKey != "" {
-		sectionKey := "study"
-		if sidebarSectionKey != "" {
-			sectionKey = sidebarSectionKey
-		}
-		sectionCfg := b.sidebarSectionConfig(sectionKey)
+	} else if sidebarSectionKey != "" {
+		sectionCfg := b.sidebarSectionConfig(sidebarSectionKey)
 		var timeline []renderer.TimelineYear
 		if sectionCfg.EnableTime {
 			timeline = b.buildSectionTimeline(sidebarRoot, page.Language, 20)
@@ -879,7 +867,184 @@ func (b *SiteBuilder) sectionChildrenContent(page *Page) string {
 		return ""
 	}
 
-	return sectionChildrenHTML(sectionChildrenFromNode(node))
+	sectionKey, _ := b.matchingSidebarSection(page)
+	sectionCfg := b.sidebarSectionConfig(sectionKey)
+	var sb strings.Builder
+	sb.WriteString(b.sectionRecentEmbedsHTML(page, sectionCfg.RecentEmbeds))
+	showChildrenList := true
+	if sectionCfg.ShowChildrenList != nil {
+		showChildrenList = *sectionCfg.ShowChildrenList
+	}
+	if showChildrenList {
+		sb.WriteString(sectionChildrenHTML(sectionChildrenFromNode(node)))
+	}
+	return sb.String()
+}
+
+var (
+	youtubeShortcodeRe = regexp.MustCompile(`::youtube\[([A-Za-z0-9_-]{11})\]`)
+	vimeoShortcodeRe   = regexp.MustCompile(`::vimeo\[([0-9]+)\]`)
+)
+
+func (b *SiteBuilder) sectionRecentEmbedsHTML(page *Page, cfg config.RecentEmbedsConfig) string {
+	if page == nil || page.URL == "" || page.Language == "" || !cfg.Enabled {
+		return ""
+	}
+	provider := strings.ToLower(strings.TrimSpace(cfg.Provider))
+	if provider == "" {
+		provider = "youtube"
+	}
+	limit := cfg.Limit
+	if limit <= 0 {
+		limit = 4
+	}
+	sortBy := strings.ToLower(strings.TrimSpace(cfg.SortBy))
+	if sortBy == "" {
+		sortBy = "date"
+	}
+
+	type videoEntry struct {
+		Title     string
+		URL       string
+		EmbedHTML string
+		SortTime  time.Time
+	}
+
+	prefix := ensureTrailingSlash(page.URL)
+	entries := make([]videoEntry, 0, 8)
+	for _, candidate := range b.pagesByURL {
+		if candidate == nil || candidate.URL == "" || candidate.URL == page.URL {
+			continue
+		}
+		if !strings.HasPrefix(candidate.URL, prefix) {
+			continue
+		}
+		if candidate.Frontmatter != nil && (candidate.Frontmatter.HideNav || strings.TrimSpace(candidate.Frontmatter.RedirectURL) != "") {
+			continue
+		}
+		embedHTML := renderRecentEmbedHTML(provider, candidate.RawContent)
+		if embedHTML == "" {
+			continue
+		}
+		entries = append(entries, videoEntry{
+			Title:     candidate.Title,
+			URL:       candidate.URL,
+			EmbedHTML: embedHTML,
+			SortTime:  candidate.ModifiedTime,
+		})
+		if sortBy == "date" && candidate.Frontmatter != nil && !candidate.Frontmatter.Date.IsZero() {
+			entries[len(entries)-1].SortTime = candidate.Frontmatter.Date
+		}
+	}
+
+	if len(entries) == 0 {
+		return ""
+	}
+
+	sort.SliceStable(entries, func(i, j int) bool {
+		if entries[i].SortTime.Equal(entries[j].SortTime) {
+			return entries[i].URL > entries[j].URL
+		}
+		return entries[i].SortTime.After(entries[j].SortTime)
+	})
+	if len(entries) > limit {
+		entries = entries[:limit]
+	}
+
+	title := strings.TrimSpace(cfg.Title)
+	if localized, ok := cfg.TitleI18n[strings.ToLower(page.Language)]; ok && strings.TrimSpace(localized) != "" {
+		title = strings.TrimSpace(localized)
+	}
+	if title == "" {
+		title = "Latest embeds"
+	}
+
+	var sb strings.Builder
+	sb.WriteString(`
+<section class="section-recent-embeds">
+  <style>
+    .section-recent-embeds {
+      margin: 2rem 0 2.5rem;
+    }
+    .section-recent-embeds-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.25rem;
+      margin-top: 1rem;
+    }
+    .section-recent-embeds-card {
+      padding: 1rem;
+      border: 1px solid var(--nav-border);
+      border-radius: 16px;
+      background: linear-gradient(180deg, rgba(0, 102, 204, 0.05), rgba(0, 102, 204, 0.02));
+    }
+    .section-recent-embeds-card h3 {
+      margin: 0 0 0.8rem;
+      font-size: 1rem;
+      line-height: 1.35;
+    }
+    .section-recent-embeds-card h3 a {
+      color: inherit;
+      text-decoration: none;
+    }
+    .section-recent-embeds-card h3 a:hover {
+      color: var(--nav-active);
+      text-decoration: underline;
+    }
+  </style>
+`)
+	sb.WriteString(fmt.Sprintf("  <h2>%s</h2>\n", html.EscapeString(title)))
+	sb.WriteString(`  <div class="section-recent-embeds-grid">
+`)
+	for _, entry := range entries {
+		sb.WriteString(fmt.Sprintf(
+			`    <article class="section-recent-embeds-card">
+      <h3><a href="%s">%s</a></h3>
+      %s
+    </article>
+`,
+			template.HTMLEscapeString(entry.URL),
+			template.HTMLEscapeString(entry.Title),
+			entry.EmbedHTML,
+		))
+	}
+	sb.WriteString("  </div>\n</section>\n")
+	return sb.String()
+}
+
+func renderRecentEmbedHTML(provider, rawContent string) string {
+	switch provider {
+	case "youtube":
+		match := youtubeShortcodeRe.FindStringSubmatch(rawContent)
+		if len(match) != 2 {
+			return ""
+		}
+		return fmt.Sprintf(`<div class="embed embed-youtube">
+        <iframe
+          src="https://www.youtube-nocookie.com/embed/%s"
+          frameborder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen
+          loading="lazy">
+        </iframe>
+      </div>`, template.HTMLEscapeString(match[1]))
+	case "vimeo":
+		match := vimeoShortcodeRe.FindStringSubmatch(rawContent)
+		if len(match) != 2 {
+			return ""
+		}
+		return fmt.Sprintf(`<div class="embed embed-vimeo">
+        <iframe
+          src="https://player.vimeo.com/video/%s"
+          frameborder="0"
+          allow="autoplay; fullscreen; picture-in-picture"
+          allowfullscreen
+          loading="lazy">
+        </iframe>
+      </div>`, template.HTMLEscapeString(match[1]))
+	default:
+		return ""
+	}
 }
 
 func (b *SiteBuilder) homepageForLanguage(lang string) config.HomepageConfig {
@@ -1603,8 +1768,102 @@ func (b *SiteBuilder) sidebarSectionConfig(section string) config.SidebarSection
 		}
 		cfg.EnableTime = custom.EnableTime
 		cfg.EnableGraph = custom.EnableGraph
+		cfg.GraphPath = custom.GraphPath
+		cfg.ShowChildrenList = custom.ShowChildrenList
+		cfg.RecentEmbeds = custom.RecentEmbeds
 	}
 	return cfg
+}
+
+func (b *SiteBuilder) matchingSidebarSection(page *Page) (string, config.SidebarSectionConfig) {
+	var zero config.SidebarSectionConfig
+	if page == nil {
+		return "", zero
+	}
+	if b.config == nil {
+		return "", zero
+	}
+	pageURL := ensureTrailingSlash(page.URL)
+	bestKey := ""
+	bestCfg := zero
+	bestMatchLen := -1
+	for key, cfg := range b.config.Navigation.Sidebar.Sections {
+		matchPaths := cfg.MatchPaths
+		if len(matchPaths) == 0 && strings.TrimSpace(key) != "" {
+			matchPaths = []string{key}
+		}
+		for _, rawPath := range matchPaths {
+			path := normalizeSectionPattern(rawPath)
+			if path == "" {
+				continue
+			}
+			if !strings.Contains(pageURL, path) {
+				continue
+			}
+			if len(path) > bestMatchLen {
+				bestKey = key
+				bestCfg = cfg
+				bestMatchLen = len(path)
+			}
+		}
+	}
+	return bestKey, bestCfg
+}
+
+func ensureTrailingSlash(raw string) string {
+	if strings.HasSuffix(raw, "/") {
+		return raw
+	}
+	return raw + "/"
+}
+
+func normalizeSectionPattern(raw string) string {
+	trimmed := strings.Trim(strings.TrimSpace(raw), "/")
+	if trimmed == "" {
+		return ""
+	}
+	return "/" + trimmed + "/"
+}
+
+func localizedSectionURL(language, raw string) string {
+	trimmedLang := strings.Trim(strings.TrimSpace(language), "/")
+	trimmedRaw := strings.Trim(strings.TrimSpace(raw), "/")
+	if trimmedLang == "" || trimmedRaw == "" {
+		return ""
+	}
+	return "/" + trimmedLang + "/" + trimmedRaw + "/"
+}
+
+func (b *SiteBuilder) sidebarExcludeURLs(page *Page) []string {
+	if page == nil || b.config == nil {
+		return nil
+	}
+	pageURL := ensureTrailingSlash(page.URL)
+	var excludes []string
+	for _, rule := range b.config.Navigation.Sidebar.ExcludeRules {
+		if !sidebarRuleMatches(pageURL, rule.MatchPaths) {
+			continue
+		}
+		for _, raw := range rule.ExcludePaths {
+			if localized := localizedSectionURL(page.Language, raw); localized != "" {
+				excludes = append(excludes, localized)
+			}
+		}
+	}
+	return excludes
+}
+
+func sidebarRuleMatches(pageURL string, matchPaths []string) bool {
+	for _, raw := range matchPaths {
+		pattern := normalizeSectionPattern(raw)
+		if pattern == "" {
+			continue
+		}
+		if strings.Contains(pageURL, pattern) {
+			return true
+		}
+	}
+	return false
 }
 
 func (b *SiteBuilder) prevNextConfigForPage(page *Page) config.PrevNextConfig {

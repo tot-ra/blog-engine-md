@@ -228,14 +228,35 @@ type SidebarConfig struct {
 	MaxDepth     int                             `yaml:"maxDepth"`
 	IncludeIndex bool                            `yaml:"includeIndex"`
 	Sections     map[string]SidebarSectionConfig `yaml:"sections"`
+	ExcludeRules []SidebarExcludeRule            `yaml:"excludeRules"`
+}
+
+// SidebarExcludeRule removes matching URLs from sidebar trees for pages that match configured paths.
+type SidebarExcludeRule struct {
+	MatchPaths   []string `yaml:"matchPaths"`
+	ExcludePaths []string `yaml:"excludePaths"`
 }
 
 // SidebarSectionConfig contains per-section sidebar behavior settings.
 type SidebarSectionConfig struct {
-	DefaultMode string `yaml:"defaultMode"`
-	EnableTime  bool   `yaml:"enableTime"`
-	EnableGraph bool   `yaml:"enableGraph"`
-	GraphPath   string `yaml:"graphPath"`
+	DefaultMode      string             `yaml:"defaultMode"`
+	EnableTime       bool               `yaml:"enableTime"`
+	EnableGraph      bool               `yaml:"enableGraph"`
+	GraphPath        string             `yaml:"graphPath"`
+	MatchPaths       []string           `yaml:"matchPaths"`
+	SidebarRoot      string             `yaml:"sidebarRoot"`
+	ShowChildrenList *bool              `yaml:"showChildrenList"`
+	RecentEmbeds     RecentEmbedsConfig `yaml:"recentEmbeds"`
+}
+
+// RecentEmbedsConfig controls a generic "latest embedded media" block for section index pages.
+type RecentEmbedsConfig struct {
+	Enabled   bool              `yaml:"enabled"`
+	Provider  string            `yaml:"provider"`
+	Limit     int               `yaml:"limit"`
+	SortBy    string            `yaml:"sortBy"`
+	Title     string            `yaml:"title"`
+	TitleI18n map[string]string `yaml:"titleI18n"`
 }
 
 // TOCConfig contains table of contents settings

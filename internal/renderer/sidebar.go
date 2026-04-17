@@ -86,18 +86,27 @@ func renderModeSidebar(root *NavNode, currentPath string, maxDepth int, collapse
 	if defaultMode == "time" && len(timeline) == 0 {
 		defaultMode = "categories"
 	}
+	modeCount := 1
+	if len(timeline) > 0 {
+		modeCount++
+	}
+	if showGraph {
+		modeCount++
+	}
 
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("<nav class=\"sidebar blog-sidebar\" aria-label=\"%s\" data-sidebar-mode=\"%s\" data-sidebar-default-mode=\"%s\">\n", template.HTMLEscapeString(navigationLabel), template.HTMLEscapeString(defaultMode), template.HTMLEscapeString(defaultMode)))
-	sb.WriteString(fmt.Sprintf("  <div class=\"sidebar-mode-switch\" role=\"tablist\" aria-label=\"%s\">\n", template.HTMLEscapeString(viewModeLabel)))
-	sb.WriteString(fmt.Sprintf("    <button type=\"button\" class=\"sidebar-mode-btn%s\" role=\"tab\" aria-selected=\"%t\" data-sidebar-mode-btn=\"categories\">%s</button>\n", activeModeClass(defaultMode, "categories"), defaultMode == "categories", template.HTMLEscapeString(ui.Categories)))
-	if len(timeline) > 0 {
-		sb.WriteString(fmt.Sprintf("    <button type=\"button\" class=\"sidebar-mode-btn%s\" role=\"tab\" aria-selected=\"%t\" data-sidebar-mode-btn=\"time\">%s</button>\n", activeModeClass(defaultMode, "time"), defaultMode == "time", template.HTMLEscapeString(ui.Time)))
+	if modeCount > 1 {
+		sb.WriteString(fmt.Sprintf("  <div class=\"sidebar-mode-switch\" role=\"tablist\" aria-label=\"%s\">\n", template.HTMLEscapeString(viewModeLabel)))
+		sb.WriteString(fmt.Sprintf("    <button type=\"button\" class=\"sidebar-mode-btn%s\" role=\"tab\" aria-selected=\"%t\" data-sidebar-mode-btn=\"categories\">%s</button>\n", activeModeClass(defaultMode, "categories"), defaultMode == "categories", template.HTMLEscapeString(ui.Categories)))
+		if len(timeline) > 0 {
+			sb.WriteString(fmt.Sprintf("    <button type=\"button\" class=\"sidebar-mode-btn%s\" role=\"tab\" aria-selected=\"%t\" data-sidebar-mode-btn=\"time\">%s</button>\n", activeModeClass(defaultMode, "time"), defaultMode == "time", template.HTMLEscapeString(ui.Time)))
+		}
+		if showGraph {
+			sb.WriteString(fmt.Sprintf("    <button type=\"button\" class=\"sidebar-mode-btn%s\" role=\"tab\" aria-selected=\"%t\" data-sidebar-mode-btn=\"graph\">%s</button>\n", activeModeClass(defaultMode, "graph"), defaultMode == "graph", template.HTMLEscapeString(ui.Graph)))
+		}
+		sb.WriteString("  </div>\n")
 	}
-	if showGraph {
-		sb.WriteString(fmt.Sprintf("    <button type=\"button\" class=\"sidebar-mode-btn%s\" role=\"tab\" aria-selected=\"%t\" data-sidebar-mode-btn=\"graph\">%s</button>\n", activeModeClass(defaultMode, "graph"), defaultMode == "graph", template.HTMLEscapeString(ui.Graph)))
-	}
-	sb.WriteString("  </div>\n")
 
 	sb.WriteString(fmt.Sprintf("  <div class=\"sidebar-mode-pane\" data-sidebar-mode-pane=\"categories\"%s>\n", hiddenAttr(defaultMode != "categories")))
 	renderSidebarList(&sb, root.Children, currentPath, 1, maxDepth, collapsed, ui)
