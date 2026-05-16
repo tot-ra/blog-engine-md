@@ -822,7 +822,7 @@ const defaultTemplates = `{{define "base"}}
     <header class="site-header">
         <div class="header-left">
             <a class="navbar-logo" href="/{{.Page.Language}}/">
-                <img src="{{.Site.Site.Logo}}" alt="{{.Site.Site.Title}}">
+                <img class="no-transform" src="{{.Site.Site.Logo}}" alt="{{.Site.Site.Title}}">
             </a>
             <nav class="site-nav">
                 {{range .HeaderNav}}<a href="{{.URL}}">{{.Title}}</a>{{end}}
@@ -1530,7 +1530,7 @@ const defaultTemplates = `{{define "base"}}
     <header class="site-header">
         <div class="header-left">
             <a class="navbar-logo" href="/{{.Page.Language}}/">
-                <img src="{{.Site.Site.Logo}}" alt="{{.Site.Site.Title}}">
+                <img class="no-transform" src="{{.Site.Site.Logo}}" alt="{{.Site.Site.Title}}">
             </a>
             <nav class="site-nav">
                 {{range .HeaderNav}}<a href="{{.URL}}">{{.Title}}</a>{{end}}
