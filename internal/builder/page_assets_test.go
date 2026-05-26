@@ -43,7 +43,7 @@ title: Paper
 		`href="https://example.com/file.pdf"`,
 		`href="/files/root.pdf"`,
 		`href="/docs/other-page/"`,
-		`data="/assets/docs/pdfs/embed.pdf"`,
+		`<iframe class="pdf-embed" src="/assets/docs/pdfs/embed.pdf" title="PDF preview" loading="lazy" height="800"></iframe>`,
 	} {
 		if !strings.Contains(page.Content, want) {
 			t.Fatalf("expected rendered content to contain %s:\n%s", want, page.Content)

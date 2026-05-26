@@ -814,7 +814,7 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 		data.JSPath = b.jsBundle.Path
 	}
 
-	data.HeaderNav = b.buildHeaderNav(page.Language)
+	data.HeaderNav = b.buildHeaderNav(page.Language, page.URL)
 	data.Languages = b.buildLanguageOptions(page)
 
 	// Generate sidebar
@@ -1495,7 +1495,7 @@ func convertPrevNext(links *PrevNextLinks) *renderer.PrevNextLinks {
 	return result
 }
 
-func (b *SiteBuilder) buildHeaderNav(lang string) []renderer.NavLink {
+func (b *SiteBuilder) buildHeaderNav(lang, currentURL string) []renderer.NavLink {
 	if !b.config.Navigation.Header.Enabled {
 		return nil
 	}
@@ -1509,6 +1509,8 @@ func (b *SiteBuilder) buildHeaderNav(lang string) []renderer.NavLink {
 	}
 
 	nav := make([]renderer.NavLink, 0, len(items))
+	activeIndex := -1
+	activeMatchLength := -1
 	for _, item := range items {
 		if !headerItemVisibleForLanguage(item, lang) {
 			continue
@@ -1538,9 +1540,62 @@ func (b *SiteBuilder) buildHeaderNav(lang string) []renderer.NavLink {
 			continue
 		}
 
-		nav = append(nav, renderer.NavLink{Title: title, URL: target, Type: "header", Class: strings.TrimSpace(item.Class)})
+		nav = append(nav, renderer.NavLink{
+			Title: title,
+			URL:   target,
+			Type:  "header",
+			Class: strings.TrimSpace(item.Class),
+		})
+
+		if headerNavLinkIsCurrent(currentURL, target) {
+			matchLength := len(normalizeHeaderNavPath(target))
+			if matchLength > activeMatchLength {
+				activeIndex = len(nav) - 1
+				activeMatchLength = matchLength
+			}
+		}
+	}
+	if activeIndex >= 0 {
+		nav[activeIndex].IsCurrent = true
+		nav[activeIndex].Class = strings.TrimSpace(nav[activeIndex].Class + " is-active")
 	}
 	return nav
+}
+
+func headerNavLinkIsCurrent(currentURL, targetURL string) bool {
+	current := normalizeHeaderNavPath(currentURL)
+	target := normalizeHeaderNavPath(targetURL)
+	if current == "" || target == "" {
+		return false
+	}
+	if current == target {
+		return true
+	}
+	if target == "/" {
+		return false
+	}
+	return strings.HasPrefix(current, strings.TrimSuffix(target, "/")+"/")
+}
+
+func normalizeHeaderNavPath(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+	if parsed, err := url.Parse(trimmed); err == nil && parsed.Scheme != "" {
+		if parsed.Path == "" {
+			return "/"
+		}
+		trimmed = parsed.Path
+	}
+	if !strings.HasPrefix(trimmed, "/") {
+		return ""
+	}
+	trimmed = "/" + strings.Trim(trimmed, "/")
+	if trimmed == "/" {
+		return trimmed
+	}
+	return trimmed + "/"
 }
 
 func headerItemVisibleForLanguage(item config.HeaderItem, lang string) bool {

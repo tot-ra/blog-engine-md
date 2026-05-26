@@ -24,6 +24,8 @@ const (
 
 var mdLocalAssetLinkRegex = regexp.MustCompile(`\]\(([^)]+)\)`)
 var mdxRequireDefaultRegex = regexp.MustCompile(`\{require\(['"]([^'"]+)['"]\)\.default\}`)
+var pdfObjectRegex = regexp.MustCompile(`(?is)<object\s+([^>]*\btype=["']application/pdf["'][^>]*)>\s*</object>|<object\s+([^>]*)>\s*</object>`)
+var htmlAttrRegex = regexp.MustCompile(`(?is)([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*("[^"]*"|'[^']*')`)
 var localAssetExtensions = map[string]struct{}{
 	".pdf":  {},
 	".zip":  {},
@@ -200,6 +202,7 @@ func (b *PageBuilder) Build(file ContentFile) (*Page, error) {
 	}
 	processedContent = rewriteLocalMarkdownLinks(processedContent, file.RelativePath, b.markdownLinkResolver)
 	processedContent = rewriteLocalAssetReferences(processedContent, file.RelativePath)
+	processedContent = rewritePDFObjects(processedContent)
 	processedContent = parser.TransformEmbeds(processedContent)
 
 	// Render markdown to HTML
@@ -329,6 +332,50 @@ func rewriteLocalAssetReferences(content, pageRelPath string) string {
 	})
 
 	return content
+}
+
+func rewritePDFObjects(content string) string {
+	return pdfObjectRegex.ReplaceAllStringFunc(content, func(match string) string {
+		submatches := pdfObjectRegex.FindStringSubmatch(match)
+		if len(submatches) != 3 {
+			return match
+		}
+		attrs := strings.TrimSpace(submatches[1])
+		if attrs == "" {
+			attrs = strings.TrimSpace(submatches[2])
+		}
+		attrMap := parseHTMLAttrs(attrs)
+		src := strings.TrimSpace(attrMap["data"])
+		if src == "" {
+			return match
+		}
+		typeAttr := strings.TrimSpace(strings.ToLower(attrMap["type"]))
+		if typeAttr != "" && typeAttr != "application/pdf" {
+			return match
+		}
+		if strings.ToLower(urlpath.Ext(src)) != ".pdf" {
+			return match
+		}
+
+		height := strings.TrimSpace(attrMap["height"])
+		if height == "" {
+			height = "800"
+		}
+		return `<iframe class="pdf-embed" src="` + src + `" title="PDF preview" loading="lazy" height="` + height + `"></iframe>`
+	})
+}
+
+func parseHTMLAttrs(attrs string) map[string]string {
+	parsed := make(map[string]string)
+	for _, match := range htmlAttrRegex.FindAllStringSubmatch(attrs, -1) {
+		if len(match) != 3 {
+			continue
+		}
+		key := strings.ToLower(match[1])
+		value := strings.Trim(match[2], `"'`)
+		parsed[key] = value
+	}
+	return parsed
 }
 
 func rewriteLocalAssetDestination(destination, pageDir string) string {

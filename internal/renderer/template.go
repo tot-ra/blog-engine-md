@@ -42,10 +42,11 @@ type BreadcrumbItem struct {
 
 // NavLink represents a navigation link for templates
 type NavLink struct {
-	Title string
-	URL   string
-	Type  string
-	Class string
+	Title     string
+	URL       string
+	Type      string
+	Class     string
+	IsCurrent bool
 }
 
 // PrevNextLinks holds previous and next navigation links for templates
@@ -306,7 +307,8 @@ const defaultTemplates = `{{define "base"}}
             text-decoration: none;
             font-weight: 600;
         }
-        .site-nav a:hover { color: var(--nav-active); }
+        .site-nav a:hover,
+        .site-nav a.is-active { color: var(--nav-active); }
         .theme-toggle {
             border: 1px solid var(--nav-border);
             background: transparent;
@@ -538,6 +540,17 @@ const defaultTemplates = `{{define "base"}}
             height: auto;
             border: 0;
             border-radius: 12px;
+        }
+        .pdf-embed {
+            display: block;
+            width: min(100vw - var(--sidebar-width) - 80px, 1120px);
+            max-width: calc(100vw - var(--sidebar-width) - 80px);
+            min-height: 75vh;
+            height: 800px;
+            margin: 24px 0;
+            border: 1px solid var(--nav-border);
+            border-radius: 12px;
+            background: var(--bg-primary);
         }
         /* Breadcrumbs */
         .breadcrumbs {
@@ -826,7 +839,7 @@ const defaultTemplates = `{{define "base"}}
                 <img class="no-transform" src="{{.Site.Site.Logo}}" alt="{{.Site.Site.Title}}">
             </a>
             <nav class="site-nav">
-                {{range .HeaderNav}}<a href="{{.URL}}"{{if .Class}} class="{{.Class}}"{{end}}>{{.Title}}</a>{{end}}
+                {{range .HeaderNav}}<a href="{{.URL}}"{{if .Class}} class="{{.Class}}"{{end}}{{if .IsCurrent}} aria-current="page"{{end}}>{{.Title}}</a>{{end}}
             </nav>
         </div>
         <div class="header-right">
@@ -1185,7 +1198,8 @@ const defaultTemplates = `{{define "base"}}
             text-decoration: none;
             font-weight: 600;
         }
-        .site-nav a:hover {
+        .site-nav a:hover,
+        .site-nav a.is-active {
             color: var(--accent);
         }
         .theme-toggle {
@@ -1487,6 +1501,17 @@ const defaultTemplates = `{{define "base"}}
             border: 0;
             border-radius: 12px;
         }
+        .pdf-embed {
+            display: block;
+            width: min(100vw - var(--sidebar-width) - 80px, 1120px);
+            max-width: calc(100vw - var(--sidebar-width) - 80px);
+            min-height: 75vh;
+            height: 800px;
+            margin: 24px 0;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--bg-primary);
+        }
         .main-content h2 {
             margin-top: 40px;
         }
@@ -1534,7 +1559,7 @@ const defaultTemplates = `{{define "base"}}
                 <img class="no-transform" src="{{.Site.Site.Logo}}" alt="{{.Site.Site.Title}}">
             </a>
             <nav class="site-nav">
-                {{range .HeaderNav}}<a href="{{.URL}}"{{if .Class}} class="{{.Class}}"{{end}}>{{.Title}}</a>{{end}}
+                {{range .HeaderNav}}<a href="{{.URL}}"{{if .Class}} class="{{.Class}}"{{end}}{{if .IsCurrent}} aria-current="page"{{end}}>{{.Title}}</a>{{end}}
             </nav>
         </div>
         <div class="header-right">
