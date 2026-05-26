@@ -27,6 +27,11 @@ title: Paper
 	}
 
 	builder := NewPageBuilder("https://example.com", "en", map[string]struct{}{"en": {}})
+	builder.SetMarkdownLinkResolver(func(destination, pageRelPath string) (string, bool) {
+		return resolveLocalMarkdownLink(destination, pageRelPath, map[string]string{
+			"docs/other-page.md": "/docs/other-page/",
+		})
+	})
 	page, err := builder.Build(ContentFile{Path: pagePath, RelativePath: filepath.ToSlash(filepath.Join("docs", "paper.md"))})
 	if err != nil {
 		t.Fatalf("Build failed: %v", err)
@@ -37,11 +42,27 @@ title: Paper
 		`href="/assets/docs/downloads/archive.zip?download=1#top"`,
 		`href="https://example.com/file.pdf"`,
 		`href="/files/root.pdf"`,
-		`href="other-page.md"`,
+		`href="/docs/other-page/"`,
 		`data="/assets/docs/pdfs/embed.pdf"`,
 	} {
 		if !strings.Contains(page.Content, want) {
 			t.Fatalf("expected rendered content to contain %s:\n%s", want, page.Content)
 		}
+	}
+}
+
+func TestResolveLocalMarkdownLink(t *testing.T) {
+	pathToURL := map[string]string{
+		"research/papers/Apis mellifera Bee Verification with IoT and Graph Neural Network.md": "/research/papers/apis-mellifera-bee-verification-with-iot-and-graph-neural-network/",
+		"papers/Apis mellifera Bee Verification with IoT and Graph Neural Network.md":          "/research/papers/apis-mellifera-bee-verification-with-iot-and-graph-neural-network/",
+	}
+
+	got, ok := resolveLocalMarkdownLink("papers/Apis%20mellifera%20Bee%20Verification%20with%20IoT%20and%20Graph%20Neural%20Network.md", "research/papers/index.md", pathToURL)
+	if !ok {
+		t.Fatal("expected local markdown link to resolve")
+	}
+	want := "/research/papers/apis-mellifera-bee-verification-with-iot-and-graph-neural-network/"
+	if got != want {
+		t.Fatalf("resolved URL = %q, want %q", got, want)
 	}
 }

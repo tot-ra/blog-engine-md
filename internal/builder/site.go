@@ -29,6 +29,10 @@ import (
 var siteFooterRe = regexp.MustCompile(`(?s)<footer class="site-footer">.*?</footer>`)
 var firstImageSrcRe = regexp.MustCompile(`(?is)<img[^>]+src\s*=\s*['"]([^'"]+)['"]`)
 var excerptLinkRe = regexp.MustCompile(`\[(.*?)\]\([^)]+\)`)
+var markdownExtensions = map[string]struct{}{
+	".md":       {},
+	".markdown": {},
+}
 
 // SiteBuilder orchestrates the site building process
 type SiteBuilder struct {
@@ -71,9 +75,10 @@ func (b *SiteBuilder) Build() error {
 	fmt.Printf("Found %d markdown files, %d images, %d assets\n",
 		len(index.MarkdownFiles), len(index.ImageFiles), len(index.AssetFiles))
 
-	// First pass: collect page info for wiki link resolution
+	// First pass: collect page info for wiki and local markdown link resolution
 	pageBuilder := NewPageBuilder(b.config.Site.URL, b.config.I18n.Default, b.languages)
 	titleToURL := make(map[string]map[string]string)
+	pathToURL := make(map[string]map[string]string)
 
 	for _, file := range index.MarkdownFiles {
 		// Quick parse to get title and URL without full rendering
@@ -105,9 +110,13 @@ func (b *SiteBuilder) Build() error {
 		if _, ok := titleToURL[lang]; !ok {
 			titleToURL[lang] = make(map[string]string)
 		}
+		if _, ok := pathToURL[lang]; !ok {
+			pathToURL[lang] = make(map[string]string)
+		}
 		// Map both exact title and slugified title
 		titleToURL[lang][title] = url
 		titleToURL[lang][parser.GenerateSlug(title)] = url
+		addMarkdownLinkPathAliases(pathToURL[lang], file.RelativePath, url)
 	}
 
 	// Set up wiki link resolver
@@ -125,8 +134,8 @@ func (b *SiteBuilder) Build() error {
 		return "", false
 	})
 
-	// Second pass: build pages with wiki link resolution
-	pages, buildErrs := b.buildPages(index.MarkdownFiles, titleToURL)
+	// Second pass: build pages with wiki and local markdown link resolution
+	pages, buildErrs := b.buildPages(index.MarkdownFiles, titleToURL, pathToURL)
 	for _, err := range buildErrs {
 		fmt.Fprintf(os.Stderr, "Error building page: %v\n", err)
 	}
@@ -423,7 +432,7 @@ func (b *SiteBuilder) parallelForEach(total int, fn func(i int) error) []error {
 	return errs
 }
 
-func (b *SiteBuilder) buildPages(files []ContentFile, titleToURL map[string]map[string]string) ([]*Page, []error) {
+func (b *SiteBuilder) buildPages(files []ContentFile, titleToURL, pathToURL map[string]map[string]string) ([]*Page, []error) {
 	if len(files) == 0 {
 		return nil, nil
 	}
@@ -452,6 +461,7 @@ func (b *SiteBuilder) buildPages(files []ContentFile, titleToURL map[string]map[
 			for job := range jobs {
 				lang, _ := detectLanguageAndContentPath(job.file.RelativePath, b.config.I18n.Default, b.languages)
 				pageMap := titleToURL[lang]
+				pathMap := pathToURL[lang]
 				pb.SetPageResolver(func(title string) (string, bool) {
 					if url, ok := pageMap[title]; ok {
 						return url, true
@@ -461,6 +471,9 @@ func (b *SiteBuilder) buildPages(files []ContentFile, titleToURL map[string]map[
 						return url, true
 					}
 					return "", false
+				})
+				pb.SetMarkdownLinkResolver(func(destination, pageRelPath string) (string, bool) {
+					return resolveLocalMarkdownLink(destination, pageRelPath, pathMap)
 				})
 				page, err := pb.Build(job.file)
 				if err != nil {
@@ -491,6 +504,68 @@ func (b *SiteBuilder) buildPages(files []ContentFile, titleToURL map[string]map[
 		}
 	}
 	return result, errs
+}
+
+func resolveLocalMarkdownLink(destination, pageRelPath string, pathToURL map[string]string) (string, bool) {
+	if len(pathToURL) == 0 || destination == "" || strings.HasPrefix(destination, "#") {
+		return "", false
+	}
+	if strings.HasPrefix(destination, "/") || strings.HasPrefix(destination, "//") {
+		return "", false
+	}
+	if u, err := url.Parse(destination); err == nil && u.IsAbs() {
+		return "", false
+	}
+
+	pathPart := destination
+	suffix := ""
+	if idx := strings.IndexAny(pathPart, "?#"); idx >= 0 {
+		suffix = pathPart[idx:]
+		pathPart = pathPart[:idx]
+	}
+	if decoded, err := url.PathUnescape(pathPart); err == nil {
+		pathPart = decoded
+	}
+	if _, ok := markdownExtensions[strings.ToLower(filepath.Ext(pathPart))]; !ok {
+		return "", false
+	}
+
+	pageDir := filepath.ToSlash(filepath.Dir(pageRelPath))
+	if pageDir == "." {
+		pageDir = ""
+	}
+	candidates := []string{
+		normalizeMarkdownLinkPath(filepath.ToSlash(filepath.Join(pageDir, pathPart))),
+		normalizeMarkdownLinkPath(pathPart),
+	}
+	for _, candidate := range candidates {
+		if url, ok := pathToURL[candidate]; ok {
+			return url + suffix, true
+		}
+	}
+	return "", false
+}
+
+func normalizeMarkdownLinkPath(path string) string {
+	path = filepath.ToSlash(path)
+	path = strings.TrimPrefix(path, "./")
+	return strings.Trim(path, "/")
+}
+
+func addMarkdownLinkPathAliases(pathToURL map[string]string, relPath, pageURL string) {
+	normalized := normalizeMarkdownLinkPath(relPath)
+	if normalized == "" {
+		return
+	}
+	pathToURL[normalized] = pageURL
+
+	parts := strings.Split(normalized, "/")
+	if len(parts) > 1 {
+		withoutTopSection := strings.Join(parts[1:], "/")
+		if withoutTopSection != "" {
+			pathToURL[withoutTopSection] = pageURL
+		}
+	}
 }
 
 func (b *SiteBuilder) renderPages(pages []*Page) []error {

@@ -118,27 +118,34 @@ func (g *URLGenerator) Generate(filePath string, fm *parser.Frontmatter) string 
 
 // PageBuilder builds pages from content files
 type PageBuilder struct {
-	urlGen       *URLGenerator
-	mdParser     *parser.MarkdownParser
-	pageResolver func(title string) (url string, exists bool)
-	defaultLang  string
-	languages    map[string]struct{}
+	urlGen               *URLGenerator
+	mdParser             *parser.MarkdownParser
+	pageResolver         func(title string) (url string, exists bool)
+	markdownLinkResolver func(destination, pageRelPath string) (url string, exists bool)
+	defaultLang          string
+	languages            map[string]struct{}
 }
 
 // NewPageBuilder creates a new page builder
 func NewPageBuilder(baseURL, defaultLang string, languages map[string]struct{}) *PageBuilder {
 	return &PageBuilder{
-		urlGen:       NewURLGenerator(baseURL),
-		mdParser:     parser.NewMarkdownParser(),
-		pageResolver: nil, // Will be set later when all pages are known
-		defaultLang:  defaultLang,
-		languages:    languages,
+		urlGen:               NewURLGenerator(baseURL),
+		mdParser:             parser.NewMarkdownParser(),
+		pageResolver:         nil, // Will be set later when all pages are known
+		markdownLinkResolver: nil, // Will be set later when all pages are known
+		defaultLang:          defaultLang,
+		languages:            languages,
 	}
 }
 
 // SetPageResolver sets the page resolver for wiki links
 func (b *PageBuilder) SetPageResolver(resolver func(title string) (url string, exists bool)) {
 	b.pageResolver = resolver
+}
+
+// SetMarkdownLinkResolver sets the resolver for local markdown links like [Page](other-page.md).
+func (b *PageBuilder) SetMarkdownLinkResolver(resolver func(destination, pageRelPath string) (url string, exists bool)) {
+	b.markdownLinkResolver = resolver
 }
 
 // Build creates a Page from a content file
@@ -191,6 +198,7 @@ func (b *PageBuilder) Build(file ContentFile) (*Page, error) {
 	} else {
 		processedContent = parser.SimpleWikiLinkProcessor(remaining)
 	}
+	processedContent = rewriteLocalMarkdownLinks(processedContent, file.RelativePath, b.markdownLinkResolver)
 	processedContent = rewriteLocalAssetReferences(processedContent, file.RelativePath)
 	processedContent = parser.TransformEmbeds(processedContent)
 
@@ -260,6 +268,25 @@ func determinePageType(relPath string) PageType {
 		}
 	}
 	return TypePage
+}
+
+func rewriteLocalMarkdownLinks(content, pageRelPath string, resolver func(destination, pageRelPath string) (string, bool)) string {
+	if resolver == nil {
+		return content
+	}
+
+	return mdLocalAssetLinkRegex.ReplaceAllStringFunc(content, func(match string) string {
+		submatches := mdLocalAssetLinkRegex.FindStringSubmatch(match)
+		if len(submatches) != 2 {
+			return match
+		}
+		destination := strings.TrimSpace(submatches[1])
+		rewritten, ok := resolver(destination, pageRelPath)
+		if !ok || rewritten == "" || rewritten == destination {
+			return match
+		}
+		return `](` + rewritten + `)`
+	})
 }
 
 // generateID creates a unique ID from a URL

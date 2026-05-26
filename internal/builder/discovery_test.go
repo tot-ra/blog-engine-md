@@ -12,12 +12,13 @@ func TestDiscover(t *testing.T) {
 
 	// Create test files
 	files := map[string]string{
-		"blog/post1.md":     "# Post 1",
-		"blog/post2.md":     "# Post 2",
-		"docs/readme.md":    "# Readme",
-		"img/logo.png":      "fake png data",
-		"css/style.css":     "body {}",
-		".hidden/file.md":   "# Hidden",
+		"blog/post1.md":               "# Post 1",
+		"blog/post2.md":               "# Post 2",
+		"docs/readme.md":              "# Readme",
+		"img/logo.png":                "fake png data",
+		"css/style.css":               "body {}",
+		".hidden/file.md":             "# Hidden",
+		"docs/_templates/template.md": "# Template",
 	}
 
 	for path, content := range files {
@@ -66,6 +67,11 @@ func TestDiscover(t *testing.T) {
 	// Verify hidden files are excluded
 	if foundPaths[".hidden/file.md"] {
 		t.Error("Hidden files should be excluded")
+	}
+
+	// Verify private underscore directories are excluded
+	if foundPaths["docs/_templates/template.md"] {
+		t.Error("Underscore directories should be excluded")
 	}
 }
 
