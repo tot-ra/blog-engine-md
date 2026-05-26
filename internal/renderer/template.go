@@ -45,6 +45,7 @@ type NavLink struct {
 	Title string
 	URL   string
 	Type  string
+	Class string
 }
 
 // PrevNextLinks holds previous and next navigation links for templates
@@ -825,7 +826,7 @@ const defaultTemplates = `{{define "base"}}
                 <img class="no-transform" src="{{.Site.Site.Logo}}" alt="{{.Site.Site.Title}}">
             </a>
             <nav class="site-nav">
-                {{range .HeaderNav}}<a href="{{.URL}}">{{.Title}}</a>{{end}}
+                {{range .HeaderNav}}<a href="{{.URL}}"{{if .Class}} class="{{.Class}}"{{end}}>{{.Title}}</a>{{end}}
             </nav>
         </div>
         <div class="header-right">
@@ -1533,7 +1534,7 @@ const defaultTemplates = `{{define "base"}}
                 <img class="no-transform" src="{{.Site.Site.Logo}}" alt="{{.Site.Site.Title}}">
             </a>
             <nav class="site-nav">
-                {{range .HeaderNav}}<a href="{{.URL}}">{{.Title}}</a>{{end}}
+                {{range .HeaderNav}}<a href="{{.URL}}"{{if .Class}} class="{{.Class}}"{{end}}>{{.Title}}</a>{{end}}
             </nav>
         </div>
         <div class="header-right">

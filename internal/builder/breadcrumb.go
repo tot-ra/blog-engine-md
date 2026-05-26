@@ -27,6 +27,9 @@ func NewBreadcrumbGenerator(langCodes map[string]struct{}) *BreadcrumbGenerator 
 func (g *BreadcrumbGenerator) Generate(page *Page, tree *NavTree) []BreadcrumbItem {
 	homeLabel := i18n.UI(page.Language).Home
 	homeURL := languageBasePath(page.URL, page.Language, page.Language)
+	if len(g.langCodes) <= 1 {
+		homeURL = "/"
+	}
 	crumbs := []BreadcrumbItem{
 		{Title: homeLabel, URL: homeURL},
 	}

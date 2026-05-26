@@ -103,3 +103,61 @@ title: Test
 		}
 	}
 }
+
+func TestMarkdownParser_RenderMDXStyleHTMLBlockImage(t *testing.T) {
+	parser := NewMarkdownParser()
+	input := `<div style={{ height:500, overflow:"hidden", verticalAlign:"middle", marginBottom:10, borderRadius:5 }}>
+![](img/hero.webp)
+</div>`
+
+	html, err := parser.Render(input)
+	if err != nil {
+		t.Fatalf("Render failed: %v", err)
+	}
+
+	for _, want := range []string{
+		`<div style="border-radius:5px;height:500px;margin-bottom:10px;overflow:hidden;vertical-align:middle">`,
+		`<img src="img/hero.webp" alt="">`,
+		`</div>`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("output doesn't contain %q:\n%s", want, html)
+		}
+	}
+	if strings.Contains(html, `![](img/hero.webp)`) {
+		t.Fatalf("markdown image leaked into output:\n%s", html)
+	}
+}
+
+func TestMarkdownParser_RenderNestedHTMLBlockImage(t *testing.T) {
+	parser := NewMarkdownParser()
+	input := `<div style={{ height:150 }}><div style={{ marginTop: "-10%" }}>
+![](img/banner.jpg)
+</div></div>`
+
+	html, err := parser.Render(input)
+	if err != nil {
+		t.Fatalf("Render failed: %v", err)
+	}
+
+	if !strings.Contains(html, `<img src="img/banner.jpg" alt="">`) {
+		t.Fatalf("expected markdown image inside HTML block to become img tag:\n%s", html)
+	}
+}
+
+func TestMarkdownParser_DoesNotRewriteImagesInCodeFences(t *testing.T) {
+	parser := NewMarkdownParser()
+	input := "```md\n<div>\n![](img/hero.webp)\n</div>\n```"
+
+	html, err := parser.Render(input)
+	if err != nil {
+		t.Fatalf("Render failed: %v", err)
+	}
+
+	if strings.Contains(html, `<img src="img/hero.webp"`) {
+		t.Fatalf("image in code fence was rewritten:\n%s", html)
+	}
+	if !strings.Contains(html, `![](img/hero.webp)`) {
+		t.Fatalf("expected markdown image text to remain in code fence:\n%s", html)
+	}
+}

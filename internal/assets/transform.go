@@ -33,9 +33,23 @@ var altAttrRegex = regexp.MustCompile(`alt="([^"]*)"`)
 // where processed images are available
 func (t *ImageTransformer) Transform(html string) string {
 	return imgTagRegex.ReplaceAllStringFunc(html, func(match string) string {
-		// Skip explicitly opted-out images (e.g. navbar logo/icon sprites).
+		// Keep explicitly opted-out images as plain <img> tags, but still rewrite
+		// their src to a processed/copied asset when the original is not emitted to
+		// dist (for example static icons/badges).
 		if strings.Contains(match, "no-transform") {
-			return match
+			srcMatch := srcAttrRegex.FindStringSubmatch(match)
+			if srcMatch == nil {
+				return match
+			}
+			img := t.findImage(srcMatch[1])
+			if img == nil {
+				return match
+			}
+			variant := pickNoTransformVariant(img)
+			if variant == nil || variant.FilePath == "" {
+				return match
+			}
+			return srcAttrRegex.ReplaceAllString(match, `src="`+variant.FilePath+`"`)
 		}
 
 		// Extract src
@@ -97,6 +111,18 @@ func (t *ImageTransformer) findImage(src string) *ProcessedImage {
 	return nil
 }
 
+func pickNoTransformVariant(img *ProcessedImage) *ImageVariant {
+	if img == nil || len(img.Variants) == 0 {
+		return nil
+	}
+	for i := range img.Variants {
+		if img.Variants[i].Size == "full" || img.Variants[i].Size == "original" {
+			return &img.Variants[i]
+		}
+	}
+	return &img.Variants[0]
+}
+
 // buildPictureElement creates a responsive <picture> element
 func (t *ImageTransformer) buildPictureElement(img *ProcessedImage, alt string) string {
 	// Find the "full" variant for the main display
@@ -106,7 +132,9 @@ func (t *ImageTransformer) buildPictureElement(img *ProcessedImage, alt string) 
 
 	for i := range img.Variants {
 		v := &img.Variants[i]
-		srcsetParts = append(srcsetParts, fmt.Sprintf("%s %dw", v.FilePath, v.Width))
+		if v.Width > 0 {
+			srcsetParts = append(srcsetParts, fmt.Sprintf("%s %dw", v.FilePath, v.Width))
+		}
 		if strings.ToLower(filepath.Ext(v.FilePath)) != ".webp" {
 			allWebP = false
 		}
@@ -133,12 +161,16 @@ func (t *ImageTransformer) buildPictureElement(img *ProcessedImage, alt string) 
 	}
 
 	// Fallback img
+	dimensions := ""
+	if fullVariant.Width > 0 && fullVariant.Height > 0 {
+		dimensions = fmt.Sprintf(` width="%d" height="%d"`, fullVariant.Width, fullVariant.Height)
+	}
 	if len(srcsetParts) > 0 && !allWebP {
-		sb.WriteString(fmt.Sprintf("    <img src=\"%s\" srcset=\"%s\" sizes=\"(max-width: 768px) 100vw, 800px\" alt=\"%s\" loading=\"lazy\" width=\"%d\" height=\"%d\">\n",
-			fullVariant.FilePath, strings.Join(srcsetParts, ", "), alt, fullVariant.Width, fullVariant.Height))
+		sb.WriteString(fmt.Sprintf("    <img src=\"%s\" srcset=\"%s\" sizes=\"(max-width: 768px) 100vw, 800px\" alt=\"%s\" loading=\"lazy\"%s>\n",
+			fullVariant.FilePath, strings.Join(srcsetParts, ", "), alt, dimensions))
 	} else {
-		sb.WriteString(fmt.Sprintf("    <img src=\"%s\" alt=\"%s\" loading=\"lazy\" width=\"%d\" height=\"%d\">\n",
-			fullVariant.FilePath, alt, fullVariant.Width, fullVariant.Height))
+		sb.WriteString(fmt.Sprintf("    <img src=\"%s\" alt=\"%s\" loading=\"lazy\"%s>\n",
+			fullVariant.FilePath, alt, dimensions))
 	}
 	sb.WriteString("  </picture>\n")
 	sb.WriteString("</figure>")
