@@ -29,6 +29,10 @@ import (
 var siteFooterRe = regexp.MustCompile(`(?s)<footer class="site-footer">.*?</footer>`)
 var firstImageSrcRe = regexp.MustCompile(`(?is)<img[^>]+src\s*=\s*['"]([^'"]+)['"]`)
 var excerptLinkRe = regexp.MustCompile(`\[(.*?)\]\([^)]+\)`)
+var markdownExtensions = map[string]struct{}{
+	".md":       {},
+	".markdown": {},
+}
 
 // SiteBuilder orchestrates the site building process
 type SiteBuilder struct {
@@ -71,9 +75,10 @@ func (b *SiteBuilder) Build() error {
 	fmt.Printf("Found %d markdown files, %d images, %d assets\n",
 		len(index.MarkdownFiles), len(index.ImageFiles), len(index.AssetFiles))
 
-	// First pass: collect page info for wiki link resolution
+	// First pass: collect page info for wiki and local markdown link resolution
 	pageBuilder := NewPageBuilder(b.config.Site.URL, b.config.I18n.Default, b.languages)
 	titleToURL := make(map[string]map[string]string)
+	pathToURL := make(map[string]map[string]string)
 
 	for _, file := range index.MarkdownFiles {
 		// Quick parse to get title and URL without full rendering
@@ -105,9 +110,13 @@ func (b *SiteBuilder) Build() error {
 		if _, ok := titleToURL[lang]; !ok {
 			titleToURL[lang] = make(map[string]string)
 		}
+		if _, ok := pathToURL[lang]; !ok {
+			pathToURL[lang] = make(map[string]string)
+		}
 		// Map both exact title and slugified title
 		titleToURL[lang][title] = url
 		titleToURL[lang][parser.GenerateSlug(title)] = url
+		addMarkdownLinkPathAliases(pathToURL[lang], file.RelativePath, url)
 	}
 
 	// Set up wiki link resolver
@@ -125,8 +134,8 @@ func (b *SiteBuilder) Build() error {
 		return "", false
 	})
 
-	// Second pass: build pages with wiki link resolution
-	pages, buildErrs := b.buildPages(index.MarkdownFiles, titleToURL)
+	// Second pass: build pages with wiki and local markdown link resolution
+	pages, buildErrs := b.buildPages(index.MarkdownFiles, titleToURL, pathToURL)
 	for _, err := range buildErrs {
 		fmt.Fprintf(os.Stderr, "Error building page: %v\n", err)
 	}
@@ -423,7 +432,7 @@ func (b *SiteBuilder) parallelForEach(total int, fn func(i int) error) []error {
 	return errs
 }
 
-func (b *SiteBuilder) buildPages(files []ContentFile, titleToURL map[string]map[string]string) ([]*Page, []error) {
+func (b *SiteBuilder) buildPages(files []ContentFile, titleToURL, pathToURL map[string]map[string]string) ([]*Page, []error) {
 	if len(files) == 0 {
 		return nil, nil
 	}
@@ -452,6 +461,7 @@ func (b *SiteBuilder) buildPages(files []ContentFile, titleToURL map[string]map[
 			for job := range jobs {
 				lang, _ := detectLanguageAndContentPath(job.file.RelativePath, b.config.I18n.Default, b.languages)
 				pageMap := titleToURL[lang]
+				pathMap := pathToURL[lang]
 				pb.SetPageResolver(func(title string) (string, bool) {
 					if url, ok := pageMap[title]; ok {
 						return url, true
@@ -461,6 +471,9 @@ func (b *SiteBuilder) buildPages(files []ContentFile, titleToURL map[string]map[
 						return url, true
 					}
 					return "", false
+				})
+				pb.SetMarkdownLinkResolver(func(destination, pageRelPath string) (string, bool) {
+					return resolveLocalMarkdownLink(destination, pageRelPath, pathMap)
 				})
 				page, err := pb.Build(job.file)
 				if err != nil {
@@ -491,6 +504,68 @@ func (b *SiteBuilder) buildPages(files []ContentFile, titleToURL map[string]map[
 		}
 	}
 	return result, errs
+}
+
+func resolveLocalMarkdownLink(destination, pageRelPath string, pathToURL map[string]string) (string, bool) {
+	if len(pathToURL) == 0 || destination == "" || strings.HasPrefix(destination, "#") {
+		return "", false
+	}
+	if strings.HasPrefix(destination, "/") || strings.HasPrefix(destination, "//") {
+		return "", false
+	}
+	if u, err := url.Parse(destination); err == nil && u.IsAbs() {
+		return "", false
+	}
+
+	pathPart := destination
+	suffix := ""
+	if idx := strings.IndexAny(pathPart, "?#"); idx >= 0 {
+		suffix = pathPart[idx:]
+		pathPart = pathPart[:idx]
+	}
+	if decoded, err := url.PathUnescape(pathPart); err == nil {
+		pathPart = decoded
+	}
+	if _, ok := markdownExtensions[strings.ToLower(filepath.Ext(pathPart))]; !ok {
+		return "", false
+	}
+
+	pageDir := filepath.ToSlash(filepath.Dir(pageRelPath))
+	if pageDir == "." {
+		pageDir = ""
+	}
+	candidates := []string{
+		normalizeMarkdownLinkPath(filepath.ToSlash(filepath.Join(pageDir, pathPart))),
+		normalizeMarkdownLinkPath(pathPart),
+	}
+	for _, candidate := range candidates {
+		if url, ok := pathToURL[candidate]; ok {
+			return url + suffix, true
+		}
+	}
+	return "", false
+}
+
+func normalizeMarkdownLinkPath(path string) string {
+	path = filepath.ToSlash(path)
+	path = strings.TrimPrefix(path, "./")
+	return strings.Trim(path, "/")
+}
+
+func addMarkdownLinkPathAliases(pathToURL map[string]string, relPath, pageURL string) {
+	normalized := normalizeMarkdownLinkPath(relPath)
+	if normalized == "" {
+		return
+	}
+	pathToURL[normalized] = pageURL
+
+	parts := strings.Split(normalized, "/")
+	if len(parts) > 1 {
+		withoutTopSection := strings.Join(parts[1:], "/")
+		if withoutTopSection != "" {
+			pathToURL[withoutTopSection] = pageURL
+		}
+	}
 }
 
 func (b *SiteBuilder) renderPages(pages []*Page) []error {
@@ -766,7 +841,10 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 		data.Sidebar = ""
 	} else if page.Type == TypeBlog {
 		timeline := b.blogTimeline[page.Language]
-		graphURL := fmt.Sprintf("/%s/graph/", page.Language)
+		graphURL := "/graph/"
+		if len(b.config.I18n.Languages) > 1 {
+			graphURL = fmt.Sprintf("/%s/graph/", page.Language)
+		}
 		sectionCfg := b.sidebarSectionConfig("blog")
 		if !sectionCfg.EnableTime {
 			timeline = nil
@@ -1277,30 +1355,34 @@ func processedImageLookupCandidates(src, siteURL string) []string {
 		if v == "" {
 			return
 		}
-		if strings.HasPrefix(v, "assets/img/") {
-			v = strings.TrimPrefix(v, "assets/img/")
-		}
 		if _, ok := seen[v]; ok {
 			return
 		}
 		seen[v] = struct{}{}
 	}
+	addVariants := func(v string) {
+		cleaned := strings.TrimPrefix(filepath.ToSlash(strings.TrimSpace(v)), "/")
+		add(cleaned)
+		if strings.HasPrefix(cleaned, "assets/img/") {
+			add(strings.TrimPrefix(cleaned, "assets/img/"))
+		}
+	}
 
-	add(src)
+	addVariants(src)
 	if u, err := url.Parse(src); err == nil {
-		add(u.Path)
+		addVariants(u.Path)
 	}
 	if siteURL != "" {
 		if base, err := url.Parse(siteURL); err == nil {
 			if u, err := url.Parse(src); err == nil {
 				if u.IsAbs() && base.Host != "" && strings.EqualFold(u.Host, base.Host) {
-					add(u.Path)
+					addVariants(u.Path)
 				}
 			}
 		}
 	}
 	if decoded, err := url.PathUnescape(src); err == nil {
-		add(decoded)
+		addVariants(decoded)
 	}
 
 	out := make([]string, 0, len(seen)*2)
@@ -1357,6 +1439,9 @@ func markdownExcerpt(raw string, maxRunes int) string {
 }
 
 func (b *SiteBuilder) localizeInternalLinks(html, lang string) string {
+	if len(b.config.I18n.Languages) <= 1 {
+		return html
+	}
 	prefix := "/" + strings.Trim(lang, "/")
 	if prefix == "/" {
 		prefix = "/" + b.config.I18n.Default
@@ -1430,6 +1515,8 @@ func (b *SiteBuilder) buildHeaderNav(lang, currentURL string) []renderer.NavLink
 	}
 
 	nav := make([]renderer.NavLink, 0, len(items))
+	activeIndex := -1
+	activeMatchLength := -1
 	for _, item := range items {
 		if !headerItemVisibleForLanguage(item, lang) {
 			continue
@@ -1449,33 +1536,72 @@ func (b *SiteBuilder) buildHeaderNav(lang, currentURL string) []renderer.NavLink
 			path = strings.TrimSpace(localizedPath)
 		}
 		if target == "" && path != "" {
-			target = buildLanguageScopedURL(lang, path)
+			langPrefix := lang
+			if len(b.config.I18n.Languages) <= 1 {
+				langPrefix = ""
+			}
+			target = buildLanguageScopedURL(langPrefix, path)
 		}
 		if target == "" {
 			continue
 		}
 
 		nav = append(nav, renderer.NavLink{
-			Title:     title,
-			URL:       target,
-			Type:      "header",
-			Class:     strings.TrimSpace(item.Class),
-			IsCurrent: headerNavItemIsCurrent(target, currentURL),
+			Title: title,
+			URL:   target,
+			Type:  "header",
+			Class: strings.TrimSpace(item.Class),
 		})
+
+		if headerNavLinkIsCurrent(currentURL, target) {
+			matchLength := len(normalizeHeaderNavPath(target))
+			if matchLength > activeMatchLength {
+				activeIndex = len(nav) - 1
+				activeMatchLength = matchLength
+			}
+		}
+	}
+	if activeIndex >= 0 {
+		nav[activeIndex].IsCurrent = true
+		nav[activeIndex].Class = strings.TrimSpace(nav[activeIndex].Class + " is-active")
 	}
 	return nav
 }
 
-func headerNavItemIsCurrent(target, currentURL string) bool {
-	if strings.HasPrefix(target, "http://") || strings.HasPrefix(target, "https://") {
+func headerNavLinkIsCurrent(currentURL, targetURL string) bool {
+	current := normalizeHeaderNavPath(currentURL)
+	target := normalizeHeaderNavPath(targetURL)
+	if current == "" || target == "" {
 		return false
 	}
-	target = ensureTrailingSlash("/" + strings.Trim(target, "/"))
-	currentURL = ensureTrailingSlash("/" + strings.Trim(currentURL, "/"))
-	if target == "/" {
-		return currentURL == target
+	if current == target {
+		return true
 	}
-	return currentURL == target || strings.HasPrefix(currentURL, target)
+	if target == "/" {
+		return false
+	}
+	return strings.HasPrefix(current, strings.TrimSuffix(target, "/")+"/")
+}
+
+func normalizeHeaderNavPath(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+	if parsed, err := url.Parse(trimmed); err == nil && parsed.Scheme != "" {
+		if parsed.Path == "" {
+			return "/"
+		}
+		trimmed = parsed.Path
+	}
+	if !strings.HasPrefix(trimmed, "/") {
+		return ""
+	}
+	trimmed = "/" + strings.Trim(trimmed, "/")
+	if trimmed == "/" {
+		return trimmed
+	}
+	return trimmed + "/"
 }
 
 func headerItemVisibleForLanguage(item config.HeaderItem, lang string) bool {
@@ -1511,6 +1637,9 @@ func buildLanguageScopedURL(lang, path string) string {
 }
 
 func (b *SiteBuilder) buildLanguageOptions(page *Page) []renderer.LanguageOption {
+	if len(b.config.I18n.Languages) <= 1 {
+		return nil
+	}
 	options := make([]renderer.LanguageOption, 0, len(b.config.I18n.Languages))
 	trimmed := strings.Trim(page.URL, "/")
 	parts := []string{}
@@ -2026,9 +2155,13 @@ func (b *SiteBuilder) generateTagPages(taggedPages []*Page) error {
 
 		ui := i18n.UI(lang)
 		tagCloudHTML := b.buildTagCloudHTML(tagIdx, allTags, lang)
+		tagsURL := "/" + lang + "/tags/"
+		if len(b.config.I18n.Languages) <= 1 {
+			tagsURL = "/tags/"
+		}
 		tagCloudPage := &Page{
 			ID:          lang + "-tags",
-			URL:         "/" + lang + "/tags/",
+			URL:         tagsURL,
 			Language:    lang,
 			Title:       ui.Tags,
 			Description: "All tags",
@@ -2047,10 +2180,14 @@ func (b *SiteBuilder) generateTagPages(taggedPages []*Page) error {
 			tagPages := tagIdx[tag]
 			tagSlug := parser.GenerateSlug(tag)
 			tagPageHTML := b.buildTagPageHTML(tag, tagPages, lang)
+			tagURL := "/" + lang + "/tags/" + tagSlug + "/"
+			if len(b.config.I18n.Languages) <= 1 {
+				tagURL = "/tags/" + tagSlug + "/"
+			}
 
 			tagPage := &Page{
 				ID:          lang + "-tags-" + tagSlug,
-				URL:         "/" + lang + "/tags/" + tagSlug + "/",
+				URL:         tagURL,
 				Language:    lang,
 				Title:       "Tag: " + tag,
 				Description: fmt.Sprintf("Pages tagged with \"%s\"", tag),
@@ -2126,9 +2263,13 @@ func (b *SiteBuilder) generateArchivePages(blogPosts []*Page) error {
 		}
 
 		archiveHTML := b.buildArchiveIndexHTML(archiveData, lang)
+		archiveURL := "/" + lang + "/archive/"
+		if len(b.config.I18n.Languages) <= 1 {
+			archiveURL = "/archive/"
+		}
 		archivePage := &Page{
 			ID:          lang + "-archive",
-			URL:         "/" + lang + "/archive/",
+			URL:         archiveURL,
 			Language:    lang,
 			Title:       i18n.SegmentLabel(lang, "archive"),
 			Description: "Post archive by date",
@@ -2145,9 +2286,13 @@ func (b *SiteBuilder) generateArchivePages(blogPosts []*Page) error {
 
 		for _, year := range archiveData {
 			yearHTML := b.buildArchiveYearHTML(year, lang)
+			yearURL := fmt.Sprintf("/%s/archive/%d/", lang, year.Year)
+			if len(b.config.I18n.Languages) <= 1 {
+				yearURL = fmt.Sprintf("/archive/%d/", year.Year)
+			}
 			yearPage := &Page{
 				ID:          fmt.Sprintf("%s-archive-%d", lang, year.Year),
-				URL:         fmt.Sprintf("/%s/archive/%d/", lang, year.Year),
+				URL:         yearURL,
 				Language:    lang,
 				Title:       fmt.Sprintf("%s: %d", i18n.SegmentLabel(lang, "archive"), year.Year),
 				Description: fmt.Sprintf("Posts from %d", year.Year),
@@ -2174,7 +2319,11 @@ func (b *SiteBuilder) buildArchiveIndexHTML(years []archive.ArchiveYear, lang st
 	var sb strings.Builder
 	sb.WriteString("<div class=\"archive\">\n")
 	for _, year := range years {
-		sb.WriteString(fmt.Sprintf("<h2><a href=\"/%s/archive/%d/\">%d</a> <span class=\"count\">(%d)</span></h2>\n", lang, year.Year, year.Year, year.Count))
+		yearURL := fmt.Sprintf("/%s/archive/%d/", lang, year.Year)
+		if len(b.config.I18n.Languages) <= 1 {
+			yearURL = fmt.Sprintf("/archive/%d/", year.Year)
+		}
+		sb.WriteString(fmt.Sprintf("<h2><a href=\"%s\">%d</a> <span class=\"count\">(%d)</span></h2>\n", yearURL, year.Year, year.Count))
 		for _, month := range year.Months {
 			sb.WriteString(fmt.Sprintf("<h3>%s %d</h3>\n", i18n.MonthName(lang, month.Month), month.Year))
 			sb.WriteString("<ul class=\"post-list\">\n")
@@ -2388,33 +2537,35 @@ func (b *SiteBuilder) generateGraph() error {
 		return fmt.Errorf("failed to write graph page: %w", err)
 	}
 
-	// Mirror graph endpoints under language prefixes.
-	for _, lang := range b.config.I18n.Languages {
-		code := strings.ToLower(strings.TrimSpace(lang.Code))
-		if code == "" {
-			continue
-		}
-		graphDir := filepath.Join(b.config.Build.OutputDir, code, "graph")
-		if err := os.MkdirAll(graphDir, 0755); err != nil {
-			return fmt.Errorf("failed to create language graph dir: %w", err)
-		}
+	// Mirror graph endpoints under language prefixes for multilingual sites.
+	if len(b.config.I18n.Languages) > 1 {
+		for _, lang := range b.config.I18n.Languages {
+			code := strings.ToLower(strings.TrimSpace(lang.Code))
+			if code == "" {
+				continue
+			}
+			graphDir := filepath.Join(b.config.Build.OutputDir, code, "graph")
+			if err := os.MkdirAll(graphDir, 0755); err != nil {
+				return fmt.Errorf("failed to create language graph dir: %w", err)
+			}
 
-		rootGraphHTML := filepath.Join(b.config.Build.OutputDir, "graph", "index.html")
-		htmlData, err := os.ReadFile(rootGraphHTML)
-		if err != nil {
-			return fmt.Errorf("failed to read root graph HTML: %w", err)
-		}
-		if err := os.WriteFile(filepath.Join(graphDir, "index.html"), htmlData, 0644); err != nil {
-			return fmt.Errorf("failed to write language graph HTML: %w", err)
-		}
+			rootGraphHTML := filepath.Join(b.config.Build.OutputDir, "graph", "index.html")
+			htmlData, err := os.ReadFile(rootGraphHTML)
+			if err != nil {
+				return fmt.Errorf("failed to read root graph HTML: %w", err)
+			}
+			if err := os.WriteFile(filepath.Join(graphDir, "index.html"), htmlData, 0644); err != nil {
+				return fmt.Errorf("failed to write language graph HTML: %w", err)
+			}
 
-		rootGraphJSON := filepath.Join(b.config.Build.OutputDir, "graph.json")
-		jsonData, err := os.ReadFile(rootGraphJSON)
-		if err != nil {
-			return fmt.Errorf("failed to read root graph JSON: %w", err)
-		}
-		if err := os.WriteFile(filepath.Join(b.config.Build.OutputDir, code, "graph.json"), jsonData, 0644); err != nil {
-			return fmt.Errorf("failed to write language graph JSON: %w", err)
+			rootGraphJSON := filepath.Join(b.config.Build.OutputDir, "graph.json")
+			jsonData, err := os.ReadFile(rootGraphJSON)
+			if err != nil {
+				return fmt.Errorf("failed to read root graph JSON: %w", err)
+			}
+			if err := os.WriteFile(filepath.Join(b.config.Build.OutputDir, code, "graph.json"), jsonData, 0644); err != nil {
+				return fmt.Errorf("failed to write language graph JSON: %w", err)
+			}
 		}
 	}
 

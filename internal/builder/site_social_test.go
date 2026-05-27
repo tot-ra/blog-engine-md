@@ -92,6 +92,23 @@ func TestResolveSocialImageURL_UsesOptimizedDefaultImageVariant(t *testing.T) {
 	}
 }
 
+func TestProcessedImageLookupCandidates_PreservesAssetsImgPath(t *testing.T) {
+	candidates := processedImageLookupCandidates("/assets/img/example-card.webp", "https://example.com")
+	foundFull := false
+	foundTrimmed := false
+	for _, candidate := range candidates {
+		if candidate == "assets/img/example-card.webp" {
+			foundFull = true
+		}
+		if candidate == "example-card.webp" {
+			foundTrimmed = true
+		}
+	}
+	if !foundFull || !foundTrimmed {
+		t.Fatalf("expected full and trimmed asset candidates, got %#v", candidates)
+	}
+}
+
 func TestResolveSocialImageURL_BlogRelativeParentPathUsesProcessedVariant(t *testing.T) {
 	b := &SiteBuilder{
 		config: &config.SiteConfig{

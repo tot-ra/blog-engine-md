@@ -2,7 +2,9 @@ package builder
 
 import (
 	"fmt"
+	"net/url"
 	"os"
+	urlpath "path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -19,6 +21,32 @@ const (
 	TypeDoc  PageType = "doc"
 	TypePage PageType = "page"
 )
+
+var mdLocalAssetLinkRegex = regexp.MustCompile(`\]\(([^)]+)\)`)
+var mdxRequireDefaultRegex = regexp.MustCompile(`\{require\(['"]([^'"]+)['"]\)\.default\}`)
+var pdfObjectRegex = regexp.MustCompile(`(?is)<object\s+([^>]*\btype=["']application/pdf["'][^>]*)>\s*</object>|<object\s+([^>]*)>\s*</object>`)
+var htmlAttrRegex = regexp.MustCompile(`(?is)([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*("[^"]*"|'[^']*')`)
+var localAssetExtensions = map[string]struct{}{
+	".pdf":  {},
+	".zip":  {},
+	".csv":  {},
+	".tsv":  {},
+	".json": {},
+	".xml":  {},
+	".txt":  {},
+	".doc":  {},
+	".docx": {},
+	".xls":  {},
+	".xlsx": {},
+	".ppt":  {},
+	".pptx": {},
+	".mp3":  {},
+	".wav":  {},
+	".ogg":  {},
+	".mp4":  {},
+	".mov":  {},
+	".webm": {},
+}
 
 // TocItem represents a table of contents entry
 type TocItem struct {
@@ -92,27 +120,34 @@ func (g *URLGenerator) Generate(filePath string, fm *parser.Frontmatter) string 
 
 // PageBuilder builds pages from content files
 type PageBuilder struct {
-	urlGen       *URLGenerator
-	mdParser     *parser.MarkdownParser
-	pageResolver func(title string) (url string, exists bool)
-	defaultLang  string
-	languages    map[string]struct{}
+	urlGen               *URLGenerator
+	mdParser             *parser.MarkdownParser
+	pageResolver         func(title string) (url string, exists bool)
+	markdownLinkResolver func(destination, pageRelPath string) (url string, exists bool)
+	defaultLang          string
+	languages            map[string]struct{}
 }
 
 // NewPageBuilder creates a new page builder
 func NewPageBuilder(baseURL, defaultLang string, languages map[string]struct{}) *PageBuilder {
 	return &PageBuilder{
-		urlGen:       NewURLGenerator(baseURL),
-		mdParser:     parser.NewMarkdownParser(),
-		pageResolver: nil, // Will be set later when all pages are known
-		defaultLang:  defaultLang,
-		languages:    languages,
+		urlGen:               NewURLGenerator(baseURL),
+		mdParser:             parser.NewMarkdownParser(),
+		pageResolver:         nil, // Will be set later when all pages are known
+		markdownLinkResolver: nil, // Will be set later when all pages are known
+		defaultLang:          defaultLang,
+		languages:            languages,
 	}
 }
 
 // SetPageResolver sets the page resolver for wiki links
 func (b *PageBuilder) SetPageResolver(resolver func(title string) (url string, exists bool)) {
 	b.pageResolver = resolver
+}
+
+// SetMarkdownLinkResolver sets the resolver for local markdown links like [Page](other-page.md).
+func (b *PageBuilder) SetMarkdownLinkResolver(resolver func(destination, pageRelPath string) (url string, exists bool)) {
+	b.markdownLinkResolver = resolver
 }
 
 // Build creates a Page from a content file
@@ -165,6 +200,9 @@ func (b *PageBuilder) Build(file ContentFile) (*Page, error) {
 	} else {
 		processedContent = parser.SimpleWikiLinkProcessor(remaining)
 	}
+	processedContent = rewriteLocalMarkdownLinks(processedContent, file.RelativePath, b.markdownLinkResolver)
+	processedContent = rewriteLocalAssetReferences(processedContent, file.RelativePath)
+	processedContent = rewritePDFObjects(processedContent)
 	processedContent = parser.TransformEmbeds(processedContent)
 
 	// Render markdown to HTML
@@ -235,12 +273,139 @@ func determinePageType(relPath string) PageType {
 	return TypePage
 }
 
+func rewriteLocalMarkdownLinks(content, pageRelPath string, resolver func(destination, pageRelPath string) (string, bool)) string {
+	if resolver == nil {
+		return content
+	}
+
+	return mdLocalAssetLinkRegex.ReplaceAllStringFunc(content, func(match string) string {
+		submatches := mdLocalAssetLinkRegex.FindStringSubmatch(match)
+		if len(submatches) != 2 {
+			return match
+		}
+		destination := strings.TrimSpace(submatches[1])
+		rewritten, ok := resolver(destination, pageRelPath)
+		if !ok || rewritten == "" || rewritten == destination {
+			return match
+		}
+		return `](` + rewritten + `)`
+	})
+}
+
 // generateID creates a unique ID from a URL
 func generateID(url string) string {
 	id := strings.Trim(url, "/")
 	id = strings.ReplaceAll(id, "/", "-")
 	id = regexp.MustCompile(`[^a-zA-Z0-9-]`).ReplaceAllString(id, "")
 	return id
+}
+
+func rewriteLocalAssetReferences(content, pageRelPath string) string {
+	pageDir := filepath.ToSlash(filepath.Dir(pageRelPath))
+	if pageDir == "." {
+		pageDir = ""
+	}
+
+	content = mdLocalAssetLinkRegex.ReplaceAllStringFunc(content, func(match string) string {
+		submatches := mdLocalAssetLinkRegex.FindStringSubmatch(match)
+		if len(submatches) != 2 {
+			return match
+		}
+		destination := strings.TrimSpace(submatches[1])
+		rewritten := rewriteLocalAssetDestination(destination, pageDir)
+		if rewritten == destination || rewritten == "" {
+			return match
+		}
+		return `](` + rewritten + `)`
+	})
+
+	content = mdxRequireDefaultRegex.ReplaceAllStringFunc(content, func(match string) string {
+		submatches := mdxRequireDefaultRegex.FindStringSubmatch(match)
+		if len(submatches) != 2 {
+			return match
+		}
+		rewritten := rewriteLocalAssetDestination(submatches[1], pageDir)
+		if rewritten == "" || rewritten == submatches[1] {
+			return match
+		}
+		return `"` + rewritten + `"`
+	})
+
+	return content
+}
+
+func rewritePDFObjects(content string) string {
+	return pdfObjectRegex.ReplaceAllStringFunc(content, func(match string) string {
+		submatches := pdfObjectRegex.FindStringSubmatch(match)
+		if len(submatches) != 3 {
+			return match
+		}
+		attrs := strings.TrimSpace(submatches[1])
+		if attrs == "" {
+			attrs = strings.TrimSpace(submatches[2])
+		}
+		attrMap := parseHTMLAttrs(attrs)
+		src := strings.TrimSpace(attrMap["data"])
+		if src == "" {
+			return match
+		}
+		typeAttr := strings.TrimSpace(strings.ToLower(attrMap["type"]))
+		if typeAttr != "" && typeAttr != "application/pdf" {
+			return match
+		}
+		if strings.ToLower(urlpath.Ext(src)) != ".pdf" {
+			return match
+		}
+
+		height := strings.TrimSpace(attrMap["height"])
+		if height == "" {
+			height = "800"
+		}
+		return `<iframe class="pdf-embed" src="` + src + `" title="PDF preview" loading="lazy" height="` + height + `"></iframe>`
+	})
+}
+
+func parseHTMLAttrs(attrs string) map[string]string {
+	parsed := make(map[string]string)
+	for _, match := range htmlAttrRegex.FindAllStringSubmatch(attrs, -1) {
+		if len(match) != 3 {
+			continue
+		}
+		key := strings.ToLower(match[1])
+		value := strings.Trim(match[2], `"'`)
+		parsed[key] = value
+	}
+	return parsed
+}
+
+func rewriteLocalAssetDestination(destination, pageDir string) string {
+	if destination == "" || strings.HasPrefix(destination, "#") {
+		return destination
+	}
+	if strings.HasPrefix(destination, "/") || strings.HasPrefix(destination, "//") {
+		return destination
+	}
+	if u, err := url.Parse(destination); err == nil && u.IsAbs() {
+		return destination
+	}
+
+	pathPart := destination
+	suffix := ""
+	if idx := strings.IndexAny(pathPart, "?#"); idx >= 0 {
+		suffix = pathPart[idx:]
+		pathPart = pathPart[:idx]
+	}
+
+	ext := strings.ToLower(urlpath.Ext(pathPart))
+	if _, ok := localAssetExtensions[ext]; !ok {
+		return destination
+	}
+
+	joined := urlpath.Clean(urlpath.Join("/assets", pageDir, pathPart))
+	if !strings.HasPrefix(joined, "/") {
+		joined = "/" + joined
+	}
+	return joined + suffix
 }
 
 // extractTOC extracts table of contents from markdown content

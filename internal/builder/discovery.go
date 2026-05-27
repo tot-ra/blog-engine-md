@@ -50,10 +50,9 @@ func Discover(root string) (*ContentIndex, error) {
 			return err
 		}
 
-		// Skip directories
+		// Skip hidden/private directories
 		if info.IsDir() {
-			// Skip hidden directories
-			if strings.HasPrefix(info.Name(), ".") {
+			if strings.HasPrefix(info.Name(), ".") || strings.HasPrefix(info.Name(), "_") {
 				return filepath.SkipDir
 			}
 			return nil

@@ -58,3 +58,52 @@ func TestImageTransformer_AlreadyHasLoading(t *testing.T) {
 		t.Error("Should not add duplicate loading attribute")
 	}
 }
+
+func TestImageTransformer_OriginalVariantWithoutDimensions(t *testing.T) {
+	images := []*ProcessedImage{
+		{
+			RelativePath: "badge.webp",
+			Variants: []ImageVariant{
+				{Size: "original", Width: 0, Height: 0, FilePath: "/assets/img/badge.webp"},
+			},
+		},
+	}
+
+	transformer := NewImageTransformer(images)
+	result := transformer.Transform(`<img src="img/badge.webp" alt="">`)
+
+	if strings.Contains(result, `0w`) {
+		t.Fatalf("zero-width srcset should not be emitted:\n%s", result)
+	}
+	if strings.Contains(result, `width="0"`) || strings.Contains(result, `height="0"`) {
+		t.Fatalf("zero dimensions should not be emitted:\n%s", result)
+	}
+	if !strings.Contains(result, `<img src="/assets/img/badge.webp" alt="" loading="lazy">`) {
+		t.Fatalf("expected original fallback image without dimensions:\n%s", result)
+	}
+}
+
+func TestImageTransformer_NoTransformRewritesToProcessedAsset(t *testing.T) {
+	images := []*ProcessedImage{
+		{
+			RelativePath: "download-badge.png",
+			Variants: []ImageVariant{
+				{Size: "thumbnail", Width: 300, Height: 103, FilePath: "/assets/img/download-badge-thumbnail.webp"},
+				{Size: "full", Width: 383, Height: 132, FilePath: "/assets/img/download-badge-full.webp"},
+			},
+		},
+	}
+
+	transformer := NewImageTransformer(images)
+	result := transformer.Transform(`<img class="download-badge no-transform" height="50" src="/assets/img/download-badge.png" alt="Download">`)
+
+	if strings.Contains(result, `<picture>`) {
+		t.Fatalf("no-transform image should stay a plain img tag:\n%s", result)
+	}
+	if !strings.Contains(result, `src="/assets/img/download-badge-full.webp"`) {
+		t.Fatalf("expected no-transform src to be rewritten to processed asset:\n%s", result)
+	}
+	if !strings.Contains(result, `class="download-badge no-transform"`) || !strings.Contains(result, `height="50"`) {
+		t.Fatalf("expected original attributes to be preserved:\n%s", result)
+	}
+}
