@@ -42,9 +42,11 @@ type BreadcrumbItem struct {
 
 // NavLink represents a navigation link for templates
 type NavLink struct {
-	Title string
-	URL   string
-	Type  string
+	Title     string
+	URL       string
+	Type      string
+	Class     string
+	IsCurrent bool
 }
 
 // PrevNextLinks holds previous and next navigation links for templates

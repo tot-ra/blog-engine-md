@@ -739,7 +739,7 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 		data.JSPath = b.jsBundle.Path
 	}
 
-	data.HeaderNav = b.buildHeaderNav(page.Language)
+	data.HeaderNav = b.buildHeaderNav(page.Language, page.URL)
 	data.Languages = b.buildLanguageOptions(page)
 
 	// Generate sidebar
@@ -782,11 +782,17 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 		if sectionCfg.EnableTime {
 			timeline = b.buildSectionTimeline(sidebarRoot, page.Language, 20)
 		}
-		defaultMode := sectionCfg.DefaultMode
-		if strings.TrimSpace(defaultMode) == "" {
-			defaultMode = "categories"
+		if len(timeline) == 0 {
+			// Category-only sections must avoid mode-sidebar markup so a persisted Blog
+			// time/graph choice cannot hide their only navigation pane.
+			data.Sidebar = renderer.RenderSidebar(sidebarRoot, page.URL, b.config.Navigation.Sidebar.MaxDepth, b.config.Navigation.Sidebar.Collapsed, ui)
+		} else {
+			defaultMode := sectionCfg.DefaultMode
+			if strings.TrimSpace(defaultMode) == "" {
+				defaultMode = "categories"
+			}
+			data.Sidebar = renderer.RenderModeSidebar(sidebarRoot, page.URL, b.config.Navigation.Sidebar.MaxDepth, b.config.Navigation.Sidebar.Collapsed, timeline, ui, "", defaultMode, false)
 		}
-		data.Sidebar = renderer.RenderModeSidebar(sidebarRoot, page.URL, b.config.Navigation.Sidebar.MaxDepth, b.config.Navigation.Sidebar.Collapsed, timeline, ui, "", defaultMode, false)
 	} else {
 		data.Sidebar = renderer.RenderSidebar(sidebarRoot, page.URL, b.config.Navigation.Sidebar.MaxDepth, b.config.Navigation.Sidebar.Collapsed, ui)
 	}
@@ -1410,7 +1416,7 @@ func convertPrevNext(links *PrevNextLinks) *renderer.PrevNextLinks {
 	return result
 }
 
-func (b *SiteBuilder) buildHeaderNav(lang string) []renderer.NavLink {
+func (b *SiteBuilder) buildHeaderNav(lang, currentURL string) []renderer.NavLink {
 	if !b.config.Navigation.Header.Enabled {
 		return nil
 	}
@@ -1449,9 +1455,27 @@ func (b *SiteBuilder) buildHeaderNav(lang string) []renderer.NavLink {
 			continue
 		}
 
-		nav = append(nav, renderer.NavLink{Title: title, URL: target, Type: "header"})
+		nav = append(nav, renderer.NavLink{
+			Title:     title,
+			URL:       target,
+			Type:      "header",
+			Class:     strings.TrimSpace(item.Class),
+			IsCurrent: headerNavItemIsCurrent(target, currentURL),
+		})
 	}
 	return nav
+}
+
+func headerNavItemIsCurrent(target, currentURL string) bool {
+	if strings.HasPrefix(target, "http://") || strings.HasPrefix(target, "https://") {
+		return false
+	}
+	target = ensureTrailingSlash("/" + strings.Trim(target, "/"))
+	currentURL = ensureTrailingSlash("/" + strings.Trim(currentURL, "/"))
+	if target == "/" {
+		return currentURL == target
+	}
+	return currentURL == target || strings.HasPrefix(currentURL, target)
 }
 
 func headerItemVisibleForLanguage(item config.HeaderItem, lang string) bool {

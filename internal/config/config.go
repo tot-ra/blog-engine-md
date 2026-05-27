@@ -220,6 +220,7 @@ type HeaderItem struct {
 	Languages []string          `yaml:"languages"`
 	Path      string            `yaml:"path"`
 	URL       string            `yaml:"url"`
+	Class     string            `yaml:"class"`
 }
 
 // SidebarConfig contains sidebar settings
