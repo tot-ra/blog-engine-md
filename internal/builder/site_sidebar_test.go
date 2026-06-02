@@ -102,6 +102,66 @@ func TestRenderPage_BlogSidebarStillUsesConfiguredModes(t *testing.T) {
 	}
 }
 
+func TestRenderPage_SingleLanguageBlogPostKeepsLeftSidebar(t *testing.T) {
+	cfg := sidebarRenderTestConfig(t)
+	cfg.Navigation.Sidebar.Sections = map[string]config.SidebarSectionConfig{
+		"blog": {
+			DefaultMode: "time",
+			EnableTime:  true,
+			EnableGraph: true,
+			MatchPaths:  []string{"blog"},
+			SidebarRoot: "blog",
+		},
+	}
+
+	date := time.Date(2026, time.June, 2, 12, 0, 0, 0, time.UTC)
+	blogIndex := &Page{
+		ID:          "blog-index",
+		URL:         "/blog/",
+		Language:    "en",
+		Title:       "Blog",
+		Content:     "<p>Blog index</p>",
+		Type:        TypeBlog,
+		Frontmatter: &parser.Frontmatter{},
+	}
+	post := &Page{
+		ID:         "blog-post",
+		URL:        "/blog/post/",
+		Language:   "en",
+		Title:      "Post",
+		Content:    "<p>Post</p>",
+		Type:       TypeBlog,
+		SourcePath: "/tmp/post.md",
+		Frontmatter: &parser.Frontmatter{
+			Date: date,
+		},
+	}
+	b := sidebarRenderTestBuilder(t, cfg, blogIndex, post)
+	b.blogTimeline = map[string][]renderer.TimelineYear{
+		"en": {
+			{
+				Year: 2026,
+				Items: []renderer.TimelineItem{
+					{Title: "Post", URL: "/blog/post/", Date: date},
+				},
+			},
+		},
+	}
+
+	if err := b.renderPage(post); err != nil {
+		t.Fatalf("render page: %v", err)
+	}
+
+	html := readRenderedPage(t, cfg, "blog/post/index.html")
+	sidebar := sidebarNavHTML(t, html)
+	if !strings.Contains(sidebar, `class="sidebar blog-sidebar"`) {
+		t.Fatalf("expected blog sidebar on single-language blog post, got %q", sidebar)
+	}
+	if !strings.Contains(sidebar, `href="/blog/post/" aria-current="page"`) {
+		t.Fatalf("expected current blog post link inside left sidebar, got %q", sidebar)
+	}
+}
+
 func sidebarRenderTestConfig(t *testing.T) *config.SiteConfig {
 	t.Helper()
 

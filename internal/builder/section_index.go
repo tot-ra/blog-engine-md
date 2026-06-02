@@ -162,6 +162,12 @@ func sectionBlogPostsHTML(sectionURL string, pages map[string]*Page) string {
 	sb.WriteString("<div class=\"section-article-list\">\n")
 	for _, post := range posts {
 		sb.WriteString("  <article class=\"section-article-preview\">\n")
+		if imageHTML := firstPreviewImageHTML(post); imageHTML != "" {
+			// Put the first post image into the card before text. The generated <img>
+			// is intentionally plain here: the later image transformer upgrades it to
+			// responsive <picture> markup during the normal build pipeline.
+			sb.WriteString(fmt.Sprintf("    <a class=\"section-article-image\" href=\"%s\">%s</a>\n", template.HTMLEscapeString(post.URL), imageHTML))
+		}
 		sb.WriteString(fmt.Sprintf("    <h2><a href=\"%s\">%s</a></h2>\n", template.HTMLEscapeString(post.URL), template.HTMLEscapeString(post.Title)))
 		excerpt := extractPreviewText(post.RawContent, 2, 320)
 		if excerpt == "" {
@@ -174,6 +180,29 @@ func sectionBlogPostsHTML(sectionURL string, pages map[string]*Page) string {
 	}
 	sb.WriteString("</div>\n")
 	return sb.String()
+}
+
+func firstPreviewImageHTML(post *Page) string {
+	if post == nil || strings.TrimSpace(post.Content) == "" {
+		return ""
+	}
+	match := firstImageSrcRe.FindStringSubmatch(post.Content)
+	if len(match) < 2 || strings.TrimSpace(match[1]) == "" {
+		return ""
+	}
+
+	alt := ""
+	if altMatch := firstImageAltRe.FindStringSubmatch(match[0]); len(altMatch) >= 2 {
+		alt = altMatch[1]
+	}
+	if strings.TrimSpace(alt) == "" {
+		alt = post.Title
+	}
+
+	return fmt.Sprintf("<img src=\"%s\" alt=\"%s\" loading=\"lazy\">",
+		template.HTMLEscapeString(match[1]),
+		template.HTMLEscapeString(alt),
+	)
 }
 
 func shouldUseSectionMatrix(children []SectionChild) bool {
@@ -253,6 +282,7 @@ var (
 	markdownImageRe   = regexp.MustCompile(`!\[[^\]]*\]\([^)]+\)`)
 	markdownLinkRe    = regexp.MustCompile(`\[(.*?)\]\([^)]+\)`)
 	markdownRefLinkRe = regexp.MustCompile(`\[[^\]]+\]:\s+\S+`)
+	firstImageAltRe   = regexp.MustCompile(`(?is)\balt\s*=\s*['"]([^'"]*)['"]`)
 	htmlTagRe         = regexp.MustCompile(`<[^>]+>`)
 	spaceRe           = regexp.MustCompile(`\s+`)
 	tableDividerRe    = regexp.MustCompile(`^\s*\|?[\s:-]+\|[\s|:-]*$`)

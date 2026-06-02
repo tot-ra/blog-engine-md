@@ -159,7 +159,9 @@ func (b *SiteBuilder) Build() error {
 	}
 	if len(indexPages) > 0 {
 		fmt.Printf("Generated %d section index pages\n", len(indexPages))
-		// Rebuild nav tree with new index pages
+		// Rebuild nav tree with generated index pages. This is especially important
+		// for /blog/: once the section index exists, blog posts become children of
+		// that Blog node, so individual post pages can keep the left blog menu.
 		b.navTree = navBuilder.BuildTree(b.pages)
 	}
 
@@ -679,8 +681,7 @@ func convertNavNode(node *NavNode) *renderer.NavNode {
 	}
 	return rn
 }
-
-func selectSidebarRoot(root *renderer.NavNode, currentPath string) *renderer.NavNode {
+func selectSidebarRoot(root *renderer.NavNode, currentPath string, languages map[string]struct{}) *renderer.NavNode {
 	if root == nil {
 		return nil
 	}
@@ -693,28 +694,23 @@ func selectSidebarRoot(root *renderer.NavNode, currentPath string) *renderer.Nav
 		return root
 	}
 
-	sectionURL := "/" + parts[0] + "/"
-	langRootURL := sectionURL
-	if len(parts) > 1 {
-		sectionURL = "/" + parts[0] + "/" + parts[1] + "/"
+	sectionIndex := 0
+	langRootURL := ""
+	// In multilingual sites URLs look like /en/blog/post/. In single-language
+	// sites they look like /blog/post/. Distinguishing those shapes keeps blog
+	// posts attached to the Blog sidebar instead of selecting the post leaf.
+	if _, ok := languages[strings.ToLower(parts[0])]; ok && len(parts) > 1 {
+		sectionIndex = 1
+		langRootURL = "/" + parts[0] + "/"
 	}
 
-	hasLangRoot := false
-	for _, child := range root.Children {
-		if child.URL == langRootURL {
-			hasLangRoot = true
-			break
-		}
-	}
-	if !hasLangRoot {
-		sectionURL = "/" + parts[0] + "/"
-	}
+	sectionURL := "/" + strings.Join(parts[:sectionIndex+1], "/") + "/"
 
 	for _, child := range root.Children {
 		if child.URL == sectionURL {
 			return child
 		}
-		if len(parts) > 1 && child.URL == langRootURL {
+		if langRootURL != "" && child.URL == langRootURL {
 			for _, nested := range child.Children {
 				if nested.URL == sectionURL {
 					return nested
@@ -819,7 +815,7 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 
 	// Generate sidebar
 	rendererRoot := convertNavNode(b.navTree.Root)
-	sidebarRoot := selectSidebarRoot(rendererRoot, page.URL)
+	sidebarRoot := selectSidebarRoot(rendererRoot, page.URL, b.languages)
 	hideSidebar := false
 	if page.Language != "" {
 		normalizedURL := strings.Trim(page.URL, "/")

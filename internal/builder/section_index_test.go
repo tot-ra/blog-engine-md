@@ -69,6 +69,7 @@ func TestSectionIndexGenerator_BlogSectionUsesPostPreviewsInDateOrder(t *testing
 			Language:   "en",
 			Title:      "Latest Post",
 			SourcePath: "/tmp/latest.md",
+			Content:    `<p><img src="img/cover.png" alt="Visible cover"></p>`,
 			RawContent: "## Heading to skip\nFirst sentence for preview. Second sentence remains here.\n![Hidden image](img.png)\n| col | val |\n|---|---|\n<iframe src=\"https://example.com/embed\"></iframe>",
 			Frontmatter: &parser.Frontmatter{
 				Date: latestDate,
@@ -124,6 +125,9 @@ func TestSectionIndexGenerator_BlogSectionUsesPostPreviewsInDateOrder(t *testing
 	}
 	if strings.Contains(content, "Heading to skip") || strings.Contains(content, "Hidden image") || strings.Contains(content, "example.com/embed") {
 		t.Fatalf("expected filtered preview text without heading/image/embed, got: %s", content)
+	}
+	if !strings.Contains(content, `class="section-article-image"`) || !strings.Contains(content, `src="img/cover.png"`) {
+		t.Fatalf("expected latest post cover image in preview card, got: %s", content)
 	}
 
 	latestPos := strings.Index(content, "Latest Post")
@@ -261,6 +265,7 @@ func TestSectionBlogPostsHTML_RendersArticlePreviews(t *testing.T) {
 			Title:      "Post 1",
 			Type:       TypeBlog,
 			SourcePath: "/tmp/post-1.md",
+			Content:    `<p><img src="img/post-1.png" alt="Post cover"></p>`,
 			RawContent: "First sentence. Second sentence.",
 			Frontmatter: &parser.Frontmatter{
 				Date: time.Date(2026, time.January, 2, 0, 0, 0, 0, time.UTC),
@@ -282,6 +287,9 @@ func TestSectionBlogPostsHTML_RendersArticlePreviews(t *testing.T) {
 	content := sectionBlogPostsHTML("/rus/blog/", pages)
 	if !strings.Contains(content, "section-article-preview") {
 		t.Fatalf("expected article preview markup, got: %s", content)
+	}
+	if !strings.Contains(content, `class="section-article-image"`) || !strings.Contains(content, `src="img/post-1.png"`) {
+		t.Fatalf("expected post image in preview card, got: %s", content)
 	}
 	if strings.Contains(content, "<ul class=\"section-index\">") {
 		t.Fatalf("expected preview list instead of generic section list, got: %s", content)

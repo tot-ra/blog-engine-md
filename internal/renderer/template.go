@@ -752,15 +752,42 @@ const defaultTemplates = `{{define "base"}}
         .section-article-list {
             display: flex;
             flex-direction: column;
-            gap: 14px;
+            gap: 24px;
         }
         .section-article-preview {
             border-bottom: 1px solid var(--nav-border);
-            padding-bottom: 12px;
+            padding-bottom: 22px;
+        }
+        .section-article-image {
+            display: block;
+            margin: 0 0 14px;
+            border-radius: 14px;
+            overflow: hidden;
+            background: var(--nav-bg);
+        }
+        .section-article-image:hover {
+            background: transparent;
+        }
+        .section-article-image .md-image,
+        .section-article-image picture,
+        .section-article-image img {
+            display: block;
+            width: 100%;
+        }
+        .section-article-image .md-image {
+            margin: 0;
+        }
+        .section-article-image img {
+            max-height: 320px;
+            object-fit: cover;
         }
         .section-article-preview h2 {
-            margin: 0 0 4px;
-            font-size: 1.05em;
+            margin: 0 0 8px;
+            font-size: clamp(1.45rem, 2.2vw, 2rem);
+            line-height: 1.18;
+        }
+        .section-article-preview h2 a {
+            color: var(--text-primary);
         }
         .section-article-preview time {
             display: block;
