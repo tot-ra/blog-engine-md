@@ -463,28 +463,34 @@ const defaultTemplates = `{{define "base"}}
             text-decoration: none;
             border-radius: 4px;
             font-size: 0.9em;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .sidebar-section-head {
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: 6px;
+            min-width: 0;
         }
         .sidebar-section-head a {
-            flex: 1;
+            flex: 1 1 auto;
         }
         .sidebar-toggle {
             appearance: none;
             border: 0;
             background: transparent;
             color: var(--text-secondary);
-            width: 20px;
-            height: 20px;
+            width: 28px;
+            height: 28px;
             cursor: pointer;
             padding: 0;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             border-radius: 4px;
+            flex: 0 0 28px;
         }
         .sidebar-toggle:hover {
             background: rgba(0, 102, 204, 0.08);
@@ -492,7 +498,7 @@ const defaultTemplates = `{{define "base"}}
         }
         .sidebar-toggle::before {
             content: "▸";
-            font-size: 0.8em;
+            font-size: 1.15em;
             line-height: 1;
             transition: transform 0.15s ease;
         }

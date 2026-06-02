@@ -209,7 +209,6 @@ func renderSidebarList(sb *strings.Builder, nodes []*NavNode, currentPath string
 
 		if isSection && hasChildren {
 			sb.WriteString("    <div class=\"sidebar-section-head\">\n")
-			sb.WriteString(fmt.Sprintf("      <button class=\"sidebar-toggle\" type=\"button\" aria-label=\"%s %s\" aria-expanded=\"%t\"></button>\n", template.HTMLEscapeString(ui.ToggleSectionOf), template.HTMLEscapeString(node.Title), expanded))
 		}
 		if isActive {
 			sb.WriteString(fmt.Sprintf("      <a href=\"%s\" aria-current=\"page\">%s</a>\n", node.URL, template.HTMLEscapeString(node.Title)))
@@ -217,6 +216,7 @@ func renderSidebarList(sb *strings.Builder, nodes []*NavNode, currentPath string
 			sb.WriteString(fmt.Sprintf("      <a href=\"%s\">%s</a>\n", node.URL, template.HTMLEscapeString(node.Title)))
 		}
 		if isSection && hasChildren {
+			sb.WriteString(fmt.Sprintf("      <button class=\"sidebar-toggle\" type=\"button\" aria-label=\"%s %s\" aria-expanded=\"%t\"></button>\n", template.HTMLEscapeString(ui.ToggleSectionOf), template.HTMLEscapeString(node.Title), expanded))
 			sb.WriteString("    </div>\n")
 		}
 

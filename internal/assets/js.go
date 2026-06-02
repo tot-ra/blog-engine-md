@@ -108,20 +108,38 @@ const builtinScripts = `
       });
     }
 
+    function toggleSidebarSection(section) {
+      if (!section) return;
+      var btn = section.querySelector(':scope > .sidebar-section-head .sidebar-toggle');
+      section.classList.toggle('expanded');
+      if (btn) {
+        btn.setAttribute('aria-expanded', section.classList.contains('expanded') ? 'true' : 'false');
+      }
+    }
+
     var sectionToggles = document.querySelectorAll('.sidebar-toggle');
     sectionToggles.forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        var section = btn.closest('.sidebar-section');
-        if (!section) return;
-        section.classList.toggle('expanded');
-        btn.setAttribute('aria-expanded', section.classList.contains('expanded') ? 'true' : 'false');
+      btn.addEventListener('click', function(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        toggleSidebarSection(btn.closest('.sidebar-section'));
+      });
+    });
+
+    var sectionLinks = document.querySelectorAll('.sidebar-section > .sidebar-section-head > a');
+    sectionLinks.forEach(function(link) {
+      link.addEventListener('click', function(event) {
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+        event.preventDefault();
+        toggleSidebarSection(link.closest('.sidebar-section'));
       });
     });
 
     var modeSidebars = document.querySelectorAll('[data-sidebar-mode]');
     modeSidebars.forEach(function(sidebar, idx) {
       var layout = document.querySelector('.site-layout');
-      var storageKey = 'blog-sidebar-mode:' + idx;
+      var defaultMode = sidebar.getAttribute('data-sidebar-default-mode') || 'categories';
+      var storageKey = 'blog-sidebar-mode:' + idx + ':' + defaultMode;
       var panes = sidebar.querySelectorAll('[data-sidebar-mode-pane]');
       var btns = sidebar.querySelectorAll('[data-sidebar-mode-btn]');
 
@@ -161,7 +179,7 @@ const builtinScripts = `
         });
       });
 
-      var savedMode = sidebar.getAttribute('data-sidebar-default-mode') || 'categories';
+      var savedMode = defaultMode;
       try {
         savedMode = localStorage.getItem(storageKey) || savedMode;
       } catch (_) {}
