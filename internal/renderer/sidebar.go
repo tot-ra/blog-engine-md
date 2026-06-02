@@ -209,6 +209,8 @@ func renderSidebarList(sb *strings.Builder, nodes []*NavNode, currentPath string
 
 		if isSection && hasChildren {
 			sb.WriteString("    <div class=\"sidebar-section-head\">\n")
+			// Keep the label first so expandable folders align with regular menu items;
+			// CSS pushes the toggle button to the row end.
 		}
 		if isActive {
 			sb.WriteString(fmt.Sprintf("      <a href=\"%s\" aria-current=\"page\">%s</a>\n", node.URL, template.HTMLEscapeString(node.Title)))

@@ -358,6 +358,7 @@ const defaultTemplates = `{{define "base"}}
             max-height: calc(100vh - 60px);
             position: sticky;
             top: 0;
+            font-size: 1.05rem;
         }
         .blog-sidebar {
             display: flex;
@@ -462,7 +463,7 @@ const defaultTemplates = `{{define "base"}}
             color: var(--text-primary);
             text-decoration: none;
             border-radius: 4px;
-            font-size: 0.9em;
+            font-size: 1em;
             min-width: 0;
             white-space: nowrap;
             overflow: hidden;
@@ -474,8 +475,11 @@ const defaultTemplates = `{{define "base"}}
             gap: 6px;
             min-width: 0;
         }
+        /* Keep folder labels aligned with regular items: text starts first,
+           while the expand control is pushed to the row end. */
         .sidebar-section-head a {
             flex: 1 1 auto;
+            order: 1;
         }
         .sidebar-toggle {
             appearance: none;
@@ -491,6 +495,8 @@ const defaultTemplates = `{{define "base"}}
             justify-content: center;
             border-radius: 4px;
             flex: 0 0 28px;
+            margin-left: auto;
+            order: 2;
         }
         .sidebar-toggle:hover {
             background: rgba(0, 102, 204, 0.08);

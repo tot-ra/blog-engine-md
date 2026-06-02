@@ -75,6 +75,32 @@ func TestRenderSidebar_ActiveState(t *testing.T) {
 	}
 }
 
+func TestRenderSidebar_SectionHeadKeepsToggleAfterLabel(t *testing.T) {
+	root := &NavNode{
+		ID:   "root",
+		Type: "section",
+		Children: []*NavNode{
+			{
+				ID: "docs", Title: "📚 Docs", URL: "/docs/", Type: "section",
+				Children: []*NavNode{
+					{ID: "intro", Title: "Intro", URL: "/docs/intro/", Type: "page"},
+				},
+			},
+		},
+	}
+
+	result := string(RenderSidebar(root, "/docs/intro/", 3, true, i18n.UI("en")))
+	labelIndex := strings.Index(result, `<a href="/docs/">📚 Docs</a>`)
+	toggleIndex := strings.Index(result, `<button class="sidebar-toggle"`)
+
+	if labelIndex == -1 || toggleIndex == -1 {
+		t.Fatalf("Expected section label and toggle in output, got %s", result)
+	}
+	if labelIndex > toggleIndex {
+		t.Error("Expected expandable folder label to render before its toggle button")
+	}
+}
+
 func TestRenderSidebar_DefaultCollapsed(t *testing.T) {
 	root := &NavNode{
 		ID:   "root",
