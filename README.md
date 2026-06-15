@@ -142,19 +142,20 @@ content/
 - **Breadcrumbs**: Full path navigation
 - **Footer**: Custom content via template
 
-#### Site-specific segment labels
+#### Localized navigation labels
 
-The engine only hardcodes labels for engine-owned route segments such as `blog`, `docs`, `tags`, `archive`, and `graph`. Website/domain-specific folder names must be configured in that website's `config.yaml` instead of being added to `internal/i18n`:
+The engine only hardcodes labels for engine-owned UI and route segments such as `blog`, `docs`, `tags`, `archive`, and `graph`. Website/domain-specific labels should live with content, not in `config.yaml` or `internal/i18n`.
+
+Use localized page frontmatter for generated sidebar section titles, breadcrumbs, and header labels:
 
 ```yaml
-navigation:
-  segmentLabels:
-    et:
-      beehive-sensors: "Mesitaru andurid"
-      entrance-observer: "Lennuava vaatleja"
+---
+title: "Hinnaplaanid"
+navTitle: "Hinnad"
+---
 ```
 
-These labels are used for generated sidebar section titles and breadcrumbs when a folder does not have its own index page title.
+When a section has no `index.md`, a self-named page such as `content/et/docs/beehive-sensors/beehive-sensors.md` can provide the parent section label. `navTitle` is optional and is intended for shorter menu labels when the visible page title should stay longer.
 
 ### 5. Theming
 

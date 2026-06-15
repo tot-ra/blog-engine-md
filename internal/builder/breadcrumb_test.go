@@ -76,20 +76,40 @@ func TestBreadcrumb_UTF8FallbackTitle(t *testing.T) {
 	}
 }
 
-func TestBreadcrumb_UsesConfiguredSegmentLabels(t *testing.T) {
-	page := &Page{URL: "/et/docs/beehive-sensors/installation/", Title: "Installation", Language: "et", Frontmatter: &parser.Frontmatter{}}
-	labels := map[string]map[string]string{
-		"et": {
-			"beehive-sensors": "Mesitaru andurid",
+func TestBreadcrumb_UsesLocalizedContentSectionLabels(t *testing.T) {
+	pages := map[string]*Page{
+		"sensor": {
+			ID:         "sensor",
+			Title:      "Mesitaru andurid",
+			URL:        "/et/docs/beehive-sensors/beehive-sensors/",
+			Language:   "et",
+			SourcePath: "content/et/docs/beehive-sensors/beehive-sensors.md",
+			Type:       TypeDoc,
+			Frontmatter: &parser.Frontmatter{
+				NavTitle: "Mesitaru andurid",
+			},
+		},
+		"install": {
+			ID:          "install",
+			Title:       "Installation",
+			URL:         "/et/docs/beehive-sensors/installation/",
+			Language:    "et",
+			SourcePath:  "content/et/docs/beehive-sensors/installation.md",
+			Type:        TypeDoc,
+			Frontmatter: &parser.Frontmatter{},
 		},
 	}
-	gen := NewBreadcrumbGeneratorWithLabels(map[string]struct{}{"et": {}}, labels)
+	tree := NewNavigationBuilder().BuildTree(pages)
+	if node := tree.ByPath["/et/docs/beehive-sensors/"]; node == nil || node.Title != "Mesitaru andurid" {
+		t.Fatalf("expected nav tree section label, got %#v", node)
+	}
+	gen := NewBreadcrumbGenerator(map[string]struct{}{"en": {}, "et": {}})
 
-	crumbs := gen.Generate(page, nil)
+	crumbs := gen.Generate(pages["install"], tree)
 	if len(crumbs) != 4 {
 		t.Fatalf("expected 4 crumbs, got %d", len(crumbs))
 	}
 	if crumbs[2].Title != "Mesitaru andurid" {
-		t.Fatalf("expected configured segment label, got %q", crumbs[2].Title)
+		t.Fatalf("expected content-derived segment label, got %q", crumbs[2].Title)
 	}
 }

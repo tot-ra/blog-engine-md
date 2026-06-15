@@ -15,19 +15,12 @@ type BreadcrumbItem struct {
 
 // BreadcrumbGenerator generates breadcrumb trails for pages
 type BreadcrumbGenerator struct {
-	langCodes     map[string]struct{}
-	segmentLabels map[string]map[string]string
+	langCodes map[string]struct{}
 }
 
 // NewBreadcrumbGenerator creates a new breadcrumb generator
 func NewBreadcrumbGenerator(langCodes map[string]struct{}) *BreadcrumbGenerator {
 	return &BreadcrumbGenerator{langCodes: langCodes}
-}
-
-// NewBreadcrumbGeneratorWithLabels creates a breadcrumb generator with
-// site-defined URL segment labels.
-func NewBreadcrumbGeneratorWithLabels(langCodes map[string]struct{}, segmentLabels map[string]map[string]string) *BreadcrumbGenerator {
-	return &BreadcrumbGenerator{langCodes: langCodes, segmentLabels: segmentLabels}
 }
 
 // Generate creates a breadcrumb trail for a page using the nav tree for title lookups
@@ -62,12 +55,13 @@ func (g *BreadcrumbGenerator) Generate(page *Page, tree *NavTree) []BreadcrumbIt
 		fullPath = "/" + strings.Trim(fullPath, "/") + "/"
 		isLast := i == len(segments)-1
 
-		title := segmentLabel(page.Language, seg, g.segmentLabels)
+		title := segmentLabel(page.Language, seg)
 		if title == "" {
-			title = capitalizeFirst(seg)
+			title = humanizeSegment(seg)
 		}
 
-		// Try to find a better title from the nav tree
+		// Try to find a better title from the nav tree. The nav tree derives
+		// section labels from localized content pages before falling back to slugs.
 		if tree != nil {
 			if node, ok := tree.ByPath[fullPath]; ok {
 				title = node.Title

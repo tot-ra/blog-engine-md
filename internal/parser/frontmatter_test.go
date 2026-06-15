@@ -7,12 +7,13 @@ import (
 
 func TestParseFrontmatter(t *testing.T) {
 	tests := []struct {
-		name            string
-		content         string
-		wantTitle       string
-		wantTags        []string
-		wantRemaining   string
-		wantErr         bool
+		name          string
+		content       string
+		wantTitle     string
+		wantNavTitle  string
+		wantTags      []string
+		wantRemaining string
+		wantErr       bool
 	}{
 		{
 			name: "basic frontmatter",
@@ -59,6 +60,19 @@ Content.`,
 			wantRemaining: "Content.",
 			wantErr:       false,
 		},
+		{
+			name: "with navigation title",
+			content: `---
+title: Hinnaplaanid
+navTitle: Hinnad
+---
+
+Content.`,
+			wantTitle:     "Hinnaplaanid",
+			wantNavTitle:  "Hinnad",
+			wantRemaining: "Content.",
+			wantErr:       false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -71,6 +85,9 @@ Content.`,
 
 			if fm.Title != tt.wantTitle {
 				t.Errorf("Expected title '%s', got '%s'", tt.wantTitle, fm.Title)
+			}
+			if fm.NavTitle != tt.wantNavTitle {
+				t.Errorf("Expected navTitle '%s', got '%s'", tt.wantNavTitle, fm.NavTitle)
 			}
 
 			if len(fm.Tags) != len(tt.wantTags) {

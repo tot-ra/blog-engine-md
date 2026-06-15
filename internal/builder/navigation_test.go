@@ -85,7 +85,7 @@ func TestBuildTree_OrderingPrefersExplicitOrderOverNodeType(t *testing.T) {
 	if node.Children[0].Title != "Page Child" {
 		t.Fatalf("Expected first child 'Page Child', got %q", node.Children[0].Title)
 	}
-	if node.Children[1].Title != "Section-child" {
+	if node.Children[1].Title != "Section child" {
 		t.Fatalf("Expected second child 'Section Child', got %q", node.Children[1].Title)
 	}
 }
@@ -144,29 +144,95 @@ func TestBuildTree_SectionTitleUTF8(t *testing.T) {
 	}
 }
 
-func TestBuildTree_UsesConfiguredSegmentLabels(t *testing.T) {
+func TestBuildTree_UsesSelfNamedContentPageForSectionLabel(t *testing.T) {
 	pages := map[string]*Page{
 		"sensor": {
-			ID:          "sensor",
+			ID:         "sensor",
+			Title:      "Mesitaru andurid",
+			URL:        "/et/docs/beehive-sensors/beehive-sensors/",
+			Language:   "et",
+			SourcePath: "content/et/docs/beehive-sensors/beehive-sensors.md",
+			Type:       TypeDoc,
+			Frontmatter: &parser.Frontmatter{
+				NavTitle: "Mesitaru andurid",
+			},
+		},
+		"install": {
+			ID:          "install",
 			Title:       "Installation",
 			URL:         "/et/docs/beehive-sensors/installation/",
 			Language:    "et",
+			SourcePath:  "content/et/docs/beehive-sensors/installation.md",
 			Type:        TypeDoc,
 			Frontmatter: &parser.Frontmatter{},
 		},
 	}
-	labels := map[string]map[string]string{
-		"et": {
-			"beehive-sensors": "Mesitaru andurid",
+
+	tree := NewNavigationBuilder().BuildTree(pages)
+	node := tree.ByPath["/et/docs/beehive-sensors/"]
+	if node == nil {
+		t.Fatal("expected localized section node")
+	}
+	if node.Title != "Mesitaru andurid" {
+		t.Fatalf("expected content-derived segment label, got %q", node.Title)
+	}
+}
+
+func TestBuildTree_UsesSlugEquivalentSelfNamedPageForSectionLabel(t *testing.T) {
+	pages := map[string]*Page{
+		"web-app": {
+			ID:         "web-app",
+			Title:      "📱 Web-app",
+			URL:        "/et/about/products/web_app/web-app/",
+			Language:   "et",
+			SourcePath: "content/et/about/products/web_app/web_app.md",
+			Type:       TypeDoc,
+			Frontmatter: &parser.Frontmatter{
+				NavTitle: "Web-app",
+			},
+		},
+		"child": {
+			ID:          "child",
+			Title:       "Live Queen Finder",
+			URL:         "/et/about/products/web_app/free-tier/live-queen-finder/",
+			Language:    "et",
+			SourcePath:  "content/et/about/products/web_app/free-tier/live-queen-finder.md",
+			Type:        TypeDoc,
+			Frontmatter: &parser.Frontmatter{},
 		},
 	}
 
-	tree := NewNavigationBuilderWithLabels(labels).BuildTree(pages)
-	node := tree.ByPath["/et/docs/beehive-sensors/"]
+	tree := NewNavigationBuilder().BuildTree(pages)
+	node := tree.ByPath["/et/about/products/web_app/"]
 	if node == nil {
-		t.Fatal("expected configured section node")
+		t.Fatal("expected localized underscore section node")
 	}
-	if node.Title != "Mesitaru andurid" {
-		t.Fatalf("expected configured segment label, got %q", node.Title)
+	if node.Title != "Web-app" {
+		t.Fatalf("expected navTitle from slug-equivalent page, got %q", node.Title)
+	}
+}
+
+func TestBuildTree_DoesNotUseRegularLeafPageForParentSectionLabel(t *testing.T) {
+	pages := map[string]*Page{
+		"billing": {
+			ID:         "billing",
+			Title:      "Arveldussüsteemi dokumentatsioon",
+			URL:        "/et/docs/billing-system/",
+			Language:   "et",
+			SourcePath: "content/et/docs/billing-system.md",
+			Type:       TypeDoc,
+			Frontmatter: &parser.Frontmatter{
+				NavTitle: "Arveldus",
+			},
+		},
+	}
+
+	tree := NewNavigationBuilder().BuildTree(pages)
+	node := tree.ByPath["/et/docs/"]
+	if node == nil {
+		t.Fatal("expected docs section node")
+	}
+	if node.Title != "Dokumendid" {
+		t.Fatalf("expected engine-owned docs label to remain, got %q", node.Title)
 	}
 }

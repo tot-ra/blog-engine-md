@@ -9,7 +9,7 @@ import (
 	"github.com/tot-ra/blog-engine/internal/parser"
 )
 
-func TestSectionChildrenContent_UsesConfigDrivenRecentEmbeds(t *testing.T) {
+func TestSectionChildrenContent_UsesConfiguredRecentEmbeds(t *testing.T) {
 	hideChildren := false
 	b := &SiteBuilder{
 		config: &config.SiteConfig{
@@ -23,9 +23,7 @@ func TestSectionChildrenContent_UsesConfigDrivenRecentEmbeds(t *testing.T) {
 								Provider: "youtube",
 								Limit:    2,
 								SortBy:   "date",
-								TitleI18n: map[string]string{
-									"rus": "Последние YouTube видео",
-								},
+								Title:    "Последние YouTube видео",
 							},
 						},
 					},

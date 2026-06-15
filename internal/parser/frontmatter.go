@@ -11,19 +11,20 @@ import (
 
 // Frontmatter represents YAML frontmatter from markdown files
 type Frontmatter struct {
-	Title       string    `yaml:"title"`
-	Date        time.Time `yaml:"date"`
-	Draft       bool      `yaml:"draft"`
-	Tags        []string  `yaml:"tags"`
-	Description string    `yaml:"description"`
-	Slug        string    `yaml:"slug"`
-	Order       int       `yaml:"order"`
-	HideToc     bool      `yaml:"hideToc"`
-	HideNav     bool      `yaml:"hideNav"`
-	ShowChildren bool     `yaml:"showChildren"`
-	HideChildren bool     `yaml:"hideChildren"`
-	Layout      string    `yaml:"layout"` // Custom layout template name (e.g., "homepage")
-	RedirectURL string    `yaml:"redirectUrl"`
+	Title        string    `yaml:"title"`
+	NavTitle     string    `yaml:"navTitle"`
+	Date         time.Time `yaml:"date"`
+	Draft        bool      `yaml:"draft"`
+	Tags         []string  `yaml:"tags"`
+	Description  string    `yaml:"description"`
+	Slug         string    `yaml:"slug"`
+	Order        int       `yaml:"order"`
+	HideToc      bool      `yaml:"hideToc"`
+	HideNav      bool      `yaml:"hideNav"`
+	ShowChildren bool      `yaml:"showChildren"`
+	HideChildren bool      `yaml:"hideChildren"`
+	Layout       string    `yaml:"layout"` // Custom layout template name (e.g., "homepage")
+	RedirectURL  string    `yaml:"redirectUrl"`
 }
 
 // ParseFrontmatter extracts YAML frontmatter from markdown content
@@ -47,19 +48,20 @@ func ParseFrontmatter(content string) (*Frontmatter, string, error) {
 	remaining := strings.TrimSpace(content[endIdx+6:])
 
 	type rawFrontmatter struct {
-		Title       string      `yaml:"title"`
-		Date        interface{} `yaml:"date"`
-		Draft       bool        `yaml:"draft"`
-		Tags        []string    `yaml:"tags"`
-		Description string      `yaml:"description"`
-		Slug        string      `yaml:"slug"`
-		Order       int         `yaml:"order"`
-		HideToc     bool        `yaml:"hideToc"`
-		HideNav     bool        `yaml:"hideNav"`
-		ShowChildren bool       `yaml:"showChildren"`
-		HideChildren bool       `yaml:"hideChildren"`
-		Layout      string      `yaml:"layout"`
-		RedirectURL string      `yaml:"redirectUrl"`
+		Title        string      `yaml:"title"`
+		NavTitle     string      `yaml:"navTitle"`
+		Date         interface{} `yaml:"date"`
+		Draft        bool        `yaml:"draft"`
+		Tags         []string    `yaml:"tags"`
+		Description  string      `yaml:"description"`
+		Slug         string      `yaml:"slug"`
+		Order        int         `yaml:"order"`
+		HideToc      bool        `yaml:"hideToc"`
+		HideNav      bool        `yaml:"hideNav"`
+		ShowChildren bool        `yaml:"showChildren"`
+		HideChildren bool        `yaml:"hideChildren"`
+		Layout       string      `yaml:"layout"`
+		RedirectURL  string      `yaml:"redirectUrl"`
 	}
 
 	var raw rawFrontmatter
@@ -67,6 +69,7 @@ func ParseFrontmatter(content string) (*Frontmatter, string, error) {
 		return nil, "", fmt.Errorf("failed to parse frontmatter: %w", err)
 	}
 	fm.Title = raw.Title
+	fm.NavTitle = raw.NavTitle
 	fm.Draft = raw.Draft
 	fm.Tags = raw.Tags
 	fm.Description = raw.Description
