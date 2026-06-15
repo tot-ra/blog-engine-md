@@ -157,3 +157,35 @@ i18n:
 		t.Fatalf("unexpected normalized aliases for est: %#v", got)
 	}
 }
+
+func TestLoadSegmentLabels(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	configContent := `
+site:
+  title: "Test Site"
+  url: "https://example.com"
+
+navigation:
+  segmentLabels:
+    et:
+      beehive-sensors: "Mesitaru andurid"
+    default:
+      api: "API"
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("Failed to write test config: %v", err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if got := cfg.Navigation.SegmentLabels["et"]["beehive-sensors"]; got != "Mesitaru andurid" {
+		t.Fatalf("unexpected Estonian segment label: %q", got)
+	}
+	if got := cfg.Navigation.SegmentLabels["default"]["api"]; got != "API" {
+		t.Fatalf("unexpected default segment label: %q", got)
+	}
+}

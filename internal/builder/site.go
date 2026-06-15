@@ -147,7 +147,7 @@ func (b *SiteBuilder) Build() error {
 	fmt.Printf("Built %d pages\n", len(b.pages))
 
 	// Build navigation tree
-	navBuilder := NewNavigationBuilder()
+	navBuilder := NewNavigationBuilderWithLabels(segmentLabelsFromConfig(b.config))
 	b.navTree = navBuilder.BuildTree(b.pages)
 
 	// Generate section index pages for sections without explicit index
@@ -879,7 +879,7 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 
 	// Generate breadcrumbs
 	if b.config.Navigation.Breadcrumbs.Enabled {
-		bcGen := NewBreadcrumbGenerator(b.languages)
+		bcGen := NewBreadcrumbGeneratorWithLabels(b.languages, segmentLabelsFromConfig(b.config))
 		builderCrumbs := bcGen.Generate(page, b.navTree)
 		data.Breadcrumbs = convertBreadcrumbs(builderCrumbs)
 	}

@@ -3,8 +3,6 @@ package builder
 import (
 	"sort"
 	"strings"
-
-	"github.com/tot-ra/blog-engine/internal/i18n"
 )
 
 // NavTree represents the full navigation hierarchy
@@ -44,11 +42,20 @@ func (t *NavTree) FlattenPages() []*NavNode {
 }
 
 // NavigationBuilder builds navigation trees from pages
-type NavigationBuilder struct{}
+type NavigationBuilder struct {
+	segmentLabels map[string]map[string]string
+}
 
 // NewNavigationBuilder creates a new navigation builder
 func NewNavigationBuilder() *NavigationBuilder {
 	return &NavigationBuilder{}
+}
+
+// NewNavigationBuilderWithLabels creates a navigation builder with site-defined
+// URL segment labels. Use this for project-specific folder names so the shared
+// engine does not hardcode one website's taxonomy.
+func NewNavigationBuilderWithLabels(segmentLabels map[string]map[string]string) *NavigationBuilder {
+	return &NavigationBuilder{segmentLabels: segmentLabels}
 }
 
 // BuildTree builds a NavTree from a set of pages
@@ -121,7 +128,7 @@ func (nb *NavigationBuilder) insertPage(tree *NavTree, page *Page) {
 				}
 			} else {
 				// Create intermediate section node
-				title := i18n.SegmentLabel(page.Language, seg)
+				title := segmentLabel(page.Language, seg, nb.segmentLabels)
 				if title == "" {
 					title = capitalizeFirst(seg)
 				}

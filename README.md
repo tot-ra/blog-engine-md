@@ -142,6 +142,20 @@ content/
 - **Breadcrumbs**: Full path navigation
 - **Footer**: Custom content via template
 
+#### Site-specific segment labels
+
+The engine only hardcodes labels for engine-owned route segments such as `blog`, `docs`, `tags`, `archive`, and `graph`. Website/domain-specific folder names must be configured in that website's `config.yaml` instead of being added to `internal/i18n`:
+
+```yaml
+navigation:
+  segmentLabels:
+    et:
+      beehive-sensors: "Mesitaru andurid"
+      entrance-observer: "Lennuava vaatleja"
+```
+
+These labels are used for generated sidebar section titles and breadcrumbs when a folder does not have its own index page title.
+
 ### 5. Theming
 
 #### Color Schemes

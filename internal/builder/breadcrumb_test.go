@@ -75,3 +75,21 @@ func TestBreadcrumb_UTF8FallbackTitle(t *testing.T) {
 		t.Fatalf("Expected UTF-8 title 'Вера', got '%s'", crumbs[2].Title)
 	}
 }
+
+func TestBreadcrumb_UsesConfiguredSegmentLabels(t *testing.T) {
+	page := &Page{URL: "/et/docs/beehive-sensors/installation/", Title: "Installation", Language: "et", Frontmatter: &parser.Frontmatter{}}
+	labels := map[string]map[string]string{
+		"et": {
+			"beehive-sensors": "Mesitaru andurid",
+		},
+	}
+	gen := NewBreadcrumbGeneratorWithLabels(map[string]struct{}{"et": {}}, labels)
+
+	crumbs := gen.Generate(page, nil)
+	if len(crumbs) != 4 {
+		t.Fatalf("expected 4 crumbs, got %d", len(crumbs))
+	}
+	if crumbs[2].Title != "Mesitaru andurid" {
+		t.Fatalf("expected configured segment label, got %q", crumbs[2].Title)
+	}
+}

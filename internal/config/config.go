@@ -199,11 +199,12 @@ type ElevenLabsConfig struct {
 
 // Navigation contains navigation settings
 type Navigation struct {
-	Header      HeaderConfig      `yaml:"header"`
-	Sidebar     SidebarConfig     `yaml:"sidebar"`
-	TOC         TOCConfig         `yaml:"toc"`
-	Breadcrumbs BreadcrumbsConfig `yaml:"breadcrumbs"`
-	PrevNext    PrevNextConfig    `yaml:"prevNext"`
+	Header        HeaderConfig                 `yaml:"header"`
+	Sidebar       SidebarConfig                `yaml:"sidebar"`
+	TOC           TOCConfig                    `yaml:"toc"`
+	Breadcrumbs   BreadcrumbsConfig            `yaml:"breadcrumbs"`
+	PrevNext      PrevNextConfig               `yaml:"prevNext"`
+	SegmentLabels map[string]map[string]string `yaml:"segmentLabels"`
 }
 
 // HeaderConfig contains header navigation settings

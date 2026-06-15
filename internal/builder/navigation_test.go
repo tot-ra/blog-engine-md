@@ -67,9 +67,9 @@ func TestBuildTree_Ordering(t *testing.T) {
 
 func TestBuildTree_OrderingPrefersExplicitOrderOverNodeType(t *testing.T) {
 	pages := map[string]*Page{
-		"root": {ID: "root", Title: "Root", URL: "/docs/mixed/", Type: TypeDoc, Frontmatter: &parser.Frontmatter{}},
+		"root":          {ID: "root", Title: "Root", URL: "/docs/mixed/", Type: TypeDoc, Frontmatter: &parser.Frontmatter{}},
 		"section-child": {ID: "section-child", Title: "Section Child", URL: "/docs/mixed/section-child/nested/", Type: TypeDoc, Frontmatter: &parser.Frontmatter{Order: 2}},
-		"page-child": {ID: "page-child", Title: "Page Child", URL: "/docs/mixed/page-child/", Type: TypeDoc, Frontmatter: &parser.Frontmatter{Order: 1}},
+		"page-child":    {ID: "page-child", Title: "Page Child", URL: "/docs/mixed/page-child/", Type: TypeDoc, Frontmatter: &parser.Frontmatter{Order: 1}},
 	}
 
 	nb := NewNavigationBuilder()
@@ -141,5 +141,32 @@ func TestBuildTree_SectionTitleUTF8(t *testing.T) {
 	}
 	if node.Title != "Вера" {
 		t.Fatalf("Expected UTF-8 title 'Вера', got '%s'", node.Title)
+	}
+}
+
+func TestBuildTree_UsesConfiguredSegmentLabels(t *testing.T) {
+	pages := map[string]*Page{
+		"sensor": {
+			ID:          "sensor",
+			Title:       "Installation",
+			URL:         "/et/docs/beehive-sensors/installation/",
+			Language:    "et",
+			Type:        TypeDoc,
+			Frontmatter: &parser.Frontmatter{},
+		},
+	}
+	labels := map[string]map[string]string{
+		"et": {
+			"beehive-sensors": "Mesitaru andurid",
+		},
+	}
+
+	tree := NewNavigationBuilderWithLabels(labels).BuildTree(pages)
+	node := tree.ByPath["/et/docs/beehive-sensors/"]
+	if node == nil {
+		t.Fatal("expected configured section node")
+	}
+	if node.Title != "Mesitaru andurid" {
+		t.Fatalf("expected configured segment label, got %q", node.Title)
 	}
 }
