@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/tot-ra/blog-engine/internal/config"
+	"github.com/tot-ra/blog-engine/internal/parser"
 )
 
 func TestHeaderItemVisibleForLanguage(t *testing.T) {
@@ -95,6 +96,166 @@ func TestBuildHeaderNavDefaultLanguageUsesCurrentURLShape(t *testing.T) {
 	}
 	if !nav[0].IsCurrent {
 		t.Fatalf("expected docs nav item to be current")
+	}
+}
+
+func TestBuildHeaderNavUsesLocalizedContentLabels(t *testing.T) {
+	b := &SiteBuilder{
+		config: &config.SiteConfig{
+			I18n: config.I18nConfig{
+				Default: "en",
+				Languages: []config.LanguageConfig{
+					{Code: "en", Label: "English"},
+					{Code: "et", Label: "Eesti"},
+				},
+			},
+			Navigation: config.Navigation{
+				Header: config.HeaderConfig{
+					Enabled: true,
+					Items: []config.HeaderItem{
+						{Title: "Docs", URL: "/docs/"},
+						{Title: "Research", URL: "/research/"},
+						{Title: "Pricing", URL: "/pricing/"},
+						{Title: "Log in", URL: "https://app.example.com/account/"},
+					},
+				},
+			},
+		},
+		languages: map[string]struct{}{"en": {}, "et": {}},
+		pagesByURL: map[string]*Page{
+			"/et/docs/web-app/": {
+				URL:         "/et/docs/web-app/",
+				Language:    "et",
+				Title:       "Web-app",
+				Frontmatter: &parser.Frontmatter{},
+			},
+			"/et/research/": {
+				URL:      "/et/research/",
+				Language: "et",
+				Title:    "Research",
+				Frontmatter: &parser.Frontmatter{
+					NavTitle:    "Uuringud",
+					RedirectURL: "https://example.com/research/",
+				},
+			},
+			"/et/pricing/": {
+				URL:      "/et/pricing/",
+				Language: "et",
+				Title:    "Hinnaplaanid",
+				Frontmatter: &parser.Frontmatter{
+					NavTitle: "Hinnad",
+				},
+			},
+		},
+		navTree: &NavTree{
+			ByPath: map[string]*NavNode{
+				"/et/docs/": {Title: "Dokumendid", URL: "/et/docs/"},
+			},
+		},
+	}
+
+	nav := b.buildHeaderNav("et", "/et/pricing/")
+	if len(nav) != 4 {
+		t.Fatalf("expected 4 nav items, got %d", len(nav))
+	}
+	if nav[0].Title != "Dokumendid" || nav[0].URL != "/et/docs/" {
+		t.Fatalf("expected localized docs link, got %+v", nav[0])
+	}
+	if nav[1].Title != "Uuringud" || nav[1].URL != "/research/" {
+		t.Fatalf("expected redirect placeholder to supply label but keep canonical URL, got %+v", nav[1])
+	}
+	if nav[2].Title != "Hinnad" || nav[2].URL != "/et/pricing/" {
+		t.Fatalf("expected localized pricing link, got %+v", nav[2])
+	}
+	if nav[3].Title != "Logi sisse" {
+		t.Fatalf("expected localized login UI label, got %+v", nav[3])
+	}
+}
+
+func TestBuildHeaderNavKeepsConfiguredDefaultLanguageLabels(t *testing.T) {
+	b := &SiteBuilder{
+		config: &config.SiteConfig{
+			I18n: config.I18nConfig{
+				Default:   "en",
+				Languages: []config.LanguageConfig{{Code: "en", Label: "English"}},
+			},
+			Navigation: config.Navigation{
+				Header: config.HeaderConfig{
+					Enabled: true,
+					Items: []config.HeaderItem{
+						{Title: "About", URL: "/about/"},
+					},
+				},
+			},
+		},
+		pagesByURL: map[string]*Page{
+			"/about/": {
+				URL:         "/about/",
+				Language:    "en",
+				Title:       "Overview",
+				Frontmatter: &parser.Frontmatter{},
+			},
+		},
+		navTree: &NavTree{
+			ByPath: map[string]*NavNode{
+				"/about/": {Title: "Overview", URL: "/about/"},
+			},
+		},
+	}
+
+	nav := b.buildHeaderNav("en", "/about/")
+	if len(nav) != 1 {
+		t.Fatalf("expected 1 nav item, got %d", len(nav))
+	}
+	if nav[0].Title != "About" {
+		t.Fatalf("expected configured default-language header label, got %q", nav[0].Title)
+	}
+}
+
+func TestBuildHeaderNavKeepsConfiguredLabelForCanonicalRedirectFallback(t *testing.T) {
+	b := &SiteBuilder{
+		config: &config.SiteConfig{
+			I18n: config.I18nConfig{
+				Default: "en",
+				Languages: []config.LanguageConfig{
+					{Code: "en", Label: "English"},
+					{Code: "ru", Label: "Русский"},
+				},
+			},
+			Navigation: config.Navigation{
+				Header: config.HeaderConfig{
+					Enabled: true,
+					Items: []config.HeaderItem{
+						{Title: "About", URL: "/about/"},
+					},
+				},
+			},
+		},
+		languages: map[string]struct{}{"en": {}, "ru": {}},
+		pagesByURL: map[string]*Page{
+			"/about/": {
+				URL:         "/about/",
+				Language:    "en",
+				Title:       "Overview",
+				Frontmatter: &parser.Frontmatter{},
+			},
+			"/ru/about/": {
+				URL:      "/ru/about/",
+				Language: "ru",
+				Title:    "About",
+				Frontmatter: &parser.Frontmatter{
+					RedirectURL: "https://example.com/about/",
+				},
+			},
+		},
+	}
+
+	nav := b.buildHeaderNav("ru", "/ru/docs/")
+	if len(nav) != 1 {
+		t.Fatalf("expected 1 nav item, got %d", len(nav))
+	}
+	if nav[0].Title != "About" || nav[0].URL != "/about/" {
+		t.Fatalf("expected configured label and canonical URL, got %+v", nav[0])
 	}
 }
 

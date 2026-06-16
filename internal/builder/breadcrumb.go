@@ -61,12 +61,13 @@ func (g *BreadcrumbGenerator) Generate(page *Page, tree *NavTree) []BreadcrumbIt
 		fullPath = "/" + strings.Trim(fullPath, "/") + "/"
 		isLast := i == len(segments)-1
 
-		title := i18n.SegmentLabel(page.Language, seg)
+		title := segmentLabel(page.Language, seg)
 		if title == "" {
-			title = capitalizeFirst(seg)
+			title = humanizeSegment(seg)
 		}
 
-		// Try to find a better title from the nav tree
+		// Try to find a better title from the nav tree. The nav tree derives
+		// section labels from localized content pages before falling back to slugs.
 		if tree != nil {
 			if node, ok := tree.ByPath[fullPath]; ok {
 				title = node.Title

@@ -91,3 +91,41 @@ func TestBreadcrumb_UTF8FallbackTitle(t *testing.T) {
 		t.Fatalf("Expected UTF-8 title 'Вера', got '%s'", crumbs[2].Title)
 	}
 }
+
+func TestBreadcrumb_UsesLocalizedContentSectionLabels(t *testing.T) {
+	pages := map[string]*Page{
+		"sensor": {
+			ID:         "sensor",
+			Title:      "Mesitaru andurid",
+			URL:        "/et/docs/beehive-sensors/beehive-sensors/",
+			Language:   "et",
+			SourcePath: "content/et/docs/beehive-sensors/beehive-sensors.md",
+			Type:       TypeDoc,
+			Frontmatter: &parser.Frontmatter{
+				NavTitle: "Mesitaru andurid",
+			},
+		},
+		"install": {
+			ID:          "install",
+			Title:       "Installation",
+			URL:         "/et/docs/beehive-sensors/installation/",
+			Language:    "et",
+			SourcePath:  "content/et/docs/beehive-sensors/installation.md",
+			Type:        TypeDoc,
+			Frontmatter: &parser.Frontmatter{},
+		},
+	}
+	tree := NewNavigationBuilder().BuildTree(pages)
+	if node := tree.ByPath["/et/docs/beehive-sensors/"]; node == nil || node.Title != "Mesitaru andurid" {
+		t.Fatalf("expected nav tree section label, got %#v", node)
+	}
+	gen := NewBreadcrumbGenerator(map[string]struct{}{"en": {}, "et": {}})
+
+	crumbs := gen.Generate(pages["install"], tree)
+	if len(crumbs) != 4 {
+		t.Fatalf("expected 4 crumbs, got %d", len(crumbs))
+	}
+	if crumbs[2].Title != "Mesitaru andurid" {
+		t.Fatalf("expected content-derived segment label, got %q", crumbs[2].Title)
+	}
+}

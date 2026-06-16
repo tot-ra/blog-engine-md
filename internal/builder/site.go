@@ -1032,9 +1032,6 @@ func (b *SiteBuilder) sectionRecentEmbedsHTML(page *Page, cfg config.RecentEmbed
 	}
 
 	title := strings.TrimSpace(cfg.Title)
-	if localized, ok := cfg.TitleI18n[strings.ToLower(page.Language)]; ok && strings.TrimSpace(localized) != "" {
-		title = strings.TrimSpace(localized)
-	}
 	if title == "" {
 		title = "Latest embeds"
 	}
@@ -1515,19 +1512,8 @@ func (b *SiteBuilder) buildHeaderNav(lang, currentURL string) []renderer.NavLink
 			continue
 		}
 
-		title := strings.TrimSpace(item.Title)
-		if localized, ok := item.TitleI18n[strings.ToLower(lang)]; ok && strings.TrimSpace(localized) != "" {
-			title = strings.TrimSpace(localized)
-		}
-		if title == "" {
-			continue
-		}
-
 		target := strings.TrimSpace(item.URL)
 		path := strings.TrimSpace(item.Path)
-		if localizedPath, ok := item.PathI18n[strings.ToLower(lang)]; ok && strings.TrimSpace(localizedPath) != "" {
-			path = strings.TrimSpace(localizedPath)
-		}
 		if target == "" && path != "" {
 			langPrefix := ""
 			if len(b.config.I18n.Languages) > 1 {
@@ -1536,6 +1522,12 @@ func (b *SiteBuilder) buildHeaderNav(lang, currentURL string) []renderer.NavLink
 			target = buildLanguageScopedURL(langPrefix, path)
 		}
 		if target == "" {
+			continue
+		}
+		target = b.localizedHeaderTarget(lang, target)
+
+		title := b.localizedHeaderTitle(item, lang, target)
+		if title == "" {
 			continue
 		}
 
@@ -1559,6 +1551,176 @@ func (b *SiteBuilder) buildHeaderNav(lang, currentURL string) []renderer.NavLink
 		nav[activeIndex].Class = strings.TrimSpace(nav[activeIndex].Class + " is-active")
 	}
 	return nav
+}
+
+func (b *SiteBuilder) localizedHeaderTarget(lang, target string) string {
+	candidate := b.localizedHeaderCandidate(lang, target)
+	if candidate != "" && b.hasLocalizedHeaderContentRoute(candidate) {
+		return candidate
+	}
+	return strings.TrimSpace(target)
+}
+
+func (b *SiteBuilder) localizedHeaderCandidate(lang, target string) string {
+	trimmed := strings.TrimSpace(target)
+	if trimmed == "" || strings.HasPrefix(trimmed, "http://") || strings.HasPrefix(trimmed, "https://") {
+		return ""
+	}
+	if !strings.HasPrefix(trimmed, "/") {
+		return ""
+	}
+	if b == nil || b.config == nil || len(b.config.I18n.Languages) <= 1 {
+		return ""
+	}
+	lang = strings.ToLower(strings.TrimSpace(lang))
+	if lang == "" || lang == strings.ToLower(strings.TrimSpace(b.config.I18n.Default)) {
+		return ""
+	}
+
+	parts := strings.Split(strings.Trim(trimmed, "/"), "/")
+	if len(parts) > 0 {
+		if _, alreadyLocalized := b.languages[strings.ToLower(parts[0])]; alreadyLocalized {
+			return ""
+		}
+	}
+
+	candidate := "/" + lang + "/"
+	if inner := strings.Trim(trimmed, "/"); inner != "" {
+		candidate += inner + "/"
+	}
+	return candidate
+}
+
+func (b *SiteBuilder) localizedHeaderTitle(item config.HeaderItem, lang, target string) string {
+	fallback := strings.TrimSpace(item.Title)
+	if fallback == "" {
+		fallback = strings.Trim(strings.TrimSpace(item.Path), "/")
+	}
+	labelTarget := target
+	if candidate := b.localizedHeaderCandidate(lang, target); candidate != "" && b.hasPageOrNavRoute(candidate) {
+		labelTarget = candidate
+	}
+	if title := b.contentNavTitle(labelTarget, lang, fallback); title != "" {
+		return title
+	}
+	if labelTarget != target {
+		if title := b.contentNavTitle(target, lang, fallback); title != "" {
+			return title
+		}
+	}
+	if title := localizedEngineSegmentTitle(fallback, lang); title != "" {
+		return title
+	}
+	return localizedStaticHeaderTitle(fallback, lang)
+}
+
+func (b *SiteBuilder) contentNavTitle(target, lang, fallback string) string {
+	if b == nil {
+		return ""
+	}
+	normalizedTarget := normalizeNavURL(target)
+	if normalizedTarget == "" || strings.HasPrefix(target, "http://") || strings.HasPrefix(target, "https://") {
+		return ""
+	}
+
+	if page := b.pagesByURL[normalizedTarget]; page != nil {
+		if page.Frontmatter != nil {
+			if title := strings.TrimSpace(page.Frontmatter.NavTitle); title != "" {
+				return title
+			}
+		}
+		if !b.isDefaultLanguage(lang) && strings.EqualFold(strings.TrimSpace(page.Language), strings.TrimSpace(lang)) {
+			if title := strings.TrimSpace(page.Title); title != "" && !strings.EqualFold(title, fallback) {
+				return title
+			}
+		}
+	}
+
+	if b.navTree != nil {
+		if node := b.navTree.ByPath[normalizedTarget]; node != nil {
+			if title := strings.TrimSpace(node.Title); !b.isDefaultLanguage(lang) && pathHasLanguagePrefix(normalizedTarget, lang) && title != "" && !strings.EqualFold(title, fallback) {
+				return title
+			}
+		}
+	}
+	return ""
+}
+
+func (b *SiteBuilder) isDefaultLanguage(lang string) bool {
+	if b == nil || b.config == nil {
+		return strings.TrimSpace(lang) == ""
+	}
+	return strings.EqualFold(strings.TrimSpace(lang), strings.TrimSpace(b.config.I18n.Default))
+}
+
+func pathHasLanguagePrefix(path, lang string) bool {
+	lang = strings.ToLower(strings.Trim(strings.TrimSpace(lang), "/"))
+	if lang == "" {
+		return false
+	}
+	parts := strings.Split(strings.Trim(normalizeNavURL(path), "/"), "/")
+	return len(parts) > 0 && strings.EqualFold(parts[0], lang)
+}
+
+func (b *SiteBuilder) hasLocalizedHeaderContentRoute(target string) bool {
+	target = normalizeNavURL(target)
+	if target == "" || b == nil {
+		return false
+	}
+	if page := b.pagesByURL[target]; page != nil {
+		return !isRedirectPage(page)
+	}
+	prefix := ensureTrailingSlash(target)
+	for _, page := range b.pagesByURL {
+		if page == nil || page.URL == "" {
+			continue
+		}
+		if strings.HasPrefix(page.URL, prefix) && !isRedirectPage(page) {
+			return true
+		}
+	}
+	if b.navTree != nil {
+		_, ok := b.navTree.ByPath[target]
+		return ok
+	}
+	return false
+}
+
+func (b *SiteBuilder) hasPageOrNavRoute(target string) bool {
+	target = normalizeNavURL(target)
+	if target == "" {
+		return false
+	}
+	if b != nil {
+		if _, ok := b.pagesByURL[target]; ok {
+			return true
+		}
+		if b.navTree != nil {
+			_, ok := b.navTree.ByPath[target]
+			return ok
+		}
+	}
+	return false
+}
+
+func isRedirectPage(page *Page) bool {
+	return page != nil && page.Frontmatter != nil && strings.TrimSpace(page.Frontmatter.RedirectURL) != ""
+}
+
+func localizedEngineSegmentTitle(title, lang string) string {
+	switch strings.ToLower(strings.TrimSpace(title)) {
+	case "blog", "docs", "tags", "archive", "graph":
+		return i18n.SegmentLabel(lang, title)
+	}
+	return ""
+}
+
+func localizedStaticHeaderTitle(title, lang string) string {
+	switch strings.ToLower(strings.TrimSpace(title)) {
+	case "log in", "login":
+		return i18n.UI(lang).LogIn
+	}
+	return title
 }
 
 func headerNavLinkIsCurrent(currentURL, targetURL string) bool {

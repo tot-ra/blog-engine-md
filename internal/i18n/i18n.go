@@ -36,6 +36,7 @@ type UIStrings struct {
 	BlogViewMode    string
 	BlogGraphView   string
 	ToggleSectionOf string
+	LogIn           string
 }
 
 var ruMonthsGenitive = map[time.Month]string{
@@ -153,6 +154,7 @@ func UI(lang string) UIStrings {
 			BlogViewMode:    "Режим просмотра блога",
 			BlogGraphView:   "Граф блога",
 			ToggleSectionOf: "Переключить раздел",
+			LogIn:           "Войти",
 		}
 	case "et":
 		return UIStrings{
@@ -184,6 +186,7 @@ func UI(lang string) UIStrings {
 			BlogViewMode:    "Blogi vaade",
 			BlogGraphView:   "Blogi graaf",
 			ToggleSectionOf: "Lülita jaotis",
+			LogIn:           "Logi sisse",
 		}
 	default:
 		return UIStrings{
@@ -215,6 +218,7 @@ func UI(lang string) UIStrings {
 			BlogViewMode:    "Blog view mode",
 			BlogGraphView:   "Blog graph view",
 			ToggleSectionOf: "Toggle section",
+			LogIn:           "Log in",
 		}
 	}
 }

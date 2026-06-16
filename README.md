@@ -142,6 +142,21 @@ content/
 - **Breadcrumbs**: Full path navigation
 - **Footer**: Custom content via template
 
+#### Localized navigation labels
+
+The engine only hardcodes labels for engine-owned UI and route segments such as `blog`, `docs`, `tags`, `archive`, and `graph`. Website/domain-specific labels should live with content, not in `config.yaml` or `internal/i18n`.
+
+Use localized page frontmatter for generated sidebar section titles, breadcrumbs, and header labels:
+
+```yaml
+---
+title: "Hinnaplaanid"
+navTitle: "Hinnad"
+---
+```
+
+When a section has no `index.md`, a self-named page such as `content/et/docs/beehive-sensors/beehive-sensors.md` can provide the parent section label. `navTitle` is optional and is intended for shorter menu labels when the visible page title should stay longer.
+
 ### 5. Theming
 
 #### Color Schemes

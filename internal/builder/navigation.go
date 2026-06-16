@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/tot-ra/blog-engine/internal/i18n"
+	"github.com/tot-ra/blog-engine/internal/parser"
 )
 
 // NavTree represents the full navigation hierarchy
@@ -44,7 +44,9 @@ func (t *NavTree) FlattenPages() []*NavNode {
 }
 
 // NavigationBuilder builds navigation trees from pages
-type NavigationBuilder struct{}
+type NavigationBuilder struct {
+	routeTitles map[string]string
+}
 
 // NewNavigationBuilder creates a new navigation builder
 func NewNavigationBuilder() *NavigationBuilder {
@@ -53,6 +55,7 @@ func NewNavigationBuilder() *NavigationBuilder {
 
 // BuildTree builds a NavTree from a set of pages
 func (nb *NavigationBuilder) BuildTree(pages map[string]*Page) *NavTree {
+	nb.routeTitles = collectRouteTitles(pages)
 	tree := &NavTree{
 		Root: &NavNode{
 			ID:       "root",
@@ -112,7 +115,7 @@ func (nb *NavigationBuilder) insertPage(tree *NavTree, page *Page) {
 				}
 				child = &NavNode{
 					ID:       page.ID,
-					Title:    page.Title,
+					Title:    displayTitleForPage(page),
 					URL:      page.URL,
 					Parent:   current,
 					Order:    order,
@@ -120,11 +123,10 @@ func (nb *NavigationBuilder) insertPage(tree *NavTree, page *Page) {
 					Children: make([]*NavNode, 0),
 				}
 			} else {
-				// Create intermediate section node
-				title := i18n.SegmentLabel(page.Language, seg)
-				if title == "" {
-					title = capitalizeFirst(seg)
-				}
+				// Create intermediate section node. Prefer titles discovered from
+				// localized content pages so section labels remain content metadata,
+				// not global config translations.
+				title := nb.titleForPath(fullPath, page.Language, seg)
 				child = &NavNode{
 					ID:       strings.Trim(fullPath, "/"),
 					Title:    title,
@@ -136,12 +138,16 @@ func (nb *NavigationBuilder) insertPage(tree *NavTree, page *Page) {
 			}
 			current.Children = append(current.Children, child)
 			tree.ByPath[fullPath] = child
+		} else if !isLast && child.Type == "section" {
+			if title := nb.routeTitleForPath(fullPath); title != "" {
+				child.Title = title
+			}
 		}
 
 		if isLast {
 			if child.Type == "section" {
 				child.ID = page.ID
-				child.Title = page.Title
+				child.Title = displayTitleForPage(page)
 				if page.Frontmatter != nil {
 					child.Order = page.Frontmatter.Order
 				}
@@ -176,4 +182,170 @@ func (nb *NavigationBuilder) sortChildren(node *NavNode) {
 	for _, child := range node.Children {
 		nb.sortChildren(child)
 	}
+}
+
+func (nb *NavigationBuilder) titleForPath(fullPath, lang, segment string) string {
+	if title := nb.routeTitleForPath(fullPath); title != "" {
+		return title
+	}
+	if title := segmentLabel(lang, segment); title != "" {
+		return title
+	}
+	return humanizeSegment(segment)
+}
+
+func (nb *NavigationBuilder) routeTitleForPath(fullPath string) string {
+	if nb == nil || len(nb.routeTitles) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(nb.routeTitles[normalizeNavURL(fullPath)])
+}
+
+func collectRouteTitles(pages map[string]*Page) map[string]string {
+	if len(pages) == 0 {
+		return nil
+	}
+
+	type routeTitle struct {
+		title    string
+		priority int
+	}
+
+	candidates := make(map[string]routeTitle, len(pages))
+	for _, page := range pages {
+		if page == nil || strings.TrimSpace(page.URL) == "" {
+			continue
+		}
+		if page.Frontmatter != nil && strings.TrimSpace(page.Frontmatter.RedirectURL) != "" {
+			// Redirect placeholders often point to a canonical language while keeping
+			// untranslated titles. Do not let them override labels for localized trees.
+			continue
+		}
+		title := displayTitleForPage(page)
+		if title == "" {
+			continue
+		}
+		for _, candidate := range pageTitleCandidateURLs(page) {
+			url := normalizeNavURL(candidate.URL)
+			if url == "" {
+				continue
+			}
+			existing, exists := candidates[url]
+			if exists && existing.priority >= candidate.Priority {
+				continue
+			}
+			candidates[url] = routeTitle{
+				title:    title,
+				priority: candidate.Priority,
+			}
+		}
+	}
+
+	out := make(map[string]string, len(candidates))
+	for url, candidate := range candidates {
+		out[url] = candidate.title
+	}
+	return out
+}
+
+type pageTitleCandidate struct {
+	URL      string
+	Priority int
+}
+
+func pageTitleCandidateURLs(page *Page) []pageTitleCandidate {
+	url := normalizeNavURL(page.URL)
+	if url == "" {
+		return nil
+	}
+	candidates := []pageTitleCandidate{{URL: url, Priority: 2}}
+
+	source := strings.TrimSpace(page.SourcePath)
+	if source == "" {
+		return candidates
+	}
+
+	name := strings.TrimSuffix(filepathBaseSlash(source), filepathExtSlash(source))
+	sourceDir := filepathDirSlash(source)
+	parentDirName := filepathBaseSlash(sourceDir)
+	parent := strings.Trim(strings.TrimSuffix(url, "/"), "/")
+	parts := []string{}
+	if parent != "" {
+		parts = strings.Split(parent, "/")
+	}
+	if len(parts) == 0 {
+		return candidates
+	}
+
+	last := parts[len(parts)-1]
+	slug := parser.GenerateSlug(name)
+	dirSlug := parser.GenerateSlug(parentDirName)
+	isSelfNamed := strings.EqualFold(parentDirName, name) || (dirSlug != "" && strings.EqualFold(dirSlug, slug))
+	if isSelfNamed && len(parts) > 1 && (strings.EqualFold(name, last) || (slug != "" && strings.EqualFold(slug, last))) {
+		// A common docs pattern is section/section.md instead of section/index.md.
+		// Treat that self-named page title as the section label.
+		candidates = append(candidates, pageTitleCandidate{
+			URL:      "/" + strings.Join(parts[:len(parts)-1], "/") + "/",
+			Priority: 1,
+		})
+	}
+	return candidates
+}
+
+func displayTitleForPage(page *Page) string {
+	if page == nil {
+		return ""
+	}
+	if page.Frontmatter != nil {
+		if title := strings.TrimSpace(page.Frontmatter.NavTitle); title != "" {
+			return title
+		}
+	}
+	return strings.TrimSpace(page.Title)
+}
+
+func normalizeNavURL(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+	trimmed = "/" + strings.Trim(trimmed, "/")
+	if trimmed == "/" {
+		return trimmed
+	}
+	return trimmed + "/"
+}
+
+func filepathBaseSlash(path string) string {
+	path = strings.TrimRight(strings.ReplaceAll(path, "\\", "/"), "/")
+	if idx := strings.LastIndex(path, "/"); idx >= 0 {
+		return path[idx+1:]
+	}
+	return path
+}
+
+func filepathDirSlash(path string) string {
+	path = strings.TrimRight(strings.ReplaceAll(path, "\\", "/"), "/")
+	if idx := strings.LastIndex(path, "/"); idx >= 0 {
+		return path[:idx]
+	}
+	return ""
+}
+
+func filepathExtSlash(path string) string {
+	base := filepathBaseSlash(path)
+	if idx := strings.LastIndex(base, "."); idx >= 0 {
+		return base[idx:]
+	}
+	return ""
+}
+
+func humanizeSegment(segment string) string {
+	segment = strings.TrimSpace(segment)
+	if segment == "" {
+		return ""
+	}
+	segment = strings.NewReplacer("-", " ", "_", " ").Replace(segment)
+	segment = strings.Join(strings.Fields(segment), " ")
+	return capitalizeFirst(segment)
 }
