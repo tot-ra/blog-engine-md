@@ -825,7 +825,7 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 		}
 	}
 	sidebarSectionKey, matchedSectionCfg := b.matchingSidebarSection(page)
-	if targetURL := localizedSectionURL(page.Language, matchedSectionCfg.SidebarRoot); targetURL != "" {
+	if targetURL := localizedSectionURLForPage(page.Language, b.config.I18n.Default, page.URL, matchedSectionCfg.SidebarRoot); targetURL != "" {
 		if found := findSidebarNodeByURL(rendererRoot, targetURL); found != nil {
 			sidebarRoot = found
 		}
@@ -879,7 +879,7 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 
 	// Generate breadcrumbs
 	if b.config.Navigation.Breadcrumbs.Enabled {
-		bcGen := NewBreadcrumbGenerator(b.languages)
+		bcGen := NewBreadcrumbGeneratorWithDefault(b.languages, b.config.I18n.Default)
 		builderCrumbs := bcGen.Generate(page, b.navTree)
 		data.Breadcrumbs = convertBreadcrumbs(builderCrumbs)
 	}
@@ -906,7 +906,7 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 		}
 		html = rendered
 	}
-	html = b.localizeInternalLinks(html, page.Language)
+	html = b.localizeInternalLinks(html, page.Language, page.URL)
 	html = siteFooterRe.ReplaceAllString(html, "")
 
 	// Determine output path
@@ -1434,14 +1434,11 @@ func markdownExcerpt(raw string, maxRunes int) string {
 	return ""
 }
 
-func (b *SiteBuilder) localizeInternalLinks(html, lang string) string {
+func (b *SiteBuilder) localizeInternalLinks(html, lang, currentURL string) string {
 	if len(b.config.I18n.Languages) <= 1 {
 		return html
 	}
-	prefix := "/" + strings.Trim(lang, "/")
-	if prefix == "/" {
-		prefix = "/" + b.config.I18n.Default
-	}
+	prefix := languageURLPrefix(lang, b.config.I18n.Default, currentURL)
 	for _, seg := range []string{"blog", "docs", "tags", "archive", "graph"} {
 		html = strings.ReplaceAll(html, "href=\"/"+seg+"/", "href=\""+prefix+"/"+seg+"/")
 		html = strings.ReplaceAll(html, "src=\"/"+seg+"/", "src=\""+prefix+"/"+seg+"/")
@@ -1532,9 +1529,9 @@ func (b *SiteBuilder) buildHeaderNav(lang, currentURL string) []renderer.NavLink
 			path = strings.TrimSpace(localizedPath)
 		}
 		if target == "" && path != "" {
-			langPrefix := lang
-			if len(b.config.I18n.Languages) <= 1 {
-				langPrefix = ""
+			langPrefix := ""
+			if len(b.config.I18n.Languages) > 1 {
+				langPrefix = strings.Trim(languageURLPrefix(lang, b.config.I18n.Default, currentURL), "/")
 			}
 			target = buildLanguageScopedURL(langPrefix, path)
 		}
@@ -1661,16 +1658,17 @@ func (b *SiteBuilder) buildLanguageOptions(page *Page) []renderer.LanguageOption
 		if targetPath == "/" {
 			targetPath = ""
 		}
-		candidate := "/" + code + "/"
+		prefix := languageURLPrefix(code, b.config.I18n.Default, page.URL)
+		candidate := prefix + "/"
 		if targetPath != "" {
-			candidate = "/" + code + "/" + strings.Trim(targetPath, "/") + "/"
+			candidate = prefix + "/" + strings.Trim(targetPath, "/") + "/"
 		}
 
 		if _, ok := b.pagesByURL[candidate]; !ok {
 			if section != "" {
-				candidate = "/" + code + "/" + section + "/"
+				candidate = prefix + "/" + section + "/"
 			} else {
-				candidate = "/" + code + "/"
+				candidate = prefix + "/"
 			}
 		}
 
@@ -1975,12 +1973,39 @@ func normalizeSectionPattern(raw string) string {
 }
 
 func localizedSectionURL(language, raw string) string {
-	trimmedLang := strings.Trim(strings.TrimSpace(language), "/")
+	return localizedSectionURLForPage(language, "", "", raw)
+}
+
+func localizedSectionURLForPage(language, defaultLanguage, currentURL, raw string) string {
 	trimmedRaw := strings.Trim(strings.TrimSpace(raw), "/")
-	if trimmedLang == "" || trimmedRaw == "" {
+	if trimmedRaw == "" {
 		return ""
 	}
-	return "/" + trimmedLang + "/" + trimmedRaw + "/"
+	prefix := languageURLPrefix(language, defaultLanguage, currentURL)
+	return prefix + "/" + trimmedRaw + "/"
+}
+
+func languageURLPrefix(language, defaultLanguage, currentURL string) string {
+	trimmedLang := strings.Trim(strings.TrimSpace(language), "/")
+	if trimmedLang == "" {
+		trimmedLang = strings.Trim(strings.TrimSpace(defaultLanguage), "/")
+	}
+	if trimmedLang == "" {
+		return ""
+	}
+
+	trimmedURL := strings.Trim(currentURL, "/")
+	if trimmedURL != "" {
+		parts := strings.Split(trimmedURL, "/")
+		if len(parts) > 0 && strings.EqualFold(parts[0], trimmedLang) {
+			return "/" + parts[0]
+		}
+	}
+
+	if strings.EqualFold(trimmedLang, strings.TrimSpace(defaultLanguage)) {
+		return ""
+	}
+	return "/" + trimmedLang
 }
 
 func (b *SiteBuilder) sidebarExcludeURLs(page *Page) []string {
@@ -1994,7 +2019,7 @@ func (b *SiteBuilder) sidebarExcludeURLs(page *Page) []string {
 			continue
 		}
 		for _, raw := range rule.ExcludePaths {
-			if localized := localizedSectionURL(page.Language, raw); localized != "" {
+			if localized := localizedSectionURLForPage(page.Language, b.config.I18n.Default, page.URL, raw); localized != "" {
 				excludes = append(excludes, localized)
 			}
 		}

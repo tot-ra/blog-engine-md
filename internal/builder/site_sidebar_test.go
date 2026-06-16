@@ -49,6 +49,56 @@ func TestRenderPage_CategoryOnlySidebarSectionUsesRegularSidebar(t *testing.T) {
 	}
 }
 
+func TestRenderPage_DefaultLanguageDocsSidebarUsesUnprefixedLinks(t *testing.T) {
+	cfg := sidebarRenderTestConfig(t)
+	cfg.I18n.Languages = []config.LanguageConfig{
+		{Code: "en", Label: "English"},
+		{Code: "et", Label: "Eesti"},
+	}
+	cfg.Navigation.Sidebar.Sections = map[string]config.SidebarSectionConfig{
+		"docs": {
+			DefaultMode: "categories",
+			EnableTime:  false,
+			EnableGraph: false,
+			MatchPaths:  []string{"docs"},
+			SidebarRoot: "docs",
+		},
+	}
+
+	docsIndex := &Page{
+		ID:          "docs-index",
+		URL:         "/docs/",
+		Language:    "en",
+		Title:       "Docs",
+		Content:     "<p>Docs</p>",
+		Type:        TypeDoc,
+		Frontmatter: &parser.Frontmatter{},
+	}
+	child := &Page{
+		ID:          "docs-beehive-sensors",
+		URL:         "/docs/beehive-sensors/",
+		Language:    "en",
+		Title:       "Beehive sensors",
+		Content:     "<p>Beehive sensors</p>",
+		Type:        TypeDoc,
+		Frontmatter: &parser.Frontmatter{},
+	}
+	b := sidebarRenderTestBuilder(t, cfg, docsIndex, child)
+
+	if err := b.renderPage(docsIndex); err != nil {
+		t.Fatalf("render page: %v", err)
+	}
+
+	html := readRenderedPage(t, cfg, "docs/index.html")
+	sidebar := sidebarNavHTML(t, html)
+	if !strings.Contains(sidebar, `href="/docs/beehive-sensors/"`) {
+		t.Fatalf("expected unprefixed docs child link in sidebar, got %q", sidebar)
+	}
+	if strings.Contains(sidebar, `href="/en/docs/`) {
+		t.Fatalf("expected default-language docs sidebar to avoid /en/ links, got %q", sidebar)
+	}
+}
+
 func TestRenderPage_BlogSidebarStillUsesConfiguredModes(t *testing.T) {
 	cfg := sidebarRenderTestConfig(t)
 	cfg.Navigation.Sidebar.Sections = map[string]config.SidebarSectionConfig{
