@@ -68,6 +68,37 @@ func TestBuildHeaderNavMarksCurrentSection(t *testing.T) {
 	}
 }
 
+func TestBuildHeaderNavDefaultLanguageUsesCurrentURLShape(t *testing.T) {
+	b := &SiteBuilder{
+		config: &config.SiteConfig{
+			I18n: config.I18nConfig{
+				Default: "en",
+				Languages: []config.LanguageConfig{
+					{Code: "en", Label: "English"},
+					{Code: "et", Label: "Eesti"},
+				},
+			},
+			Navigation: config.Navigation{
+				Header: config.HeaderConfig{
+					Enabled: true,
+					Items:   []config.HeaderItem{{Title: "Docs", Path: "docs"}},
+				},
+			},
+		},
+	}
+
+	nav := b.buildHeaderNav("en", "/docs/beehive-sensors/")
+	if len(nav) != 1 {
+		t.Fatalf("expected one nav item, got %d", len(nav))
+	}
+	if nav[0].URL != "/docs/" {
+		t.Fatalf("expected default-language docs URL to stay unprefixed, got %q", nav[0].URL)
+	}
+	if !nav[0].IsCurrent {
+		t.Fatalf("expected docs nav item to be current")
+	}
+}
+
 func TestBuildHeaderNavUsesLocalizedContentLabels(t *testing.T) {
 	b := &SiteBuilder{
 		config: &config.SiteConfig{

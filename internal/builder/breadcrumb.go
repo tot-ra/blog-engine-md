@@ -21,7 +21,12 @@ type BreadcrumbGenerator struct {
 
 // NewBreadcrumbGenerator creates a new breadcrumb generator.
 func NewBreadcrumbGenerator(langCodes map[string]struct{}) *BreadcrumbGenerator {
-	return &BreadcrumbGenerator{langCodes: langCodes}
+	return NewBreadcrumbGeneratorWithDefault(langCodes, "")
+}
+
+// NewBreadcrumbGeneratorWithDefault creates a breadcrumb generator aware of the default language URL shape.
+func NewBreadcrumbGeneratorWithDefault(langCodes map[string]struct{}, defaultLang string) *BreadcrumbGenerator {
+	return &BreadcrumbGenerator{langCodes: langCodes, defaultLang: strings.ToLower(strings.TrimSpace(defaultLang))}
 }
 
 // NewDefaultAwareBreadcrumbGenerator creates breadcrumbs where the default

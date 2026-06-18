@@ -42,6 +42,22 @@ func TestBreadcrumb_NestedPage(t *testing.T) {
 	}
 }
 
+func TestBreadcrumb_DefaultLanguageUnprefixedPage(t *testing.T) {
+	page := &Page{URL: "/docs/web-app/", Title: "Web App", Language: "en", Frontmatter: &parser.Frontmatter{}}
+	gen := NewBreadcrumbGeneratorWithDefault(map[string]struct{}{"en": {}, "et": {}}, "en")
+	crumbs := gen.Generate(page, nil)
+
+	if len(crumbs) != 3 {
+		t.Fatalf("Expected 3 crumbs, got %d", len(crumbs))
+	}
+	if crumbs[0].URL != "/" {
+		t.Fatalf("Expected default-language home URL to be '/', got %q", crumbs[0].URL)
+	}
+	if crumbs[1].URL != "/docs/" {
+		t.Fatalf("Expected docs breadcrumb to stay unprefixed, got %q", crumbs[1].URL)
+	}
+}
+
 func TestBreadcrumb_WithNavTree(t *testing.T) {
 	pages := map[string]*Page{
 		"p1": {ID: "p1", Title: "My Post", URL: "/en/blog/my-post/", Language: "en", Type: TypeBlog, Frontmatter: &parser.Frontmatter{}},

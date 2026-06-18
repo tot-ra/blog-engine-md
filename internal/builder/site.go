@@ -825,7 +825,7 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 		}
 	}
 	sidebarSectionKey, matchedSectionCfg := b.matchingSidebarSection(page)
-	if targetURL := b.localizedSectionURL(page.Language, matchedSectionCfg.SidebarRoot); targetURL != "" {
+	if targetURL := localizedSectionURLForPage(page.Language, b.config.I18n.Default, page.URL, matchedSectionCfg.SidebarRoot); targetURL != "" {
 		if found := findSidebarNodeByURL(rendererRoot, targetURL); found != nil {
 			sidebarRoot = found
 		}
@@ -903,7 +903,7 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 		}
 		html = rendered
 	}
-	html = b.localizeInternalLinks(html, page.Language)
+	html = b.localizeInternalLinks(html, page.Language, page.URL)
 	html = siteFooterRe.ReplaceAllString(html, "")
 
 	// Determine output path
@@ -1428,19 +1428,13 @@ func markdownExcerpt(raw string, maxRunes int) string {
 	return ""
 }
 
-func (b *SiteBuilder) localizeInternalLinks(html, lang string) string {
+func (b *SiteBuilder) localizeInternalLinks(html, lang, currentURL string) string {
 	if len(b.config.I18n.Languages) <= 1 {
 		return html
 	}
-	// The default language is served from root URLs (/blog/...), not from
-	// /<lang>/ URLs. Only non-default locales should receive a language prefix.
-	if b.isDefaultLanguage(lang) {
-		return html
-	}
-	prefix := "/" + strings.Trim(lang, "/")
-	if prefix == "/" {
-		return html
-	}
+	// languageURLPrefix returns an empty prefix for the default language, keeping
+	// canonical default-language links at root while prefixing translated pages.
+	prefix := languageURLPrefix(lang, b.config.I18n.Default, currentURL)
 	for _, seg := range []string{"blog", "docs", "tags", "archive", "graph"} {
 		html = strings.ReplaceAll(html, "href=\"/"+seg+"/", "href=\""+prefix+"/"+seg+"/")
 		html = strings.ReplaceAll(html, "src=\"/"+seg+"/", "src=\""+prefix+"/"+seg+"/")
@@ -1520,9 +1514,9 @@ func (b *SiteBuilder) buildHeaderNav(lang, currentURL string) []renderer.NavLink
 		target := strings.TrimSpace(item.URL)
 		path := strings.TrimSpace(item.Path)
 		if target == "" && path != "" {
-			langPrefix := lang
-			if len(b.config.I18n.Languages) <= 1 {
-				langPrefix = ""
+			langPrefix := ""
+			if len(b.config.I18n.Languages) > 1 {
+				langPrefix = strings.Trim(languageURLPrefix(lang, b.config.I18n.Default, currentURL), "/")
 			}
 			target = b.buildLanguageScopedURL(langPrefix, path)
 		}
@@ -2144,12 +2138,51 @@ func normalizeSectionPattern(raw string) string {
 	return "/" + trimmed + "/"
 }
 
+func localizedSectionURL(language, raw string) string {
+	return localizedSectionURLForPage(language, "", "", raw)
+}
+
 func (b *SiteBuilder) localizedSectionURL(language, raw string) string {
+	defaultLanguage := ""
+	if b != nil && b.config != nil {
+		defaultLanguage = b.config.I18n.Default
+	}
+	return localizedSectionURLForPage(language, defaultLanguage, "", raw)
+}
+
+func localizedSectionURLForPage(language, defaultLanguage, currentURL, raw string) string {
 	trimmedRaw := strings.Trim(strings.TrimSpace(raw), "/")
 	if trimmedRaw == "" {
 		return ""
 	}
-	return b.buildLanguageScopedURL(language, trimmedRaw)
+	prefix := languageURLPrefix(language, defaultLanguage, currentURL)
+	return prefix + "/" + trimmedRaw + "/"
+}
+
+func languageURLPrefix(language, defaultLanguage, currentURL string) string {
+	trimmedLang := strings.Trim(strings.TrimSpace(language), "/")
+	trimmedDefault := strings.Trim(strings.TrimSpace(defaultLanguage), "/")
+	if trimmedLang == "" {
+		trimmedLang = trimmedDefault
+	}
+	if trimmedLang == "" {
+		return ""
+	}
+
+	// Default-language content is canonical at root even in multilingual sites.
+	if trimmedDefault != "" && strings.EqualFold(trimmedLang, trimmedDefault) {
+		return ""
+	}
+
+	trimmedURL := strings.Trim(currentURL, "/")
+	if trimmedURL != "" {
+		parts := strings.Split(trimmedURL, "/")
+		if len(parts) > 0 && strings.EqualFold(parts[0], trimmedLang) {
+			return "/" + parts[0]
+		}
+	}
+
+	return "/" + trimmedLang
 }
 
 func (b *SiteBuilder) sidebarExcludeURLs(page *Page) []string {
@@ -2163,7 +2196,7 @@ func (b *SiteBuilder) sidebarExcludeURLs(page *Page) []string {
 			continue
 		}
 		for _, raw := range rule.ExcludePaths {
-			if localized := b.localizedSectionURL(page.Language, raw); localized != "" {
+			if localized := localizedSectionURLForPage(page.Language, b.config.I18n.Default, page.URL, raw); localized != "" {
 				excludes = append(excludes, localized)
 			}
 		}

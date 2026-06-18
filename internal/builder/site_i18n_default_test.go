@@ -42,7 +42,7 @@ func TestLocalizeInternalLinksKeepsDefaultLanguageAtRoot(t *testing.T) {
 	b := newDefaultRootI18nBuilder(t)
 	html := `<a href="/blog/post/">Post</a><img src="/graph/data.json"><a href="/docs/">Docs</a>`
 
-	got := b.localizeInternalLinks(html, "en")
+	got := b.localizeInternalLinks(html, "en", "/blog/post/")
 	if strings.Contains(got, "/en/blog/") || strings.Contains(got, "/en/docs/") || strings.Contains(got, "/en/graph/") {
 		t.Fatalf("expected default-language links to remain root-relative, got %q", got)
 	}
@@ -55,7 +55,7 @@ func TestLocalizeInternalLinksPrefixesNonDefaultLanguage(t *testing.T) {
 	b := newDefaultRootI18nBuilder(t)
 	html := `<a href="/blog/post/">Post</a><img src="/graph/data.json">`
 
-	got := b.localizeInternalLinks(html, "ru")
+	got := b.localizeInternalLinks(html, "ru", "/ru/blog/post/")
 	if !strings.Contains(got, `href="/ru/blog/post/"`) || !strings.Contains(got, `src="/ru/graph/data.json"`) {
 		t.Fatalf("expected non-default language links to be prefixed, got %q", got)
 	}

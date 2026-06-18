@@ -36,29 +36,31 @@ func detectLanguageAndContentPath(relPath, defaultLang string, languages map[str
 }
 
 func languageBasePath(pageURL, lang, defaultLang string) string {
-	lang = strings.ToLower(strings.TrimSpace(lang))
-	defaultLang = strings.ToLower(strings.TrimSpace(defaultLang))
-	if defaultLang != "" && strings.EqualFold(lang, defaultLang) {
+	trimmedLang := strings.Trim(strings.TrimSpace(lang), "/")
+	trimmedDefault := strings.Trim(strings.TrimSpace(defaultLang), "/")
+	// The default language is served from root URLs (/...), not /<lang>/.
+	if trimmedDefault != "" && strings.EqualFold(trimmedLang, trimmedDefault) {
 		return "/"
 	}
+
 	trimmed := strings.Trim(pageURL, "/")
 	if trimmed == "" {
-		if lang == "" {
+		if trimmedLang == "" {
 			return "/"
 		}
-		return "/" + lang + "/"
+		return "/" + trimmedLang + "/"
 	}
 	parts := strings.Split(trimmed, "/")
 	if len(parts) == 0 {
 		return "/"
 	}
-	if strings.EqualFold(parts[0], lang) && lang != "" {
+	if trimmedLang != "" && strings.EqualFold(parts[0], trimmedLang) {
 		return "/" + parts[0] + "/"
 	}
-	if lang == "" {
+	if trimmedLang == "" {
 		return "/"
 	}
-	return "/" + lang + "/"
+	return "/" + trimmedLang + "/"
 }
 
 func withLanguagePrefix(lang, defaultLang, path string) string {
