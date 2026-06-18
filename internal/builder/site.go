@@ -825,7 +825,7 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 		}
 	}
 	sidebarSectionKey, matchedSectionCfg := b.matchingSidebarSection(page)
-	if targetURL := localizedSectionURL(page.Language, matchedSectionCfg.SidebarRoot); targetURL != "" {
+	if targetURL := b.localizedSectionURL(page.Language, matchedSectionCfg.SidebarRoot); targetURL != "" {
 		if found := findSidebarNodeByURL(rendererRoot, targetURL); found != nil {
 			sidebarRoot = found
 		}
@@ -837,10 +837,7 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 		data.Sidebar = ""
 	} else if page.Type == TypeBlog {
 		timeline := b.blogTimeline[page.Language]
-		graphURL := "/graph/"
-		if len(b.config.I18n.Languages) > 1 {
-			graphURL = fmt.Sprintf("/%s/graph/", page.Language)
-		}
+		graphURL := b.buildLanguageScopedURL(page.Language, "graph")
 		sectionCfg := b.sidebarSectionConfig("blog")
 		if !sectionCfg.EnableTime {
 			timeline = nil
@@ -879,7 +876,7 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 
 	// Generate breadcrumbs
 	if b.config.Navigation.Breadcrumbs.Enabled {
-		bcGen := NewBreadcrumbGenerator(b.languages)
+		bcGen := NewDefaultAwareBreadcrumbGenerator(b.languages, b.config.I18n.Default)
 		builderCrumbs := bcGen.Generate(page, b.navTree)
 		data.Breadcrumbs = convertBreadcrumbs(builderCrumbs)
 	}
@@ -1435,9 +1432,14 @@ func (b *SiteBuilder) localizeInternalLinks(html, lang string) string {
 	if len(b.config.I18n.Languages) <= 1 {
 		return html
 	}
+	// The default language is served from root URLs (/blog/...), not from
+	// /<lang>/ URLs. Only non-default locales should receive a language prefix.
+	if b.isDefaultLanguage(lang) {
+		return html
+	}
 	prefix := "/" + strings.Trim(lang, "/")
 	if prefix == "/" {
-		prefix = "/" + b.config.I18n.Default
+		return html
 	}
 	for _, seg := range []string{"blog", "docs", "tags", "archive", "graph"} {
 		html = strings.ReplaceAll(html, "href=\"/"+seg+"/", "href=\""+prefix+"/"+seg+"/")
@@ -1522,7 +1524,7 @@ func (b *SiteBuilder) buildHeaderNav(lang, currentURL string) []renderer.NavLink
 			if len(b.config.I18n.Languages) <= 1 {
 				langPrefix = ""
 			}
-			target = buildLanguageScopedURL(langPrefix, path)
+			target = b.buildLanguageScopedURL(langPrefix, path)
 		}
 		if target == "" {
 			continue
@@ -1794,6 +1796,15 @@ func buildLanguageScopedURL(lang, path string) string {
 	return "/" + strings.Trim(lang, "/") + "/" + trimmedPath + "/"
 }
 
+func (b *SiteBuilder) buildLanguageScopedURL(lang, path string) string {
+	// Keep default-language routes canonical at the site root; reserve
+	// /<lang>/ prefixes for non-default translations.
+	if b.isDefaultLanguage(lang) {
+		lang = ""
+	}
+	return buildLanguageScopedURL(lang, path)
+}
+
 func (b *SiteBuilder) buildLanguageOptions(page *Page) []renderer.LanguageOption {
 	if len(b.config.I18n.Languages) <= 1 {
 		return nil
@@ -1823,16 +1834,13 @@ func (b *SiteBuilder) buildLanguageOptions(page *Page) []renderer.LanguageOption
 		if targetPath == "/" {
 			targetPath = ""
 		}
-		candidate := "/" + code + "/"
-		if targetPath != "" {
-			candidate = "/" + code + "/" + strings.Trim(targetPath, "/") + "/"
-		}
+		candidate := b.buildLanguageScopedURL(code, targetPath)
 
 		if _, ok := b.pagesByURL[candidate]; !ok {
 			if section != "" {
-				candidate = "/" + code + "/" + section + "/"
+				candidate = b.buildLanguageScopedURL(code, section)
 			} else {
-				candidate = "/" + code + "/"
+				candidate = b.buildLanguageScopedURL(code, "")
 			}
 		}
 
@@ -2136,13 +2144,12 @@ func normalizeSectionPattern(raw string) string {
 	return "/" + trimmed + "/"
 }
 
-func localizedSectionURL(language, raw string) string {
-	trimmedLang := strings.Trim(strings.TrimSpace(language), "/")
+func (b *SiteBuilder) localizedSectionURL(language, raw string) string {
 	trimmedRaw := strings.Trim(strings.TrimSpace(raw), "/")
-	if trimmedLang == "" || trimmedRaw == "" {
+	if trimmedRaw == "" {
 		return ""
 	}
-	return "/" + trimmedLang + "/" + trimmedRaw + "/"
+	return b.buildLanguageScopedURL(language, trimmedRaw)
 }
 
 func (b *SiteBuilder) sidebarExcludeURLs(page *Page) []string {
@@ -2156,7 +2163,7 @@ func (b *SiteBuilder) sidebarExcludeURLs(page *Page) []string {
 			continue
 		}
 		for _, raw := range rule.ExcludePaths {
-			if localized := localizedSectionURL(page.Language, raw); localized != "" {
+			if localized := b.localizedSectionURL(page.Language, raw); localized != "" {
 				excludes = append(excludes, localized)
 			}
 		}
@@ -2313,10 +2320,7 @@ func (b *SiteBuilder) generateTagPages(taggedPages []*Page) error {
 
 		ui := i18n.UI(lang)
 		tagCloudHTML := b.buildTagCloudHTML(tagIdx, allTags, lang)
-		tagsURL := "/" + lang + "/tags/"
-		if len(b.config.I18n.Languages) <= 1 {
-			tagsURL = "/tags/"
-		}
+		tagsURL := b.buildLanguageScopedURL(lang, "tags")
 		tagCloudPage := &Page{
 			ID:          lang + "-tags",
 			URL:         tagsURL,
@@ -2338,10 +2342,7 @@ func (b *SiteBuilder) generateTagPages(taggedPages []*Page) error {
 			tagPages := tagIdx[tag]
 			tagSlug := parser.GenerateSlug(tag)
 			tagPageHTML := b.buildTagPageHTML(tag, tagPages, lang)
-			tagURL := "/" + lang + "/tags/" + tagSlug + "/"
-			if len(b.config.I18n.Languages) <= 1 {
-				tagURL = "/tags/" + tagSlug + "/"
-			}
+			tagURL := b.buildLanguageScopedURL(lang, "tags/"+tagSlug)
 
 			tagPage := &Page{
 				ID:          lang + "-tags-" + tagSlug,
@@ -2375,7 +2376,7 @@ func (b *SiteBuilder) buildTagCloudHTML(idx tags.TagIndex, allTags []string, lan
 	for _, tag := range allTags {
 		slug := parser.GenerateSlug(tag)
 		count := idx.Count(tag)
-		sb.WriteString(fmt.Sprintf("  <li><a href=\"/%s/tags/%s/\" class=\"tag\">%s</a> <span class=\"tag-count\">(%d)</span></li>\n", lang, slug, tag, count))
+		sb.WriteString(fmt.Sprintf("  <li><a href=\"%s\" class=\"tag\">%s</a> <span class=\"tag-count\">(%d)</span></li>\n", b.buildLanguageScopedURL(lang, "tags/"+slug), tag, count))
 	}
 	sb.WriteString("</ul>\n")
 	sb.WriteString("</div>\n")
@@ -2421,10 +2422,7 @@ func (b *SiteBuilder) generateArchivePages(blogPosts []*Page) error {
 		}
 
 		archiveHTML := b.buildArchiveIndexHTML(archiveData, lang)
-		archiveURL := "/" + lang + "/archive/"
-		if len(b.config.I18n.Languages) <= 1 {
-			archiveURL = "/archive/"
-		}
+		archiveURL := b.buildLanguageScopedURL(lang, "archive")
 		archivePage := &Page{
 			ID:          lang + "-archive",
 			URL:         archiveURL,
@@ -2444,10 +2442,7 @@ func (b *SiteBuilder) generateArchivePages(blogPosts []*Page) error {
 
 		for _, year := range archiveData {
 			yearHTML := b.buildArchiveYearHTML(year, lang)
-			yearURL := fmt.Sprintf("/%s/archive/%d/", lang, year.Year)
-			if len(b.config.I18n.Languages) <= 1 {
-				yearURL = fmt.Sprintf("/archive/%d/", year.Year)
-			}
+			yearURL := b.buildLanguageScopedURL(lang, fmt.Sprintf("archive/%d", year.Year))
 			yearPage := &Page{
 				ID:          fmt.Sprintf("%s-archive-%d", lang, year.Year),
 				URL:         yearURL,
@@ -2477,10 +2472,7 @@ func (b *SiteBuilder) buildArchiveIndexHTML(years []archive.ArchiveYear, lang st
 	var sb strings.Builder
 	sb.WriteString("<div class=\"archive\">\n")
 	for _, year := range years {
-		yearURL := fmt.Sprintf("/%s/archive/%d/", lang, year.Year)
-		if len(b.config.I18n.Languages) <= 1 {
-			yearURL = fmt.Sprintf("/archive/%d/", year.Year)
-		}
+		yearURL := b.buildLanguageScopedURL(lang, fmt.Sprintf("archive/%d", year.Year))
 		sb.WriteString(fmt.Sprintf("<h2><a href=\"%s\">%d</a> <span class=\"count\">(%d)</span></h2>\n", yearURL, year.Year, year.Count))
 		for _, month := range year.Months {
 			sb.WriteString(fmt.Sprintf("<h3>%s %d</h3>\n", i18n.MonthName(lang, month.Month), month.Year))
@@ -2699,7 +2691,7 @@ func (b *SiteBuilder) generateGraph() error {
 	if len(b.config.I18n.Languages) > 1 {
 		for _, lang := range b.config.I18n.Languages {
 			code := strings.ToLower(strings.TrimSpace(lang.Code))
-			if code == "" {
+			if code == "" || b.isDefaultLanguage(code) {
 				continue
 			}
 			graphDir := filepath.Join(b.config.Build.OutputDir, code, "graph")

@@ -15,18 +15,25 @@ type BreadcrumbItem struct {
 
 // BreadcrumbGenerator generates breadcrumb trails for pages
 type BreadcrumbGenerator struct {
-	langCodes map[string]struct{}
+	langCodes   map[string]struct{}
+	defaultLang string
 }
 
-// NewBreadcrumbGenerator creates a new breadcrumb generator
+// NewBreadcrumbGenerator creates a new breadcrumb generator.
 func NewBreadcrumbGenerator(langCodes map[string]struct{}) *BreadcrumbGenerator {
 	return &BreadcrumbGenerator{langCodes: langCodes}
+}
+
+// NewDefaultAwareBreadcrumbGenerator creates breadcrumbs where the default
+// language is canonical at root paths instead of under /<lang>/.
+func NewDefaultAwareBreadcrumbGenerator(langCodes map[string]struct{}, defaultLang string) *BreadcrumbGenerator {
+	return &BreadcrumbGenerator{langCodes: langCodes, defaultLang: strings.ToLower(strings.TrimSpace(defaultLang))}
 }
 
 // Generate creates a breadcrumb trail for a page using the nav tree for title lookups
 func (g *BreadcrumbGenerator) Generate(page *Page, tree *NavTree) []BreadcrumbItem {
 	homeLabel := i18n.UI(page.Language).Home
-	homeURL := languageBasePath(page.URL, page.Language, page.Language)
+	homeURL := languageBasePath(page.URL, page.Language, g.defaultLang)
 	if len(g.langCodes) <= 1 {
 		homeURL = "/"
 	}

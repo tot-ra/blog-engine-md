@@ -36,7 +36,11 @@ func detectLanguageAndContentPath(relPath, defaultLang string, languages map[str
 }
 
 func languageBasePath(pageURL, lang, defaultLang string) string {
-	_ = defaultLang
+	lang = strings.ToLower(strings.TrimSpace(lang))
+	defaultLang = strings.ToLower(strings.TrimSpace(defaultLang))
+	if defaultLang != "" && strings.EqualFold(lang, defaultLang) {
+		return "/"
+	}
 	trimmed := strings.Trim(pageURL, "/")
 	if trimmed == "" {
 		if lang == "" {

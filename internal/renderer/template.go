@@ -60,6 +60,8 @@ type PageData struct {
 	Site            config.SiteConfig
 	Homepage        config.HomepageConfig
 	Page            Page
+	HomeURL         string
+	TagURL          func(string) string
 	CanonicalURL    string
 	SocialImageURL  string
 	OpenGraphType   string
@@ -874,7 +876,7 @@ const defaultTemplates = `{{define "base"}}
 <body class="{{if .Page.Layout}}page-layout-{{.Page.Layout}}{{else}}page-layout-page{{end}}">
     <header class="site-header">
         <div class="header-left">
-            <a class="navbar-logo" href="/{{.Page.Language}}/">
+            <a class="navbar-logo" href="{{.HomeURL}}">
                 <img class="no-transform" src="{{.Site.Site.Logo}}" alt="{{.Site.Site.Title}}">
             </a>
             <nav class="site-nav">
@@ -1112,7 +1114,7 @@ const defaultTemplates = `{{define "base"}}
     {{if .Frontmatter.Tags}}
     <div class="tags">
         {{range .Frontmatter.Tags}}
-        <a class="tag" href="/{{$.Page.Language}}/tags/{{slugify .}}/">#{{.}}</a>
+        <a class="tag" href="{{$.TagURL .}}">#{{.}}</a>
         {{end}}
     </div>
     {{end}}
@@ -1594,7 +1596,7 @@ const defaultTemplates = `{{define "base"}}
 <body>
     <header class="site-header">
         <div class="header-left">
-            <a class="navbar-logo" href="/{{.Page.Language}}/">
+            <a class="navbar-logo" href="{{.HomeURL}}">
                 <img class="no-transform" src="{{.Site.Site.Logo}}" alt="{{.Site.Site.Title}}">
             </a>
             <nav class="site-nav">

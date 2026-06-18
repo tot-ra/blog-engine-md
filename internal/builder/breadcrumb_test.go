@@ -113,3 +113,19 @@ func TestBreadcrumb_UsesLocalizedContentSectionLabels(t *testing.T) {
 		t.Fatalf("expected content-derived segment label, got %q", crumbs[2].Title)
 	}
 }
+
+func TestBreadcrumb_DefaultLanguageUsesRootURLs(t *testing.T) {
+	page := &Page{URL: "/research/papers/bee-study/", Title: "Bee Study", Language: "en", Frontmatter: &parser.Frontmatter{}}
+	gen := NewDefaultAwareBreadcrumbGenerator(map[string]struct{}{"en": {}, "ru": {}}, "en")
+	crumbs := gen.Generate(page, nil)
+
+	if len(crumbs) != 4 {
+		t.Fatalf("Expected 4 crumbs, got %d", len(crumbs))
+	}
+	if crumbs[0].URL != "/" {
+		t.Fatalf("expected default-language home crumb at root, got %+v", crumbs[0])
+	}
+	if crumbs[1].URL != "/research/" || crumbs[2].URL != "/research/papers/" {
+		t.Fatalf("expected default-language breadcrumb URLs at root, got %+v", crumbs)
+	}
+}
