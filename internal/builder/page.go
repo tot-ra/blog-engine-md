@@ -193,12 +193,17 @@ func (b *PageBuilder) Build(file ContentFile) (*Page, error) {
 		title = strings.ReplaceAll(title, "_", " ")
 	}
 
+	// Avoid rendering the same top-level heading twice. Page templates already render
+	// page.Title as the visible <h1>, while many imported markdown files also include
+	// an identical "# Title" heading, sometimes after a hero image block.
+	renderContent := stripDuplicateTitleHeading(remaining, title)
+
 	// Process wiki links [[Page Title]] -> [Page Title](/page-title/)
-	processedContent := remaining
+	processedContent := renderContent
 	if b.pageResolver != nil {
-		processedContent = parser.ProcessWikiLinks(remaining, b.pageResolver)
+		processedContent = parser.ProcessWikiLinks(renderContent, b.pageResolver)
 	} else {
-		processedContent = parser.SimpleWikiLinkProcessor(remaining)
+		processedContent = parser.SimpleWikiLinkProcessor(renderContent)
 	}
 	processedContent = rewriteLocalMarkdownLinks(processedContent, file.RelativePath, b.markdownLinkResolver)
 	processedContent = rewriteLocalAssetReferences(processedContent, file.RelativePath)
@@ -211,8 +216,8 @@ func (b *PageBuilder) Build(file ContentFile) (*Page, error) {
 		return nil, fmt.Errorf("failed to render markdown in %s: %w", file.Path, err)
 	}
 
-	// Extract TOC from content
-	toc := extractTOC(remaining)
+	// Extract TOC from rendered markdown content
+	toc := extractTOC(renderContent)
 
 	page := &Page{
 		ID:           id,
@@ -222,7 +227,7 @@ func (b *PageBuilder) Build(file ContentFile) (*Page, error) {
 		Title:        title,
 		Description:  fm.Description,
 		Content:      htmlContent,
-		RawContent:   remaining,
+		RawContent:   renderContent,
 		Frontmatter:  fm,
 		TOC:          toc,
 		Type:         pageType,
@@ -406,6 +411,65 @@ func rewriteLocalAssetDestination(destination, pageDir string) string {
 		joined = "/" + joined
 	}
 	return joined + suffix
+}
+
+func stripDuplicateTitleHeading(content, title string) string {
+	trimmedTitle := strings.TrimSpace(title)
+	if trimmedTitle == "" {
+		return content
+	}
+
+	lines := strings.SplitAfter(content, "\n")
+	if len(lines) == 0 {
+		return content
+	}
+
+	inFence := false
+	for i, line := range lines {
+		trimmedLeft := strings.TrimLeft(line, " \t")
+		if strings.HasPrefix(trimmedLeft, "```") || strings.HasPrefix(trimmedLeft, "~~~") {
+			inFence = !inFence
+			continue
+		}
+		if inFence {
+			continue
+		}
+
+		headingText, ok := parseATXH1Text(line)
+		if !ok || !sameHeadingText(headingText, trimmedTitle) {
+			continue
+		}
+
+		end := i + 1
+		for end < len(lines) && strings.TrimSpace(lines[end]) == "" {
+			end++
+		}
+		out := append([]string{}, lines[:i]...)
+		out = append(out, lines[end:]...)
+		return strings.Join(out, "")
+	}
+
+	return content
+}
+
+func parseATXH1Text(line string) (string, bool) {
+	trimmed := strings.TrimLeft(strings.TrimSuffix(line, "\n"), " \t")
+	trimmed = strings.TrimSuffix(trimmed, "\r")
+	if !strings.HasPrefix(trimmed, "# ") && !strings.HasPrefix(trimmed, "#\t") {
+		return "", false
+	}
+
+	text := strings.TrimSpace(trimmed[1:])
+	text = regexp.MustCompile(`\s+#+\s*$`).ReplaceAllString(text, "")
+	return sanitizeTOCHeading(text), true
+}
+
+func sameHeadingText(a, b string) bool {
+	return strings.EqualFold(normalizeHeadingText(a), normalizeHeadingText(b))
+}
+
+func normalizeHeadingText(text string) string {
+	return strings.Join(strings.Fields(strings.TrimSpace(text)), " ")
 }
 
 // extractTOC extracts table of contents from markdown content
