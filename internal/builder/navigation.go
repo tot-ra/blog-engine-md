@@ -230,12 +230,20 @@ func collectRouteTitles(pages map[string]*Page) map[string]string {
 			if url == "" {
 				continue
 			}
-			existing, exists := candidates[url]
-			if exists && existing.priority >= candidate.Priority {
-				continue
+			candidateTitle := strings.TrimSpace(candidate.title)
+			if candidateTitle == "" {
+				candidateTitle = title
+			}
+			// Prefer actual self-page titles when a section stores its overview as
+			// folder_name/folder_name.md. This keeps generated cards like
+			// /products/web_app/ labeled “📱 Web-app” instead of “Web app”.
+			if existing, exists := candidates[url]; exists {
+				if existing.priority > candidate.Priority || (existing.priority == candidate.Priority && !preferRouteTitle(candidateTitle, existing.title)) {
+					continue
+				}
 			}
 			candidates[url] = routeTitle{
-				title:    title,
+				title:    candidateTitle,
 				priority: candidate.Priority,
 			}
 		}
@@ -251,6 +259,28 @@ func collectRouteTitles(pages map[string]*Page) map[string]string {
 type pageTitleCandidate struct {
 	URL      string
 	Priority int
+	title    string
+}
+
+func preferRouteTitle(candidate, existing string) bool {
+	candidate = strings.TrimSpace(candidate)
+	existing = strings.TrimSpace(existing)
+	if candidate == "" {
+		return false
+	}
+	if existing == "" {
+		return true
+	}
+	// Emoji/frontmatter titles are usually more intentional than fallback
+	// generated index labels for the same route.
+	return startsWithNonASCII(candidate) && !startsWithNonASCII(existing)
+}
+
+func startsWithNonASCII(s string) bool {
+	for _, r := range strings.TrimSpace(s) {
+		return r > 127
+	}
+	return false
 }
 
 func pageTitleCandidateURLs(page *Page) []pageTitleCandidate {
@@ -258,9 +288,15 @@ func pageTitleCandidateURLs(page *Page) []pageTitleCandidate {
 	if url == "" {
 		return nil
 	}
-	candidates := []pageTitleCandidate{{URL: url, Priority: 2}}
 
 	source := strings.TrimSpace(page.SourcePath)
+	directPriority := 2
+	if source == "" {
+		// Generated section indexes should not override labels discovered from
+		// real content pages such as products/web_app/web_app.md.
+		directPriority = 0
+	}
+	candidates := []pageTitleCandidate{{URL: url, Priority: directPriority}}
 	if source == "" {
 		return candidates
 	}
@@ -284,6 +320,16 @@ func pageTitleCandidateURLs(page *Page) []pageTitleCandidate {
 	if isSelfNamed && len(parts) > 1 && (strings.EqualFold(name, last) || (slug != "" && strings.EqualFold(slug, last))) {
 		// A common docs pattern is section/section.md instead of section/index.md.
 		// Treat that self-named page title as the section label.
+		candidates = append(candidates, pageTitleCandidate{
+			URL:      "/" + strings.Join(parts[:len(parts)-1], "/") + "/",
+			Priority: 1,
+		})
+	}
+
+	// Product pages commonly use folder/file pairs such as web_app/web_app.md,
+	// while generated URLs use hyphenated slugs (/web_app/web-app/). Treat the
+	// folder-matching source filename as the parent product label as well.
+	if len(parts) > 1 && dirSlug != "" && strings.EqualFold(dirSlug, slug) {
 		candidates = append(candidates, pageTitleCandidate{
 			URL:      "/" + strings.Join(parts[:len(parts)-1], "/") + "/",
 			Priority: 1,
