@@ -65,7 +65,6 @@ type ImageProcessor struct {
 	config    ImageConfig
 	outputDir string
 	cache     *ImageCache
-	mu        sync.Mutex
 }
 
 // NewImageProcessor creates a new image processor
@@ -81,17 +80,12 @@ func NewImageProcessor(config ImageConfig, outputDir string, cache *ImageCache) 
 // If WebP encoding is unavailable, it falls back to JPEG.
 func (p *ImageProcessor) ProcessFile(srcPath, relativePath string, modTime int64, size int64) (*ProcessedImage, error) {
 	normalizedRelPath := normalizeImageRelativePath(relativePath)
-	ext := strings.ToLower(filepath.Ext(srcPath))
 
-	// SVG pass-through: just copy
-	if ext == ".svg" {
-		return p.copySVG(srcPath, normalizedRelPath)
-	}
-
-	// Check cache
+	// Check cache before doing expensive decode/resize/encode work. The cache
+	// stores generated files outside dist, so clean builds can restore variants.
 	if p.cache != nil {
 		if entry, ok := p.cache.Get(normalizedRelPath); ok {
-			if entry.SourceModTime == modTime && entry.SourceSize == size && p.variantsExist(entry.Variants) {
+			if entry.SourceModTime == modTime && entry.SourceSize == size && p.restoreCachedVariants(entry.Variants) {
 				return &ProcessedImage{
 					OriginalPath: srcPath,
 					RelativePath: normalizedRelPath,
@@ -99,6 +93,13 @@ func (p *ImageProcessor) ProcessFile(srcPath, relativePath string, modTime int64
 				}, nil
 			}
 		}
+	}
+
+	ext := strings.ToLower(filepath.Ext(srcPath))
+
+	// SVG pass-through: just copy
+	if ext == ".svg" {
+		return p.copySVG(srcPath, normalizedRelPath, modTime, size)
 	}
 
 	// Decode image
@@ -111,7 +112,7 @@ func (p *ImageProcessor) ProcessFile(srcPath, relativePath string, modTime int64
 	srcImg, _, err := image.Decode(srcFile)
 	if err != nil {
 		// Fall back to passthrough copy for formats/variants not supported by the decoder.
-		return p.copyOriginalImage(srcPath, normalizedRelPath)
+		return p.copyOriginalImage(srcPath, normalizedRelPath, modTime, size)
 	}
 
 	bounds := srcImg.Bounds()
@@ -178,13 +179,8 @@ func (p *ImageProcessor) ProcessFile(srcPath, relativePath string, modTime int64
 		result.Variants = append(result.Variants, variant)
 	}
 
-	// Update cache
-	if p.cache != nil {
-		p.cache.Set(normalizedRelPath, &CacheEntry{
-			SourceModTime: modTime,
-			SourceSize:    size,
-			Variants:      result.Variants,
-		})
+	if err := p.cacheProcessedImage(normalizedRelPath, modTime, size, result); err != nil {
+		return nil, err
 	}
 
 	return result, nil
@@ -204,18 +200,42 @@ func saveAsWebP(img image.Image, outPath string, quality int) error {
 	return nil
 }
 
-func (p *ImageProcessor) variantsExist(variants []ImageVariant) bool {
-	if len(variants) == 0 {
+func (p *ImageProcessor) restoreCachedVariants(variants []ImageVariant) bool {
+	if p.cache == nil || len(variants) == 0 {
 		return false
 	}
 	for _, v := range variants {
-		rel := strings.TrimPrefix(v.FilePath, "/")
-		fullPath := filepath.Join(p.outputDir, rel)
-		if _, err := os.Stat(fullPath); err != nil {
+		cachedPath, err := p.cache.CachedFilePath(v.FilePath)
+		if err != nil {
+			return false
+		}
+		if _, err := os.Stat(cachedPath); err != nil {
+			return false
+		}
+	}
+	for _, v := range variants {
+		if err := p.cache.RestoreVariantFile(v.FilePath, p.outputDir); err != nil {
 			return false
 		}
 	}
 	return true
+}
+
+func (p *ImageProcessor) cacheProcessedImage(relativePath string, modTime int64, size int64, result *ProcessedImage) error {
+	if p.cache == nil || result == nil {
+		return nil
+	}
+	for _, variant := range result.Variants {
+		if err := p.cache.StoreVariantFile(variant.FilePath, p.outputDir); err != nil {
+			return fmt.Errorf("failed to store cached image variant %s: %w", variant.FilePath, err)
+		}
+	}
+	p.cache.Set(relativePath, &CacheEntry{
+		SourceModTime: modTime,
+		SourceSize:    size,
+		Variants:      result.Variants,
+	})
+	return nil
 }
 
 // ProcessBatch processes multiple images concurrently
@@ -268,7 +288,7 @@ type FileInfo struct {
 }
 
 // copySVG copies an SVG file as-is to the output directory
-func (p *ImageProcessor) copySVG(srcPath, relativePath string) (*ProcessedImage, error) {
+func (p *ImageProcessor) copySVG(srcPath, relativePath string, modTime int64, size int64) (*ProcessedImage, error) {
 	outRelPath := filepath.Join("assets", "img", relativePath)
 	outFullPath := filepath.Join(p.outputDir, outRelPath)
 
@@ -285,17 +305,21 @@ func (p *ImageProcessor) copySVG(srcPath, relativePath string) (*ProcessedImage,
 		return nil, fmt.Errorf("failed to write SVG: %w", err)
 	}
 
-	return &ProcessedImage{
+	result := &ProcessedImage{
 		OriginalPath: srcPath,
 		RelativePath: relativePath,
 		Variants: []ImageVariant{
 			{Size: "original", FilePath: "/" + outRelPath, FileSize: int64(len(data))},
 		},
-	}, nil
+	}
+	if err := p.cacheProcessedImage(relativePath, modTime, size, result); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // copyOriginalImage copies an image as-is when transformation is not possible.
-func (p *ImageProcessor) copyOriginalImage(srcPath, relativePath string) (*ProcessedImage, error) {
+func (p *ImageProcessor) copyOriginalImage(srcPath, relativePath string, modTime int64, size int64) (*ProcessedImage, error) {
 	outRelPath := filepath.Join("assets", "img", relativePath)
 	outFullPath := filepath.Join(p.outputDir, outRelPath)
 
@@ -311,11 +335,15 @@ func (p *ImageProcessor) copyOriginalImage(srcPath, relativePath string) (*Proce
 		return nil, fmt.Errorf("failed to write image: %w", err)
 	}
 
-	return &ProcessedImage{
+	result := &ProcessedImage{
 		OriginalPath: srcPath,
 		RelativePath: relativePath,
 		Variants: []ImageVariant{
 			{Size: "original", FilePath: "/" + outRelPath, FileSize: int64(len(data))},
 		},
-	}, nil
+	}
+	if err := p.cacheProcessedImage(relativePath, modTime, size, result); err != nil {
+		return nil, err
+	}
+	return result, nil
 }

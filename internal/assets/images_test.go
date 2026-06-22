@@ -127,3 +127,55 @@ func TestImageProcessor_SmallImage(t *testing.T) {
 		}
 	}
 }
+
+func TestImageProcessor_RestoresVariantsFromPersistentCache(t *testing.T) {
+	tmpDir := t.TempDir()
+	srcDir := filepath.Join(tmpDir, "src")
+	outDir := filepath.Join(tmpDir, "dist")
+	cacheDir := filepath.Join(tmpDir, ".cache")
+
+	imgPath := filepath.Join(srcDir, "cached.jpg")
+	createTestJPEG(t, imgPath, 320, 240)
+	info, err := os.Stat(imgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	config := ImageConfig{
+		Quality: 85,
+		Sizes:   map[string]int{"thumbnail": 150},
+		Enabled: true,
+	}
+
+	processor := NewImageProcessor(config, outDir, NewImageCache(cacheDir))
+	first, err := processor.ProcessFile(imgPath, "cached.jpg", info.ModTime().Unix(), info.Size())
+	if err != nil {
+		t.Fatalf("initial ProcessFile failed: %v", err)
+	}
+	if len(first.Variants) != 1 {
+		t.Fatalf("expected 1 variant, got %d", len(first.Variants))
+	}
+	if err := processor.cache.Save(); err != nil {
+		t.Fatalf("cache save failed: %v", err)
+	}
+
+	variantPath := filepath.Join(outDir, first.Variants[0].FilePath[1:])
+	if err := os.RemoveAll(outDir); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(variantPath); !os.IsNotExist(err) {
+		t.Fatalf("expected clean build output to be removed, stat err: %v", err)
+	}
+
+	restoredProcessor := NewImageProcessor(config, outDir, NewImageCache(cacheDir))
+	restored, err := restoredProcessor.ProcessFile(imgPath, "cached.jpg", info.ModTime().Unix(), info.Size())
+	if err != nil {
+		t.Fatalf("cached ProcessFile failed: %v", err)
+	}
+	if len(restored.Variants) != 1 || restored.Variants[0].FilePath != first.Variants[0].FilePath {
+		t.Fatalf("expected cached variant metadata to be reused, got %#v", restored.Variants)
+	}
+	if _, err := os.Stat(variantPath); err != nil {
+		t.Fatalf("expected cached variant to be restored into dist: %v", err)
+	}
+}
