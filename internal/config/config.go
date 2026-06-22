@@ -208,8 +208,9 @@ type Navigation struct {
 
 // HeaderConfig contains header navigation settings
 type HeaderConfig struct {
-	Enabled bool         `yaml:"enabled"`
-	Items   []HeaderItem `yaml:"items"`
+	Enabled       bool                    `yaml:"enabled"`
+	Items         []HeaderItem            `yaml:"items"`
+	LanguageItems map[string][]HeaderItem `yaml:"languages"`
 }
 
 // HeaderItem contains one configurable header navigation item.

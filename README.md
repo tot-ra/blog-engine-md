@@ -157,6 +157,25 @@ navTitle: "Hinnad"
 
 When a section has no `index.md`, a self-named page such as `content/et/docs/beehive-sensors/beehive-sensors.md` can provide the parent section label. `navTitle` is optional and is intended for shorter menu labels when the visible page title should stay longer.
 
+Header navigation supports a hybrid configuration. Use `navigation.header.languages` when most items belong to exactly one locale, and keep `navigation.header.items` for shared or multilingual links that should remain visible for several languages:
+
+```yaml
+navigation:
+  header:
+    enabled: true
+    items:
+      - title: "Status"
+        url: "https://status.example.com/"
+        languages: ["en", "et"]
+    languages:
+      en:
+        - title: "About"
+          url: "/about/"
+      et:
+        - title: "Meist"
+          url: "/et/about/"
+```
+
 ### 5. Theming
 
 #### Color Schemes

@@ -1494,7 +1494,7 @@ func (b *SiteBuilder) buildHeaderNav(lang, currentURL string) []renderer.NavLink
 	if !b.config.Navigation.Header.Enabled {
 		return nil
 	}
-	items := b.config.Navigation.Header.Items
+	items := b.headerNavItemsForLanguage(lang)
 	if len(items) == 0 {
 		ui := i18n.UI(lang)
 		items = []config.HeaderItem{
@@ -1550,6 +1550,33 @@ func (b *SiteBuilder) buildHeaderNav(lang, currentURL string) []renderer.NavLink
 		nav[activeIndex].Class = strings.TrimSpace(nav[activeIndex].Class + " is-active")
 	}
 	return nav
+}
+
+func (b *SiteBuilder) headerNavItemsForLanguage(lang string) []config.HeaderItem {
+	if b == nil || b.config == nil {
+		return nil
+	}
+
+	// Keep navigation.header.items as the shared/backward-compatible list, then
+	// append items from navigation.header.languages[lang] for compact per-locale configs.
+	header := b.config.Navigation.Header
+	current := strings.ToLower(strings.TrimSpace(lang))
+	items := make([]config.HeaderItem, 0, len(header.Items)+len(header.LanguageItems[current]))
+	items = append(items, header.Items...)
+
+	if groupItems, ok := header.LanguageItems[current]; ok {
+		items = append(items, groupItems...)
+	} else {
+		// Be forgiving when YAML keys use different casing/spacing, while keeping
+		// the common lowercase path as a direct deterministic map lookup.
+		for groupLang, groupItems := range header.LanguageItems {
+			if strings.ToLower(strings.TrimSpace(groupLang)) == current {
+				items = append(items, groupItems...)
+				break
+			}
+		}
+	}
+	return items
 }
 
 func (b *SiteBuilder) localizedHeaderTarget(lang, target string) string {

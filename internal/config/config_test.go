@@ -157,3 +157,47 @@ i18n:
 		t.Fatalf("unexpected normalized aliases for est: %#v", got)
 	}
 }
+
+func TestLoadHeaderLanguageItems(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	configContent := `
+site:
+  title: "Test Site"
+  url: "https://example.com"
+
+navigation:
+  header:
+    enabled: true
+    items:
+      - title: "Status"
+        url: "https://status.example.com/"
+        languages: ["en", "et"]
+    languages:
+      en:
+        - title: "About"
+          url: "/about/"
+      et:
+        - title: "Meist"
+          url: "/et/about/"
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("Failed to write test config: %v", err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	if len(cfg.Navigation.Header.Items) != 1 {
+		t.Fatalf("expected one shared header item, got %d", len(cfg.Navigation.Header.Items))
+	}
+	if got := cfg.Navigation.Header.Items[0].Languages; len(got) != 2 || got[0] != "en" || got[1] != "et" {
+		t.Fatalf("unexpected shared header item languages: %#v", got)
+	}
+	if got := cfg.Navigation.Header.LanguageItems["et"]; len(got) != 1 || got[0].Title != "Meist" || got[0].URL != "/et/about/" {
+		t.Fatalf("unexpected Estonian header items: %#v", got)
+	}
+}

@@ -24,6 +24,47 @@ func TestHeaderItemVisibleForLanguage(t *testing.T) {
 	}
 }
 
+func TestBuildHeaderNavSupportsLanguageGroups(t *testing.T) {
+	b := &SiteBuilder{
+		config: &config.SiteConfig{
+			I18n: config.I18nConfig{
+				Default: "en",
+				Languages: []config.LanguageConfig{
+					{Code: "en", Label: "English"},
+					{Code: "et", Label: "Eesti"},
+				},
+			},
+			Navigation: config.Navigation{
+				Header: config.HeaderConfig{
+					Enabled: true,
+					Items: []config.HeaderItem{
+						{Title: "Status", URL: "https://status.example.com/", Languages: []string{"en", "et"}},
+					},
+					LanguageItems: map[string][]config.HeaderItem{
+						"en": {
+							{Title: "About", URL: "/about/"},
+						},
+						"et": {
+							{Title: "Meist", URL: "/et/about/"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	nav := b.buildHeaderNav("et", "/et/about/")
+	if len(nav) != 2 {
+		t.Fatalf("expected shared and Estonian nav items, got %d", len(nav))
+	}
+	if nav[0].Title != "Status" || nav[0].URL != "https://status.example.com/" {
+		t.Fatalf("expected shared status item first, got %+v", nav[0])
+	}
+	if nav[1].Title != "Meist" || nav[1].URL != "/et/about/" || !nav[1].IsCurrent {
+		t.Fatalf("expected active Estonian about item, got %+v", nav[1])
+	}
+}
+
 func TestBuildHeaderNavMarksCurrentSection(t *testing.T) {
 	b := &SiteBuilder{
 		config: &config.SiteConfig{
