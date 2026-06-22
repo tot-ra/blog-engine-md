@@ -1557,26 +1557,53 @@ func (b *SiteBuilder) headerNavItemsForLanguage(lang string) []config.HeaderItem
 		return nil
 	}
 
-	// Keep navigation.header.items as the shared/backward-compatible list, then
-	// append items from navigation.header.languages[lang] for compact per-locale configs.
+	// Keep navigation.header.items for shared/backward-compatible links, then append
+	// navigation.header.languages[lang] for compact per-locale configs. When both
+	// formats are present, single-language items that duplicate a language group
+	// are treated as legacy fallback for older binaries and skipped by new builds.
 	header := b.config.Navigation.Header
 	current := strings.ToLower(strings.TrimSpace(lang))
-	items := make([]config.HeaderItem, 0, len(header.Items)+len(header.LanguageItems[current]))
-	items = append(items, header.Items...)
+	groupItems, hasCurrentGroup := headerLanguageItemsForLanguage(header.LanguageItems, current)
+	items := make([]config.HeaderItem, 0, len(header.Items)+len(groupItems))
+	for _, item := range header.Items {
+		if hasCurrentGroup && headerItemIsLanguageGroupDuplicate(item, groupItems) {
+			continue
+		}
+		items = append(items, item)
+	}
+	items = append(items, groupItems...)
+	return items
+}
 
-	if groupItems, ok := header.LanguageItems[current]; ok {
-		items = append(items, groupItems...)
-	} else {
-		// Be forgiving when YAML keys use different casing/spacing, while keeping
-		// the common lowercase path as a direct deterministic map lookup.
-		for groupLang, groupItems := range header.LanguageItems {
-			if strings.ToLower(strings.TrimSpace(groupLang)) == current {
-				items = append(items, groupItems...)
-				break
-			}
+func headerLanguageItemsForLanguage(languageItems map[string][]config.HeaderItem, lang string) ([]config.HeaderItem, bool) {
+	if len(languageItems) == 0 {
+		return nil, false
+	}
+	if groupItems, ok := languageItems[lang]; ok {
+		return groupItems, true
+	}
+	// Be forgiving when YAML keys use different casing/spacing, while keeping the
+	// common lowercase path as a direct deterministic map lookup.
+	for groupLang, groupItems := range languageItems {
+		if strings.ToLower(strings.TrimSpace(groupLang)) == lang {
+			return groupItems, true
 		}
 	}
-	return items
+	return nil, false
+}
+func headerItemIsLanguageGroupDuplicate(item config.HeaderItem, groupItems []config.HeaderItem) bool {
+	if len(item.Languages) != 1 {
+		return false
+	}
+	for _, groupItem := range groupItems {
+		if strings.TrimSpace(item.Title) == strings.TrimSpace(groupItem.Title) &&
+			strings.TrimSpace(item.URL) == strings.TrimSpace(groupItem.URL) &&
+			strings.TrimSpace(item.Path) == strings.TrimSpace(groupItem.Path) &&
+			strings.TrimSpace(item.Class) == strings.TrimSpace(groupItem.Class) {
+			return true
+		}
+	}
+	return false
 }
 
 func (b *SiteBuilder) localizedHeaderTarget(lang, target string) string {

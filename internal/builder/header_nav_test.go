@@ -39,6 +39,8 @@ func TestBuildHeaderNavSupportsLanguageGroups(t *testing.T) {
 					Enabled: true,
 					Items: []config.HeaderItem{
 						{Title: "Status", URL: "https://status.example.com/", Languages: []string{"en", "et"}},
+						{Title: "Meist", URL: "/et/about/", Languages: []string{"et"}},
+						{Title: "Preview", URL: "/et/preview/", Languages: []string{"et"}},
 					},
 					LanguageItems: map[string][]config.HeaderItem{
 						"en": {
@@ -54,14 +56,17 @@ func TestBuildHeaderNavSupportsLanguageGroups(t *testing.T) {
 	}
 
 	nav := b.buildHeaderNav("et", "/et/about/")
-	if len(nav) != 2 {
-		t.Fatalf("expected shared and Estonian nav items, got %d", len(nav))
+	if len(nav) != 3 {
+		t.Fatalf("expected shared, non-duplicate legacy, and Estonian nav items, got %d", len(nav))
 	}
 	if nav[0].Title != "Status" || nav[0].URL != "https://status.example.com/" {
 		t.Fatalf("expected shared status item first, got %+v", nav[0])
 	}
-	if nav[1].Title != "Meist" || nav[1].URL != "/et/about/" || !nav[1].IsCurrent {
-		t.Fatalf("expected active Estonian about item, got %+v", nav[1])
+	if nav[1].Title != "Preview" || nav[1].URL != "/et/preview/" {
+		t.Fatalf("expected non-duplicate single-language item to remain, got %+v", nav[1])
+	}
+	if nav[2].Title != "Meist" || nav[2].URL != "/et/about/" || !nav[2].IsCurrent {
+		t.Fatalf("expected active Estonian about item, got %+v", nav[2])
 	}
 }
 
