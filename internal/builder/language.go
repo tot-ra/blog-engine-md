@@ -62,15 +62,3 @@ func languageBasePath(pageURL, lang, defaultLang string) string {
 	}
 	return "/" + trimmedLang + "/"
 }
-
-func withLanguagePrefix(lang, defaultLang, path string) string {
-	_ = defaultLang
-	p := "/" + strings.Trim(path, "/")
-	if p == "/" {
-		return p
-	}
-	if lang == "" {
-		return p + "/"
-	}
-	return "/" + strings.Trim(lang, "/") + p + "/"
-}
