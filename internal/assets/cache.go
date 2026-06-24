@@ -138,6 +138,9 @@ func copyFile(srcPath, dstPath string) error {
 		return err
 	}
 
+	os.Remove(dstPath)
+	if err := os.Link(srcPath, dstPath); err == nil { return nil }
+
 	src, err := os.Open(srcPath)
 	if err != nil {
 		return err
