@@ -128,16 +128,22 @@ func (s *DevServer) handleSSE(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *DevServer) handleRequest(w http.ResponseWriter, r *http.Request) {
-	urlPath := r.URL.Path
-
-	// Clean the path to prevent directory traversal
-	urlPath = strings.TrimPrefix(urlPath, "/")
+	urlPath := strings.TrimPrefix(r.URL.Path, "/")
 	if urlPath == "" {
 		urlPath = "."
 	}
 
-	// Try to find the file
-	filePath := filepath.Join(s.outputDir, urlPath)
+	// Clean the path and ensure it stays inside outputDir.
+	outputRoot, err := filepath.Abs(s.outputDir)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	filePath := filepath.Clean(filepath.Join(outputRoot, urlPath))
+	if filePath != outputRoot && !strings.HasPrefix(filePath, outputRoot+string(os.PathSeparator)) {
+		http.NotFound(w, r)
+		return
+	}
 
 	// If path is a directory, look for index.html
 	info, err := os.Stat(filePath)
@@ -152,9 +158,6 @@ func (s *DevServer) handleRequest(w http.ResponseWriter, r *http.Request) {
 			filePath = filepath.Join(filePath, "index.html")
 		}
 	}
-
-	// Clean the final path
-	filePath = filepath.Clean(filePath)
 
 	data, err := os.ReadFile(filePath)
 	if err != nil {
