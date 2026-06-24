@@ -6,7 +6,6 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -112,13 +111,19 @@ func (p *ImageProcessor) ProcessFile(srcPath, relativePath string, modTime int64
 
 	ext := strings.ToLower(filepath.Ext(srcPath))
 
-	// SVG pass-through: just copy
+	// SVG pass-through: just copy.
 	if ext == ".svg" {
 		return p.copySVG(srcPath, normalizedRelPath, modTime, size)
 	}
 
 	// Decode image config first so source pixel guardrails can reject oversized
 	// images before allocating the full decoded pixel buffer.
+	srcFile, err := os.Open(srcPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open image %s: %w", srcPath, err)
+	}
+	defer srcFile.Close()
+
 	cfg, _, err := image.DecodeConfig(srcFile)
 	if err != nil {
 		if _, seekErr := srcFile.Seek(0, 0); seekErr != nil {
@@ -147,6 +152,11 @@ func (p *ImageProcessor) ProcessFile(srcPath, relativePath string, modTime int64
 }
 
 func (p *ImageProcessor) processDecodedImage(srcImg image.Image, srcPath, normalizedRelPath string, modTime int64, size int64) (*ProcessedImage, error) {
+	bounds := srcImg.Bounds()
+	origWidth := bounds.Dx()
+	origHeight := bounds.Dy()
+
+	result := &ProcessedImage{
 		OriginalPath: srcPath,
 		RelativePath: normalizedRelPath,
 		Width:        origWidth,
@@ -176,11 +186,11 @@ func (p *ImageProcessor) processDecodedImage(srcImg image.Image, srcPath, normal
 		resized := imaging.Resize(srcImg, targetWidth, 0, imaging.Lanczos)
 		resizedBounds := resized.Bounds()
 
-		// Output path
+		// Output path.
 		outRelPath := filepath.Join("assets", "img", relDir, fmt.Sprintf("%s-%s.webp", baseName, variantSpec.Name))
 		outFullPath := filepath.Join(p.outputDir, outRelPath)
 
-		// Ensure directory
+		// Ensure directory.
 		if err := os.MkdirAll(filepath.Dir(outFullPath), 0755); err != nil {
 			return nil, fmt.Errorf("failed to create directory for %s: %w", outFullPath, err)
 		}
@@ -197,7 +207,7 @@ func (p *ImageProcessor) processDecodedImage(srcImg image.Image, srcPath, normal
 			outFullPath = jpegFullPath
 		}
 
-		// Get file size
+		// Get file size.
 		info, _ := os.Stat(outFullPath)
 		var fileSize int64
 		if info != nil {
@@ -413,29 +423,6 @@ func (p *ImageProcessor) validateSourceImage(width, height int, relativePath str
 	pixels := pixelCount(width, height)
 	if pixels <= p.config.MaxSourcePixels {
 		return nil
-
-func copyFile(srcPath, dstPath string) (int64, error) {
-	src, err := os.Open(srcPath)
-	if err != nil {
-		return 0, err
-	}
-	defer src.Close()
-
-	dst, err := os.Create(dstPath)
-	if err != nil {
-		return 0, err
-	}
-	defer dst.Close()
-
-	n, err := io.Copy(dst, src)
-	if err != nil {
-		return 0, err
-	}
-	if err := dst.Close(); err != nil {
-		return 0, err
-	}
-	return n, nil
-}
 	}
 	return fmt.Errorf("image %s exceeds maxSourcePixels: %d > %d", relativePath, pixels, p.config.MaxSourcePixels)
 }
@@ -451,6 +438,20 @@ func (p *ImageProcessor) validateVariantImage(width, height int, relativePath, s
 	return fmt.Errorf("image %s variant %s exceeds maxVariantPixels: %d > %d", relativePath, sizeName, pixels, p.config.MaxVariantPixels)
 }
 
+// copyAssetFile copies an asset using the package-level copyFile helper and
+// returns the copied file size for metadata. It intentionally has a distinct
+// name because cache.go already owns copyFile(src,dst) error in this package.
+func copyAssetFile(srcPath, dstPath string) (int64, error) {
+	if err := copyFile(srcPath, dstPath); err != nil {
+		return 0, err
+	}
+	info, err := os.Stat(dstPath)
+	if err != nil {
+		return 0, err
+	}
+	return info.Size(), nil
+}
+
 // copySVG copies an SVG file as-is to the output directory
 func (p *ImageProcessor) copySVG(srcPath, relativePath string, modTime int64, size int64) (*ProcessedImage, error) {
 	outRelPath := filepath.Join("assets", "img", relativePath)
@@ -460,7 +461,7 @@ func (p *ImageProcessor) copySVG(srcPath, relativePath string, modTime int64, si
 		return nil, fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	fileSize, err := copyFile(srcPath, outFullPath)
+	fileSize, err := copyAssetFile(srcPath, outFullPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to copy SVG: %w", err)
 	}
@@ -487,7 +488,7 @@ func (p *ImageProcessor) copyOriginalImage(srcPath, relativePath string, modTime
 		return nil, fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	fileSize, err := copyFile(srcPath, outFullPath)
+	fileSize, err := copyAssetFile(srcPath, outFullPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to copy image: %w", err)
 	}
