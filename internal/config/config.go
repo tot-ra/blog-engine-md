@@ -140,10 +140,13 @@ type AssetsConfig struct {
 
 // ImagesConfig contains image processing settings
 type ImagesConfig struct {
-	Enabled     bool           `yaml:"enabled"`
-	Quality     int            `yaml:"quality"`
-	Sizes       map[string]int `yaml:"sizes"`
-	LazyLoading bool           `yaml:"lazyLoading"`
+	Enabled          bool           `yaml:"enabled"`
+	Quality          int            `yaml:"quality"`
+	Sizes            map[string]int `yaml:"sizes"`
+	LazyLoading      bool           `yaml:"lazyLoading"`
+	ParallelWorkers  int            `yaml:"parallelWorkers"`
+	MaxSourcePixels  int64          `yaml:"maxSourcePixels"`
+	MaxVariantPixels int64          `yaml:"maxVariantPixels"`
 }
 
 // CSSConfig contains CSS processing settings
@@ -510,10 +513,13 @@ func DefaultConfig() *SiteConfig {
 		},
 		Assets: AssetsConfig{
 			Images: ImagesConfig{
-				Enabled:     true,
-				Quality:     85,
-				Sizes:       map[string]int{"thumbnail": 150, "preview": 400, "full": 1200},
-				LazyLoading: true,
+				Enabled:          true,
+				Quality:          85,
+				Sizes:            map[string]int{"thumbnail": 150, "preview": 400, "full": 1200},
+				LazyLoading:      true,
+				ParallelWorkers:  0,
+				MaxSourcePixels:  0,
+				MaxVariantPixels: 0,
 			},
 			CSS: CSSConfig{
 				Enabled: true,
@@ -601,6 +607,15 @@ func Validate(cfg *SiteConfig) error {
 	}
 	if cfg.Build.ParallelWorkers <= 0 {
 		cfg.Build.ParallelWorkers = 4
+	}
+	if cfg.Assets.Images.ParallelWorkers < 0 {
+		cfg.Assets.Images.ParallelWorkers = 0
+	}
+	if cfg.Assets.Images.MaxSourcePixels < 0 {
+		cfg.Assets.Images.MaxSourcePixels = 0
+	}
+	if cfg.Assets.Images.MaxVariantPixels < 0 {
+		cfg.Assets.Images.MaxVariantPixels = 0
 	}
 	if cfg.Audio.Provider == "" {
 		cfg.Audio.Provider = "elevenlabs"

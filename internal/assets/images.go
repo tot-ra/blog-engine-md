@@ -6,12 +6,15 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/disintegration/imaging"
 	_ "golang.org/x/image/webp"
@@ -24,9 +27,19 @@ func normalizeImageRelativePath(relativePath string) string {
 
 // ImageConfig holds image processing configuration
 type ImageConfig struct {
-	Quality int
-	Sizes   map[string]int // name → max width
-	Enabled bool
+	Quality          int
+	Sizes            map[string]int // name → max width
+	Enabled          bool
+	MaxSourcePixels  int64
+	MaxVariantPixels int64
+}
+
+// BatchOptions holds concurrency and logging controls for image batches.
+type BatchOptions struct {
+	Workers    int
+	Logf       func(format string, args ...any)
+	LogEvery   int
+	ProgressID string
 }
 
 // DefaultImageConfig returns sensible defaults
@@ -38,7 +51,9 @@ func DefaultImageConfig() ImageConfig {
 			"preview":   400,
 			"full":      1200,
 		},
-		Enabled: true,
+		Enabled:          true,
+		MaxSourcePixels:  0,
+		MaxVariantPixels: 0,
 	}
 }
 
@@ -102,47 +117,67 @@ func (p *ImageProcessor) ProcessFile(srcPath, relativePath string, modTime int64
 		return p.copySVG(srcPath, normalizedRelPath, modTime, size)
 	}
 
-	// Decode image
-	srcFile, err := os.Open(srcPath)
+	// Decode image config first so source pixel guardrails can reject oversized
+	// images before allocating the full decoded pixel buffer.
+	cfg, _, err := image.DecodeConfig(srcFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open image %s: %w", srcPath, err)
+		if _, seekErr := srcFile.Seek(0, 0); seekErr != nil {
+			return nil, fmt.Errorf("failed to rewind image %s after decode config error: %w", srcPath, seekErr)
+		}
+		srcImg, _, err := image.Decode(srcFile)
+		if err != nil {
+			// Fall back to passthrough copy for formats/variants not supported by the decoder.
+			return p.copyOriginalImage(srcPath, normalizedRelPath, modTime, size)
+		}
+		return p.processDecodedImage(srcImg, srcPath, normalizedRelPath, modTime, size)
 	}
-	defer srcFile.Close()
+	if err := p.validateSourceImage(cfg.Width, cfg.Height, normalizedRelPath); err != nil {
+		return nil, err
+	}
+	if _, err := srcFile.Seek(0, 0); err != nil {
+		return nil, fmt.Errorf("failed to rewind image %s: %w", srcPath, err)
+	}
 
 	srcImg, _, err := image.Decode(srcFile)
 	if err != nil {
 		// Fall back to passthrough copy for formats/variants not supported by the decoder.
 		return p.copyOriginalImage(srcPath, normalizedRelPath, modTime, size)
 	}
+	return p.processDecodedImage(srcImg, srcPath, normalizedRelPath, modTime, size)
+}
 
-	bounds := srcImg.Bounds()
-	origWidth := bounds.Dx()
-	origHeight := bounds.Dy()
-
-	result := &ProcessedImage{
+func (p *ImageProcessor) processDecodedImage(srcImg image.Image, srcPath, normalizedRelPath string, modTime int64, size int64) (*ProcessedImage, error) {
 		OriginalPath: srcPath,
 		RelativePath: normalizedRelPath,
 		Width:        origWidth,
 		Height:       origHeight,
 	}
 
-	// Generate each size variant
+	// Generate each size variant in a stable order so output and test expectations
+	// stay deterministic regardless of Go map iteration order.
 	baseName := strings.TrimSuffix(filepath.Base(normalizedRelPath), filepath.Ext(normalizedRelPath))
 	relDir := filepath.Dir(normalizedRelPath)
-
-	for sizeName, maxWidth := range p.config.Sizes {
-		// Skip if original is smaller than target
-		targetWidth := maxWidth
+	for _, variantSpec := range sortedVariantSpecs(p.config.Sizes) {
+		targetWidth := variantSpec.Width
 		if targetWidth > origWidth {
 			targetWidth = origWidth
 		}
+		if targetWidth <= 0 {
+			continue
+		}
 
-		// Resize maintaining aspect ratio
+		targetHeight := scaledHeight(origWidth, origHeight, targetWidth)
+		if err := p.validateVariantImage(targetWidth, targetHeight, normalizedRelPath, variantSpec.Name); err != nil {
+			return nil, err
+		}
+
+		// Resize maintaining aspect ratio. Each worker only keeps one decoded source
+		// image and one resized variant live at a time to cap peak memory usage.
 		resized := imaging.Resize(srcImg, targetWidth, 0, imaging.Lanczos)
 		resizedBounds := resized.Bounds()
 
 		// Output path
-		outRelPath := filepath.Join("assets", "img", relDir, fmt.Sprintf("%s-%s.webp", baseName, sizeName))
+		outRelPath := filepath.Join("assets", "img", relDir, fmt.Sprintf("%s-%s.webp", baseName, variantSpec.Name))
 		outFullPath := filepath.Join(p.outputDir, outRelPath)
 
 		// Ensure directory
@@ -153,7 +188,7 @@ func (p *ImageProcessor) ProcessFile(srcPath, relativePath string, modTime int64
 		// Encode as WebP with cwebp.
 		if err := saveAsWebP(resized, outFullPath, p.config.Quality); err != nil {
 			// If WebP encoding is unavailable, fall back to JPEG.
-			jpegPath := filepath.Join("assets", "img", relDir, fmt.Sprintf("%s-%s.jpg", baseName, sizeName))
+			jpegPath := filepath.Join("assets", "img", relDir, fmt.Sprintf("%s-%s.jpg", baseName, variantSpec.Name))
 			jpegFullPath := filepath.Join(p.outputDir, jpegPath)
 			if err2 := imaging.Save(resized, jpegFullPath, imaging.JPEGQuality(p.config.Quality)); err2 != nil {
 				return nil, fmt.Errorf("failed to save image %s: %w", jpegFullPath, err2)
@@ -170,7 +205,7 @@ func (p *ImageProcessor) ProcessFile(srcPath, relativePath string, modTime int64
 		}
 
 		variant := ImageVariant{
-			Size:     sizeName,
+			Size:     variantSpec.Name,
 			Width:    resizedBounds.Dx(),
 			Height:   resizedBounds.Dy(),
 			FilePath: "/" + outRelPath,
@@ -238,36 +273,83 @@ func (p *ImageProcessor) cacheProcessedImage(relativePath string, modTime int64,
 	return nil
 }
 
-// ProcessBatch processes multiple images concurrently
-func (p *ImageProcessor) ProcessBatch(files []FileInfo, workers int) ([]*ProcessedImage, []error) {
+// ProcessBatch processes multiple images concurrently with a bounded worker pool.
+func (p *ImageProcessor) ProcessBatch(files []FileInfo, opts BatchOptions) ([]*ProcessedImage, []error) {
+	if len(files) == 0 {
+		return nil, nil
+	}
+
+	workers := opts.Workers
 	if workers <= 0 {
 		workers = 4
 	}
+	if workers > len(files) {
+		workers = len(files)
+	}
 
+	type job struct {
+		index int
+		file  FileInfo
+	}
 	type result struct {
-		img *ProcessedImage
-		err error
+		index int
+		img   *ProcessedImage
+		err   error
 	}
 
 	results := make([]result, len(files))
-	sem := make(chan struct{}, workers)
-	var wg sync.WaitGroup
-
-	for i, file := range files {
-		wg.Add(1)
-		go func(idx int, f FileInfo) {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-
-			img, err := p.ProcessFile(f.Path, f.RelativePath, f.ModTime, f.Size)
-			results[idx] = result{img: img, err: err}
-		}(i, file)
+	jobs := make(chan job, workers)
+	completed := atomic.Int64{}
+	logEvery := opts.LogEvery
+	if logEvery <= 0 {
+		logEvery = 25
 	}
 
-	wg.Wait()
+	worker := func(resultCh chan<- result) {
+		for job := range jobs {
+			img, err := p.ProcessFile(job.file.Path, job.file.RelativePath, job.file.ModTime, job.file.Size)
+			resultCh <- result{index: job.index, img: img, err: err}
 
-	var images []*ProcessedImage
+			if opts.Logf != nil {
+				done := int(completed.Add(1))
+				if done == len(files) || done == 1 || done%logEvery == 0 {
+					label := opts.ProgressID
+					if label == "" {
+						label = "image"
+					}
+					opts.Logf("Processed %s %d/%d", label, done, len(files))
+				}
+			}
+		}
+	}
+
+	resultCh := make(chan result, workers)
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			worker(resultCh)
+		}()
+	}
+
+	go func() {
+		for i, file := range files {
+			jobs <- job{index: i, file: file}
+		}
+		close(jobs)
+	}()
+
+	go func() {
+		wg.Wait()
+		close(resultCh)
+	}()
+
+	for res := range resultCh {
+		results[res.index] = res
+	}
+
+	images := make([]*ProcessedImage, 0, len(files))
 	var errors []error
 	for _, r := range results {
 		if r.err != nil {
@@ -287,6 +369,88 @@ type FileInfo struct {
 	Size         int64
 }
 
+type imageVariantSpec struct {
+	Name  string
+	Width int
+}
+
+func sortedVariantSpecs(sizes map[string]int) []imageVariantSpec {
+	variants := make([]imageVariantSpec, 0, len(sizes))
+	for name, width := range sizes {
+		variants = append(variants, imageVariantSpec{Name: name, Width: width})
+	}
+	sort.Slice(variants, func(i, j int) bool {
+		if variants[i].Width == variants[j].Width {
+			return variants[i].Name < variants[j].Name
+		}
+		return variants[i].Width < variants[j].Width
+	})
+	return variants
+}
+
+func scaledHeight(origWidth, origHeight, targetWidth int) int {
+	if origWidth <= 0 || origHeight <= 0 || targetWidth <= 0 {
+		return 0
+	}
+	targetHeight := int(float64(origHeight) * (float64(targetWidth) / float64(origWidth)))
+	if targetHeight < 1 {
+		return 1
+	}
+	return targetHeight
+}
+
+func pixelCount(width, height int) int64 {
+	if width <= 0 || height <= 0 {
+		return 0
+	}
+	return int64(width) * int64(height)
+}
+
+func (p *ImageProcessor) validateSourceImage(width, height int, relativePath string) error {
+	if p.config.MaxSourcePixels <= 0 {
+		return nil
+	}
+	pixels := pixelCount(width, height)
+	if pixels <= p.config.MaxSourcePixels {
+		return nil
+
+func copyFile(srcPath, dstPath string) (int64, error) {
+	src, err := os.Open(srcPath)
+	if err != nil {
+		return 0, err
+	}
+	defer src.Close()
+
+	dst, err := os.Create(dstPath)
+	if err != nil {
+		return 0, err
+	}
+	defer dst.Close()
+
+	n, err := io.Copy(dst, src)
+	if err != nil {
+		return 0, err
+	}
+	if err := dst.Close(); err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+	}
+	return fmt.Errorf("image %s exceeds maxSourcePixels: %d > %d", relativePath, pixels, p.config.MaxSourcePixels)
+}
+
+func (p *ImageProcessor) validateVariantImage(width, height int, relativePath, sizeName string) error {
+	if p.config.MaxVariantPixels <= 0 {
+		return nil
+	}
+	pixels := pixelCount(width, height)
+	if pixels <= p.config.MaxVariantPixels {
+		return nil
+	}
+	return fmt.Errorf("image %s variant %s exceeds maxVariantPixels: %d > %d", relativePath, sizeName, pixels, p.config.MaxVariantPixels)
+}
+
 // copySVG copies an SVG file as-is to the output directory
 func (p *ImageProcessor) copySVG(srcPath, relativePath string, modTime int64, size int64) (*ProcessedImage, error) {
 	outRelPath := filepath.Join("assets", "img", relativePath)
@@ -296,20 +460,16 @@ func (p *ImageProcessor) copySVG(srcPath, relativePath string, modTime int64, si
 		return nil, fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	data, err := os.ReadFile(srcPath)
+	fileSize, err := copyFile(srcPath, outFullPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read SVG: %w", err)
-	}
-
-	if err := os.WriteFile(outFullPath, data, 0644); err != nil {
-		return nil, fmt.Errorf("failed to write SVG: %w", err)
+		return nil, fmt.Errorf("failed to copy SVG: %w", err)
 	}
 
 	result := &ProcessedImage{
 		OriginalPath: srcPath,
 		RelativePath: relativePath,
 		Variants: []ImageVariant{
-			{Size: "original", FilePath: "/" + outRelPath, FileSize: int64(len(data))},
+			{Size: "original", FilePath: "/" + outRelPath, FileSize: fileSize},
 		},
 	}
 	if err := p.cacheProcessedImage(relativePath, modTime, size, result); err != nil {
@@ -327,19 +487,16 @@ func (p *ImageProcessor) copyOriginalImage(srcPath, relativePath string, modTime
 		return nil, fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	data, err := os.ReadFile(srcPath)
+	fileSize, err := copyFile(srcPath, outFullPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read image: %w", err)
-	}
-	if err := os.WriteFile(outFullPath, data, 0644); err != nil {
-		return nil, fmt.Errorf("failed to write image: %w", err)
+		return nil, fmt.Errorf("failed to copy image: %w", err)
 	}
 
 	result := &ProcessedImage{
 		OriginalPath: srcPath,
 		RelativePath: relativePath,
 		Variants: []ImageVariant{
-			{Size: "original", FilePath: "/" + outRelPath, FileSize: int64(len(data))},
+			{Size: "original", FilePath: "/" + outRelPath, FileSize: fileSize},
 		},
 	}
 	if err := p.cacheProcessedImage(relativePath, modTime, size, result); err != nil {

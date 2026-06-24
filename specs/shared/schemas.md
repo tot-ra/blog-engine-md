@@ -297,6 +297,18 @@ SiteConfig:
             full:
               type: integer
               default: 1200
+        parallelWorkers:
+          type: integer
+          minimum: 0
+          default: 0
+        maxSourcePixels:
+          type: integer
+          minimum: 0
+          default: 0
+        maxVariantPixels:
+          type: integer
+          minimum: 0
+          default: 0
     menu:
       type: array
       items:

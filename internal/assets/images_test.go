@@ -1,11 +1,14 @@
 package assets
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"image/jpeg"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 )
 
@@ -125,6 +128,101 @@ func TestImageProcessor_SmallImage(t *testing.T) {
 		if v.Width > 100 {
 			t.Errorf("Variant %s width %d exceeds original 100", v.Size, v.Width)
 		}
+	}
+}
+
+func TestImageProcessor_RejectsLargeSourceImageByPixels(t *testing.T) {
+	tmpDir := t.TempDir()
+	srcDir := filepath.Join(tmpDir, "src")
+	outDir := filepath.Join(tmpDir, "dist")
+	imgPath := filepath.Join(srcDir, "oversized.jpg")
+	createTestJPEG(t, imgPath, 100, 80)
+
+	processor := NewImageProcessor(ImageConfig{
+		Quality:         85,
+		Sizes:           map[string]int{"full": 100},
+		Enabled:         true,
+		MaxSourcePixels: 7_000,
+	}, outDir, nil)
+
+	_, err := processor.ProcessFile(imgPath, "oversized.jpg", 0, 0)
+	if err == nil || !strings.Contains(err.Error(), "maxSourcePixels") {
+		t.Fatalf("expected maxSourcePixels error, got %v", err)
+	}
+}
+
+func TestImageProcessor_RejectsLargeVariantByPixels(t *testing.T) {
+	tmpDir := t.TempDir()
+	srcDir := filepath.Join(tmpDir, "src")
+	outDir := filepath.Join(tmpDir, "dist")
+	imgPath := filepath.Join(srcDir, "variant.jpg")
+	createTestJPEG(t, imgPath, 400, 200)
+
+	processor := NewImageProcessor(ImageConfig{
+		Quality:          85,
+		Sizes:            map[string]int{"full": 400},
+		Enabled:          true,
+		MaxVariantPixels: 30_000,
+	}, outDir, nil)
+
+	_, err := processor.ProcessFile(imgPath, "variant.jpg", 0, 0)
+	if err == nil || !strings.Contains(err.Error(), "maxVariantPixels") {
+		t.Fatalf("expected maxVariantPixels error, got %v", err)
+	}
+}
+
+func TestImageProcessor_ProcessBatchPreservesInputOrderAndProgressLogging(t *testing.T) {
+	tmpDir := t.TempDir()
+	srcDir := filepath.Join(tmpDir, "src")
+	outDir := filepath.Join(tmpDir, "dist")
+
+	files := make([]FileInfo, 0, 3)
+	for i := 0; i < 3; i++ {
+		name := fmt.Sprintf("img-%d.jpg", i)
+		imgPath := filepath.Join(srcDir, name)
+		createTestJPEG(t, imgPath, 160+i*10, 120+i*10)
+		files = append(files, FileInfo{Path: imgPath, RelativePath: name})
+	}
+
+	processor := NewImageProcessor(ImageConfig{
+		Quality: 85,
+		Sizes:   map[string]int{"full": 120},
+		Enabled: true,
+	}, outDir, nil)
+
+	var (
+		mu   sync.Mutex
+		logs []string
+	)
+	images, errs := processor.ProcessBatch(files, BatchOptions{
+		Workers:    2,
+		LogEvery:   1,
+		ProgressID: "images",
+		Logf: func(format string, args ...any) {
+			mu.Lock()
+			defer mu.Unlock()
+			logs = append(logs, fmt.Sprintf(format, args...))
+		},
+	})
+	if len(errs) != 0 {
+		t.Fatalf("expected no errors, got %v", errs)
+	}
+	if len(images) != len(files) {
+		t.Fatalf("expected %d images, got %d", len(files), len(images))
+	}
+	for i, img := range images {
+		if img == nil || img.RelativePath != files[i].RelativePath {
+			t.Fatalf("expected result %d to match %s, got %#v", i, files[i].RelativePath, img)
+		}
+	}
+	if len(logs) < 3 {
+		t.Fatalf("expected progress logs, got %v", logs)
+	}
+	if logs[0] != "Processed images 1/3" {
+		t.Fatalf("unexpected first progress log: %q", logs[0])
+	}
+	if logs[len(logs)-1] != "Processed images 3/3" {
+		t.Fatalf("unexpected final progress log: %q", logs[len(logs)-1])
 	}
 }
 

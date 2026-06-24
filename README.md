@@ -286,13 +286,17 @@ features:
   graphView: true
   comments: false
   
-images:
-  formats: ["webp"]
-  sizes:
-    thumbnail: 150
-    preview: 400
-    full: 1200
-  quality: 85
+assets:
+  images:
+    formats: ["webp"]
+    sizes:
+      thumbnail: 150
+      preview: 400
+      full: 1200
+    quality: 85
+    parallelWorkers: 2   # optional image-only worker cap; 0 inherits build.parallelWorkers
+    maxSourcePixels: 0   # optional guardrail; 0 disables source-image pixel limit
+    maxVariantPixels: 0  # optional guardrail; 0 disables per-variant pixel limit
 
 menu:
   - label: "Блог"

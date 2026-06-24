@@ -445,9 +445,11 @@ func (b *SiteBuilder) processImages(index *ContentIndex) error {
 	}
 
 	imgConfig := assets.ImageConfig{
-		Quality: b.config.Assets.Images.Quality,
-		Sizes:   b.config.Assets.Images.Sizes,
-		Enabled: true,
+		Quality:          b.config.Assets.Images.Quality,
+		Sizes:            b.config.Assets.Images.Sizes,
+		Enabled:          true,
+		MaxSourcePixels:  b.config.Assets.Images.MaxSourcePixels,
+		MaxVariantPixels: b.config.Assets.Images.MaxVariantPixels,
 	}
 
 	processor := assets.NewImageProcessor(imgConfig, b.config.Build.OutputDir, cache)
@@ -463,7 +465,23 @@ func (b *SiteBuilder) processImages(index *ContentIndex) error {
 		})
 	}
 
-	images, errs := processor.ProcessBatch(files, b.config.Build.ParallelWorkers)
+	workers := b.config.Assets.Images.ParallelWorkers
+	if workers <= 0 {
+		workers = b.config.Build.ParallelWorkers
+	}
+	if workers <= 0 {
+		workers = 4
+	}
+
+	fmt.Printf("Processing %d images with %d worker(s)\n", len(files), workers)
+	images, errs := processor.ProcessBatch(files, assets.BatchOptions{
+		Workers: workers,
+		Logf: func(format string, args ...any) {
+			fmt.Printf(format+"\n", args...)
+		},
+		LogEvery:   25,
+		ProgressID: "images",
+	})
 	for _, err := range errs {
 		fmt.Fprintf(os.Stderr, "Image processing error: %v\n", err)
 	}
