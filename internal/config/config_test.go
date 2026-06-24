@@ -117,7 +117,7 @@ func TestDefaultConfig(t *testing.T) {
 	}
 }
 
-func TestLoadNormalizesLanguageAliases(t *testing.T) {
+func TestLoadNormalizesLanguageAliasesAndDirections(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.yaml")
 
@@ -137,6 +137,9 @@ i18n:
     - code: "EST"
       label: "Eesti"
       aliases: ["et", "ET-EE"]
+      direction: "rtl"
+    - code: "HE"
+      label: "עברית"
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
 		t.Fatalf("Failed to write test config: %v", err)
@@ -153,8 +156,34 @@ i18n:
 	if got := cfg.I18n.Languages[0].Aliases; len(got) != 2 || got[0] != "ru" || got[1] != "ru-ru" {
 		t.Fatalf("unexpected normalized aliases for rus: %#v", got)
 	}
+	if got := cfg.I18n.Languages[0].Direction; got != "ltr" {
+		t.Fatalf("expected Russian direction to default to ltr, got %q", got)
+	}
 	if got := cfg.I18n.Languages[1].Aliases; len(got) != 2 || got[0] != "et" || got[1] != "et-ee" {
 		t.Fatalf("unexpected normalized aliases for est: %#v", got)
+	}
+	if got := cfg.I18n.Languages[1].Direction; got != "rtl" {
+		t.Fatalf("expected explicit Estonian test direction to stay rtl, got %q", got)
+	}
+	if got := cfg.I18n.Languages[2].Direction; got != "rtl" {
+		t.Fatalf("expected Hebrew direction to default to rtl, got %q", got)
+	}
+}
+
+func TestLanguageDirection(t *testing.T) {
+	languages := []LanguageConfig{
+		{Code: "ar", Direction: "ltr"},
+		{Code: "fa"},
+	}
+
+	if got := LanguageDirection("ar", languages); got != "ltr" {
+		t.Fatalf("expected explicit Arabic direction override to ltr, got %q", got)
+	}
+	if got := LanguageDirection("fa", languages); got != "rtl" {
+		t.Fatalf("expected Persian to default to rtl, got %q", got)
+	}
+	if got := LanguageDirection("en", languages); got != "ltr" {
+		t.Fatalf("expected English to default to ltr, got %q", got)
 	}
 }
 

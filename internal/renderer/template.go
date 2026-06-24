@@ -18,6 +18,7 @@ type Page struct {
 	ID           string
 	URL          string
 	Language     string
+	Direction    string
 	Title        string
 	Description  string
 	Content      string
@@ -29,8 +30,9 @@ type Page struct {
 
 // Frontmatter represents page frontmatter for templates
 type Frontmatter struct {
-	Date time.Time
-	Tags []string
+	Date         time.Time
+	Tags         []string
+	TemplateHero bool
 }
 
 // BreadcrumbItem represents a breadcrumb navigation entry for templates

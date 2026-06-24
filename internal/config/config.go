@@ -305,14 +305,46 @@ type I18nConfig struct {
 
 // LanguageConfig contains one available language option.
 type LanguageConfig struct {
-	Code    string   `yaml:"code"`
-	Label   string   `yaml:"label"`
-	Aliases []string `yaml:"aliases"`
+	Code      string   `yaml:"code"`
+	Label     string   `yaml:"label"`
+	Aliases   []string `yaml:"aliases"`
+	Direction string   `yaml:"direction"`
 }
 
 // BrowserRedirectConfig controls language selection for the root URL.
 type BrowserRedirectConfig struct {
 	Enabled bool `yaml:"enabled"`
+}
+
+// LanguageDirection returns the configured writing direction for a language code.
+// WHY: templates need a stable dir="rtl" signal for Arabic, Hebrew and future RTL locales.
+// WHAT: explicit i18n.languages[].direction wins; known RTL language codes fall back to rtl.
+func LanguageDirection(code string, languages []LanguageConfig) string {
+	normalized := strings.ToLower(strings.TrimSpace(code))
+	for _, lang := range languages {
+		if strings.ToLower(strings.TrimSpace(lang.Code)) != normalized {
+			continue
+		}
+		direction := strings.ToLower(strings.TrimSpace(lang.Direction))
+		if direction == "rtl" {
+			return "rtl"
+		}
+		if direction == "ltr" {
+			return "ltr"
+		}
+		break
+	}
+	return defaultLanguageDirection(normalized)
+}
+
+func defaultLanguageDirection(code string) string {
+	base := strings.Split(strings.ToLower(strings.TrimSpace(code)), "-")[0]
+	switch base {
+	case "ar", "arc", "dv", "fa", "ha", "he", "khw", "ks", "ku", "ps", "sd", "ur", "yi":
+		return "rtl"
+	default:
+		return "ltr"
+	}
 }
 
 // Author contains author information
@@ -663,10 +695,15 @@ func Validate(cfg *SiteConfig) error {
 			aliasSeen[normalized] = struct{}{}
 			aliases = append(aliases, normalized)
 		}
+		direction := strings.ToLower(strings.TrimSpace(l.Direction))
+		if direction != "rtl" && direction != "ltr" {
+			direction = defaultLanguageDirection(code)
+		}
 		langs = append(langs, LanguageConfig{
-			Code:    code,
-			Label:   label,
-			Aliases: aliases,
+			Code:      code,
+			Label:     label,
+			Aliases:   aliases,
+			Direction: direction,
 		})
 	}
 	cfg.I18n.Languages = langs

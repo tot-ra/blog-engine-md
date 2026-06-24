@@ -25,6 +25,7 @@ type Frontmatter struct {
 	HideChildren bool      `yaml:"hideChildren"`
 	Layout       string    `yaml:"layout"` // Custom layout template name (e.g., "homepage")
 	RedirectURL  string    `yaml:"redirectUrl"`
+	TemplateHero bool      `yaml:"templateHero"`
 }
 
 // ParseFrontmatter extracts YAML frontmatter from markdown content
@@ -62,6 +63,7 @@ func ParseFrontmatter(content string) (*Frontmatter, string, error) {
 		HideChildren bool        `yaml:"hideChildren"`
 		Layout       string      `yaml:"layout"`
 		RedirectURL  string      `yaml:"redirectUrl"`
+		TemplateHero bool        `yaml:"templateHero"`
 	}
 
 	var raw rawFrontmatter
@@ -81,6 +83,7 @@ func ParseFrontmatter(content string) (*Frontmatter, string, error) {
 	fm.HideChildren = raw.HideChildren
 	fm.Layout = raw.Layout
 	fm.RedirectURL = raw.RedirectURL
+	fm.TemplateHero = raw.TemplateHero
 
 	parsedDate, err := parseFlexibleTime(raw.Date)
 	if err != nil {

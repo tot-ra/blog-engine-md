@@ -1,6 +1,6 @@
 {{define "base"}}
 <!DOCTYPE html>
-<html lang="{{.Site.Site.Language}}">
+<html lang="{{.Page.Language}}" dir="{{.Page.Direction}}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -933,7 +933,7 @@
 
 {{define "homepage"}}
 <!DOCTYPE html>
-<html lang="{{.Site.Site.Language}}">
+<html lang="{{.Page.Language}}" dir="{{.Page.Direction}}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
