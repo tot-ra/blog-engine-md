@@ -143,6 +143,7 @@ func (e *TemplateEngine) LoadTemplates(dir string) error {
 	}
 
 	tmpl := template.New("").Funcs(e.funcs)
+	templatesLoaded := false
 	for _, pattern := range patterns {
 		matches, err := filepath.Glob(pattern)
 		if err != nil {
@@ -158,15 +159,11 @@ func (e *TemplateEngine) LoadTemplates(dir string) error {
 			if err != nil {
 				return fmt.Errorf("failed to parse template %s: %w", match, err)
 			}
+			templatesLoaded = true
 		}
 	}
 
 	// Check if any templates were loaded
-	templatesLoaded := false
-	for range tmpl.Templates() {
-		templatesLoaded = true
-		break
-	}
 	if !templatesLoaded {
 		// Use default templates
 		tmpl = template.Must(template.New("").Funcs(e.funcs).Parse(defaultTemplates))
