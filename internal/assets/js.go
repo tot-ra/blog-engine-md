@@ -77,8 +77,55 @@ func (p *JSProcessor) Process(jsFiles []string, outputDir string) (*JSBundle, er
 	}, nil
 }
 
-// builtinScripts contains theme toggle and mobile menu toggle
+// builtinScripts contains theme toggle, mobile menu toggle, and optional Mermaid rendering
 const builtinScripts = `
+// Mermaid diagrams
+(function() {
+  function renderMermaidDiagrams() {
+    var blocks = document.querySelectorAll('pre > code.language-mermaid, pre > code.lang-mermaid');
+    if (!blocks.length) return;
+
+    function replaceBlocks(mermaid) {
+      try {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+        });
+      } catch (_) {}
+
+      blocks.forEach(function(code, index) {
+        var pre = code.parentElement;
+        if (!pre || pre.dataset.mermaidRendered === 'true') return;
+        var diagram = document.createElement('div');
+        diagram.className = 'mermaid';
+        diagram.textContent = code.textContent || '';
+        diagram.id = 'mermaid-diagram-' + index;
+        pre.dataset.mermaidRendered = 'true';
+        pre.replaceWith(diagram);
+      });
+
+      try {
+        var result = mermaid.run({ querySelector: '.mermaid' });
+        if (result && typeof result.catch === 'function') result.catch(function() {});
+      } catch (_) {}
+    }
+
+    if (window.mermaid) {
+      replaceBlocks(window.mermaid);
+      return;
+    }
+
+    // WHY: Mermaid is only needed on pages that contain mermaid fences.
+    // WHAT: load one browser ESM bundle lazily instead of adding a build-time dependency.
+    import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs')
+      .then(function(mod) { replaceBlocks(mod.default || mod); })
+      .catch(function() {});
+  }
+
+  document.addEventListener('DOMContentLoaded', renderMermaidDiagrams);
+})();
+
 // Theme toggle
 (function() {
   var theme = localStorage.getItem('theme') || 'light';
