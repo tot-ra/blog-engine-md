@@ -145,6 +145,7 @@ func addMarkdownLinkPathAliases(pathToURL map[string]string, relPath, pageURL st
 			pathToURL[withoutTopSection] = pageURL
 		}
 	}
+}
 
 func collectExplicitIndexDirs(files []ContentFile) map[string]struct{} {
 	if len(files) == 0 {
@@ -159,28 +160,11 @@ func collectExplicitIndexDirs(files []ContentFile) map[string]struct{} {
 			continue
 		}
 		dir := normalizeMarkdownLinkPath(filepath.Dir(file.RelativePath))
+		// Root index files use "." from filepath.Dir; URL generation expects
+		// the root directory to be represented as an empty string.
 		if dir == "." {
 			dir = ""
 		}
-		dirs[dir] = struct{}{}
-	}
-	return dirs
-}
-}
-
-func collectExplicitIndexDirs(files []ContentFile) map[string]struct{} {
-	if len(files) == 0 {
-		return nil
-	}
-	dirs := make(map[string]struct{})
-	for _, file := range files {
-		filename := filepath.Base(file.RelativePath)
-		ext := filepath.Ext(filename)
-		name := strings.TrimSuffix(filename, ext)
-		if name != "index" && name != "README" {
-			continue
-		}
-		dir := normalizeMarkdownLinkPath(filepath.Dir(file.RelativePath))
 		dirs[dir] = struct{}{}
 	}
 	return dirs

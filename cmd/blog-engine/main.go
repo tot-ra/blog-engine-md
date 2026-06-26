@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime/pprof"
 
 	"github.com/tot-ra/blog-engine/internal/builder"
 	"github.com/tot-ra/blog-engine/internal/config"
@@ -48,15 +47,7 @@ func printUsage() {
 	fmt.Println("  blog-engine help     Show this help message")
 }
 
-
 func runBuild() error {
-    f, err := os.Create("cpu.prof")
-    if err != nil {
-        return err
-    }
-    pprof.StartCPUProfile(f)
-    defer pprof.StopCPUProfile()
-
 	if _, err := loadEnvFiles(); err != nil {
 		return err
 	}
@@ -127,9 +118,9 @@ func runServe() error {
 	watchPaths := []string{"content", "templates", "assets", "config.yaml"}
 	watchPaths = append(watchPaths, envFiles...)
 	watcher := server.NewWatcher(server.WatcherConfig{
-		Paths:    watchPaths,
-		Ignore:   []string{".git", "node_modules", ".cache", cfg.Build.OutputDir},
-		Server:   srv,
+		Paths:  watchPaths,
+		Ignore: []string{".git", "node_modules", ".cache", cfg.Build.OutputDir},
+		Server: srv,
 		OnChange: func() error {
 			if _, err := loadEnvFiles(); err != nil {
 				return err
