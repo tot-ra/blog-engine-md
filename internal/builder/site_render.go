@@ -13,6 +13,7 @@ import (
 
 	"github.com/tot-ra/blog-engine/internal/config"
 	"github.com/tot-ra/blog-engine/internal/i18n"
+	"github.com/tot-ra/blog-engine/internal/parser"
 	"github.com/tot-ra/blog-engine/internal/renderer"
 )
 
@@ -98,6 +99,9 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 		data.SocialCard = "summary_large_image"
 	}
 	data.MetaDescription = b.metaDescriptionForPage(page)
+	data.TagURL = func(tag string) string {
+		return b.buildLanguageScopedURL(page.Language, "tags/"+parser.GenerateSlug(tag))
+	}
 	data.Site.Site.Language = page.Language
 	data.Homepage = b.homepageForLanguage(page.Language)
 	if b.cssBundle != nil {

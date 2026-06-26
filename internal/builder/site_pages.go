@@ -167,3 +167,21 @@ func collectExplicitIndexDirs(files []ContentFile) map[string]struct{} {
 	return dirs
 }
 }
+
+func collectExplicitIndexDirs(files []ContentFile) map[string]struct{} {
+	if len(files) == 0 {
+		return nil
+	}
+	dirs := make(map[string]struct{})
+	for _, file := range files {
+		filename := filepath.Base(file.RelativePath)
+		ext := filepath.Ext(filename)
+		name := strings.TrimSuffix(filename, ext)
+		if name != "index" && name != "README" {
+			continue
+		}
+		dir := normalizeMarkdownLinkPath(filepath.Dir(file.RelativePath))
+		dirs[dir] = struct{}{}
+	}
+	return dirs
+}

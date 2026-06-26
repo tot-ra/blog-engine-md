@@ -52,6 +52,30 @@ func TestTemplateEngine_LoadTemplatesUsesDefaultsWhenDirectoryMissing(t *testing
 	}
 }
 
+func TestTemplateEngine_DefaultTemplateRendersTagLinks(t *testing.T) {
+	engine := NewTemplateEngine()
+	missingDir := filepath.Join(t.TempDir(), "missing")
+
+	if err := engine.LoadTemplates(missingDir); err != nil {
+		t.Fatalf("LoadTemplates() returned error: %v", err)
+	}
+
+	html, err := engine.RenderPage(PageData{
+		Site:        config.SiteConfig{Site: config.Site{Title: "Example", Language: "en"}},
+		Page:        Page{Title: "Tagged"},
+		Frontmatter: Frontmatter{Tags: []string{"Hello World"}},
+		TagURL: func(tag string) string {
+			return "/tags/hello-world/"
+		},
+	})
+	if err != nil {
+		t.Fatalf("RenderPage() with default template tags returned error: %v", err)
+	}
+	if !strings.Contains(html, `<a class="tag" href="/tags/hello-world/">#Hello World</a>`) {
+		t.Fatalf("expected rendered tag link, got:\n%s", html)
+	}
+}
+
 func TestTemplateEngine_LoadTemplatesUsesDefaultsWhenDirectoryIsEmpty(t *testing.T) {
 	engine := NewTemplateEngine()
 	templateDir := t.TempDir()
