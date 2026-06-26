@@ -10,7 +10,7 @@ import (
 	"github.com/tot-ra/blog-engine/internal/parser"
 )
 
-func (b *SiteBuilder) buildPages(files []ContentFile, titleToURL, pathToURL map[string]map[string]string) ([]*Page, []error) {
+func (b *SiteBuilder) buildPages(files []ContentFile, titleToURL, pathToURL map[string]map[string]string, explicitIndexDirs map[string]struct{}) ([]*Page, []error) {
 	if len(files) == 0 {
 		return nil, nil
 	}
@@ -32,6 +32,7 @@ func (b *SiteBuilder) buildPages(files []ContentFile, titleToURL, pathToURL map[
 
 	for w := 0; w < workers; w++ {
 		builder := NewPageBuilder(b.config.Site.URL, b.config.I18n.Default, b.languages)
+		builder.urlGen.SetExplicitIndexDirs(explicitIndexDirs)
 
 		wg.Add(1)
 		go func(pb *PageBuilder) {
@@ -144,4 +145,22 @@ func addMarkdownLinkPathAliases(pathToURL map[string]string, relPath, pageURL st
 			pathToURL[withoutTopSection] = pageURL
 		}
 	}
+}
+
+func collectExplicitIndexDirs(files []ContentFile) map[string]struct{} {
+	if len(files) == 0 {
+		return nil
+	}
+	dirs := make(map[string]struct{})
+	for _, file := range files {
+		filename := filepath.Base(file.RelativePath)
+		ext := filepath.Ext(filename)
+		name := strings.TrimSuffix(filename, ext)
+		if name != "index" && name != "README" {
+			continue
+		}
+		dir := normalizeMarkdownLinkPath(filepath.Dir(file.RelativePath))
+		dirs[dir] = struct{}{}
+	}
+	return dirs
 }

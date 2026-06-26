@@ -75,12 +75,19 @@ type Page struct {
 
 // URLGenerator generates URLs from file paths
 type URLGenerator struct {
-	baseURL string
+	baseURL           string
+	explicitIndexDirs map[string]struct{}
 }
 
 // NewURLGenerator creates a new URL generator
 func NewURLGenerator(baseURL string) *URLGenerator {
 	return &URLGenerator{baseURL: strings.TrimSuffix(baseURL, "/")}
+}
+
+// SetExplicitIndexDirs records content directories that already have an
+// index.md/README.md. Self-named section pages must not claim those URLs.
+func (g *URLGenerator) SetExplicitIndexDirs(dirs map[string]struct{}) {
+	g.explicitIndexDirs = dirs
 }
 
 // Generate creates a URL from a content file path and frontmatter
@@ -91,8 +98,19 @@ func (g *URLGenerator) Generate(filePath string, fm *parser.Frontmatter) string 
 	ext := filepath.Ext(filename)
 	name := strings.TrimSuffix(filename, ext)
 
-	// Handle index files
+	// Handle index files first; explicit index.md/README.md always wins over
+	// fallback self-named section pages in the same directory.
 	if name == "index" || name == "README" {
+		if dir == "." {
+			return "/"
+		}
+		return "/" + dir + "/"
+	}
+
+	// Some docs trees use section/section.md instead of section/index.md;
+	// render those at the parent directory URL so the section opens with that
+	// content rather than a generated child listing.
+	if isSelfNamedSectionFile(dir, name, fm) && !g.hasExplicitIndexDir(dir) {
 		if dir == "." {
 			return "/"
 		}
@@ -116,6 +134,32 @@ func (g *URLGenerator) Generate(filePath string, fm *parser.Frontmatter) string 
 	url = strings.ReplaceAll(url, "//", "/")
 
 	return url
+}
+
+func isSelfNamedSectionFile(dir, name string, fm *parser.Frontmatter) bool {
+	if dir == "." || strings.TrimSpace(name) == "" {
+		return false
+	}
+	if fm != nil && strings.TrimSpace(fm.Slug) != "" {
+		return false
+	}
+
+	parentDirName := filepath.Base(dir)
+	if strings.EqualFold(parentDirName, name) {
+		return true
+	}
+
+	fileSlug := parser.GenerateSlug(name)
+	parentSlug := parser.GenerateSlug(parentDirName)
+	return fileSlug != "" && strings.EqualFold(fileSlug, parentSlug)
+}
+
+func (g *URLGenerator) hasExplicitIndexDir(dir string) bool {
+	if g == nil || len(g.explicitIndexDirs) == 0 {
+		return false
+	}
+	_, ok := g.explicitIndexDirs[normalizeMarkdownLinkPath(dir)]
+	return ok
 }
 
 // PageBuilder builds pages from content files

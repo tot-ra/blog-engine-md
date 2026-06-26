@@ -65,6 +65,8 @@ func (b *SiteBuilder) Build() error {
 
 	// First pass: collect page info for wiki and local markdown link resolution
 	pageBuilder := NewPageBuilder(b.config.Site.URL, b.config.I18n.Default, b.languages)
+	explicitIndexDirs := collectExplicitIndexDirs(index.MarkdownFiles)
+	pageBuilder.urlGen.SetExplicitIndexDirs(explicitIndexDirs)
 	titleToURL := make(map[string]map[string]string)
 	pathToURL := make(map[string]map[string]string)
 
@@ -123,7 +125,7 @@ func (b *SiteBuilder) Build() error {
 	})
 
 	// Second pass: build pages with wiki and local markdown link resolution
-	pages, buildErrs := b.buildPages(index.MarkdownFiles, titleToURL, pathToURL)
+	pages, buildErrs := b.buildPages(index.MarkdownFiles, titleToURL, pathToURL, explicitIndexDirs)
 	for _, err := range buildErrs {
 		fmt.Fprintf(os.Stderr, "Error building page: %v\n", err)
 	}
