@@ -5,7 +5,6 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"github.com/tot-ra/blog-engine/internal/parser"
 )
@@ -16,65 +15,35 @@ func (b *SiteBuilder) buildPages(files []ContentFile, titleToURL, pathToURL map[
 	}
 
 	pages := make([]*Page, len(files))
-	workers := b.workerCount()
-	if workers > len(files) {
-		workers = len(files)
-	}
+	errs := b.parallelForEach(len(files), func(i int) error {
+		file := files[i]
+		lang, _ := detectLanguageAndContentPath(file.RelativePath, b.config.I18n.Default, b.languages)
+		pageMap := titleToURL[lang]
+		pathMap := pathToURL[lang]
 
-	type buildJob struct {
-		idx  int
-		file ContentFile
-	}
-
-	jobs := make(chan buildJob, len(files))
-	errCh := make(chan error, len(files))
-	var wg sync.WaitGroup
-
-	for w := 0; w < workers; w++ {
-		builder := NewPageBuilder(b.config.Site.URL, b.config.I18n.Default, b.languages)
-		builder.urlGen.SetExplicitIndexDirs(explicitIndexDirs)
-
-		wg.Add(1)
-		go func(pb *PageBuilder) {
-			defer wg.Done()
-			for job := range jobs {
-				lang, _ := detectLanguageAndContentPath(job.file.RelativePath, b.config.I18n.Default, b.languages)
-				pageMap := titleToURL[lang]
-				pathMap := pathToURL[lang]
-				pb.SetPageResolver(func(title string) (string, bool) {
-					if url, ok := pageMap[title]; ok {
-						return url, true
-					}
-					slug := parser.GenerateSlug(title)
-					if url, ok := pageMap[slug]; ok {
-						return url, true
-					}
-					return "", false
-				})
-				pb.SetMarkdownLinkResolver(func(destination, pageRelPath string) (string, bool) {
-					return resolveLocalMarkdownLink(destination, pageRelPath, pathMap)
-				})
-				page, err := pb.Build(job.file)
-				if err != nil {
-					errCh <- fmt.Errorf("%s: %w", job.file.Path, err)
-					continue
-				}
-				pages[job.idx] = page
+		pb := NewPageBuilder(b.config.Site.URL, b.config.I18n.Default, b.languages)
+		pb.urlGen.SetExplicitIndexDirs(explicitIndexDirs)
+		pb.SetPageResolver(func(title string) (string, bool) {
+			if url, ok := pageMap[title]; ok {
+				return url, true
 			}
-		}(builder)
-	}
+			slug := parser.GenerateSlug(title)
+			if url, ok := pageMap[slug]; ok {
+				return url, true
+			}
+			return "", false
+		})
+		pb.SetMarkdownLinkResolver(func(destination, pageRelPath string) (string, bool) {
+			return resolveLocalMarkdownLink(destination, pageRelPath, pathMap)
+		})
 
-	for i, file := range files {
-		jobs <- buildJob{idx: i, file: file}
-	}
-	close(jobs)
-	wg.Wait()
-	close(errCh)
-
-	var errs []error
-	for err := range errCh {
-		errs = append(errs, err)
-	}
+		page, err := pb.Build(file)
+		if err != nil {
+			return fmt.Errorf("%s: %w", file.Path, err)
+		}
+		pages[i] = page
+		return nil
+	})
 
 	result := make([]*Page, 0, len(files))
 	for _, page := range pages {
