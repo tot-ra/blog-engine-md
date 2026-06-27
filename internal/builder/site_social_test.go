@@ -93,7 +93,7 @@ func TestResolveSocialImageURL_UsesOptimizedDefaultImageVariant(t *testing.T) {
 }
 
 func TestProcessedImageLookupCandidates_PreservesAssetsImgPath(t *testing.T) {
-	candidates := processedImageLookupCandidates("/assets/img/example-card.webp", "https://example.com")
+	candidates := processedImageLookupCandidates("/assets/img/example-card.webp")
 	foundFull := false
 	foundTrimmed := false
 	for _, candidate := range candidates {

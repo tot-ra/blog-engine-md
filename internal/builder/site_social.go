@@ -77,7 +77,7 @@ func (b *SiteBuilder) resolveProcessedSocialImageURL(src string) string {
 	if len(b.processedImages) == 0 {
 		return ""
 	}
-	candidates := processedImageLookupCandidates(src, strings.TrimSpace(b.config.Site.URL))
+	candidates := processedImageLookupCandidates(src)
 	if len(candidates) == 0 {
 		return ""
 	}
@@ -121,7 +121,7 @@ func pickSocialImageVariant(img *assets.ProcessedImage) *assets.ImageVariant {
 	return &img.Variants[0]
 }
 
-func processedImageLookupCandidates(src, siteURL string) []string {
+func processedImageLookupCandidates(src string) []string {
 	src = html.UnescapeString(strings.TrimSpace(src))
 	if src == "" {
 		return nil
@@ -149,15 +149,6 @@ func processedImageLookupCandidates(src, siteURL string) []string {
 	addVariants(src)
 	if u, err := url.Parse(src); err == nil {
 		addVariants(u.Path)
-	}
-	if siteURL != "" {
-		if base, err := url.Parse(siteURL); err == nil {
-			if u, err := url.Parse(src); err == nil {
-				if u.IsAbs() && base.Host != "" && strings.EqualFold(u.Host, base.Host) {
-					addVariants(u.Path)
-				}
-			}
-		}
 	}
 	if decoded, err := url.PathUnescape(src); err == nil {
 		addVariants(decoded)
