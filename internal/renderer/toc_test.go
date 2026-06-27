@@ -3,6 +3,7 @@ package renderer
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tot-ra/blog-engine/internal/i18n"
 )
@@ -130,4 +131,117 @@ func TestRenderSidebar_DefaultCollapsed(t *testing.T) {
 	if !strings.Contains(result, `aria-label="Toggle section Guide" aria-expanded="false"`) {
 		t.Error("Expected deeper section to be collapsed by default")
 	}
+}
+
+func TestRenderModeSidebar_RendersAvailableModesAndDefaultTime(t *testing.T) {
+	root := &NavNode{
+		ID:   "root",
+		Type: "section",
+		Children: []*NavNode{
+			{ID: "blog", Title: "Blog", URL: "/blog/", Type: "section"},
+			{ID: "docs", Title: "Docs", URL: "/docs/", Type: "section"},
+		},
+	}
+	timeline := []TimelineYear{
+		{
+			Year: 2024,
+			Items: []TimelineItem{
+				{Title: "Current <Post>", URL: "/blog/current/", Date: mustDate(t, "2024-06-01")},
+				{Title: "Other Post", URL: "/blog/other/", Date: mustDate(t, "2024-05-01")},
+				{Title: "Draft Without URL", Date: mustDate(t, "2024-04-01")},
+			},
+		},
+	}
+
+	result := string(RenderModeSidebar(root, "/blog/current/", 3, true, timeline, i18n.UI("en"), "/custom-graph/", "time", true))
+
+	for _, want := range []string{
+		`data-sidebar-mode="time"`,
+		`data-sidebar-default-mode="time"`,
+		`data-sidebar-mode-btn="categories"`,
+		`data-sidebar-mode-btn="time"`,
+		`data-sidebar-mode-btn="graph"`,
+		`class="sidebar-mode-btn is-active" role="tab" aria-selected="true" data-sidebar-mode-btn="time"`,
+		`data-sidebar-mode-pane="categories" hidden`,
+		`data-sidebar-mode-pane="time"`,
+		`data-sidebar-mode-pane="graph" hidden`,
+		`<h4>2024</h4>`,
+		`<li class="active"><a href="/blog/current/" aria-current="page">Current &lt;Post&gt;</a></li>`,
+		`<li><a href="/blog/other/">Other Post</a></li>`,
+		`data-src="/custom-graph?embed=1"`,
+	} {
+		if !strings.Contains(result, want) {
+			t.Fatalf("expected mode sidebar output to contain %q, got:\n%s", want, result)
+		}
+	}
+	if strings.Contains(result, "Draft Without URL") {
+		t.Fatalf("expected timeline items without URLs to be skipped, got:\n%s", result)
+	}
+}
+
+func TestRenderModeSidebar_FallsBackFromUnavailableDefaults(t *testing.T) {
+	root := &NavNode{
+		ID:   "root",
+		Type: "section",
+		Children: []*NavNode{
+			{ID: "docs", Title: "Docs", URL: "/docs/", Type: "section"},
+		},
+	}
+
+	tests := []struct {
+		name        string
+		defaultMode string
+		timeline    []TimelineYear
+		showGraph   bool
+	}{
+		{name: "invalid default", defaultMode: "unknown"},
+		{name: "time without timeline", defaultMode: "time"},
+		{name: "graph disabled", defaultMode: "graph", showGraph: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := string(RenderModeSidebar(root, "/docs/", 3, true, tt.timeline, i18n.UI("en"), "", tt.defaultMode, tt.showGraph))
+			if !strings.Contains(result, `data-sidebar-default-mode="categories"`) {
+				t.Fatalf("expected fallback to categories mode, got:\n%s", result)
+			}
+			if strings.Contains(result, `sidebar-mode-switch`) {
+				t.Fatalf("expected no mode switch when only categories mode is available, got:\n%s", result)
+			}
+		})
+	}
+}
+
+func TestRenderModeSidebar_DefaultGraphUsesEmbeddedGraphURL(t *testing.T) {
+	root := &NavNode{
+		ID:   "root",
+		Type: "section",
+		Children: []*NavNode{
+			{ID: "docs", Title: "Docs", URL: "/docs/", Type: "section"},
+		},
+	}
+
+	result := string(RenderModeSidebar(root, "/docs/", 3, true, nil, i18n.UI("en"), "", "graph", true))
+
+	for _, want := range []string{
+		`data-sidebar-default-mode="graph"`,
+		`data-sidebar-mode-btn="graph"`,
+		`class="sidebar-mode-btn is-active" role="tab" aria-selected="true" data-sidebar-mode-btn="graph"`,
+		`data-sidebar-mode-pane="categories" hidden`,
+		`data-sidebar-mode-pane="graph"`,
+		`data-src="/graph?embed=1"`,
+	} {
+		if !strings.Contains(result, want) {
+			t.Fatalf("expected graph mode sidebar output to contain %q, got:\n%s", want, result)
+		}
+	}
+}
+
+func mustDate(t *testing.T, value string) time.Time {
+	t.Helper()
+	parsed, err := time.Parse("2006-01-02", value)
+	if err != nil {
+		t.Fatalf("failed to parse test date %q: %v", value, err)
+	}
+	return parsed
 }
