@@ -33,6 +33,15 @@ type Frontmatter struct {
 	Date         time.Time
 	Tags         []string
 	TemplateHero bool
+	Year         string
+	Orgs         []string
+	Topics       []string
+	ProductAreas []string
+	PaperType    string
+	PDF          string
+	DOI          string
+	Authors      []string
+	Abstract     string
 }
 
 // BreadcrumbItem represents a breadcrumb navigation entry for templates
@@ -117,6 +126,11 @@ func NewTemplateEngine() *TemplateEngine {
 		"lower":      strings.ToLower,
 		"upper":      strings.ToUpper,
 		"title":      strings.Title,
+		"humanTitle": func(text string) string {
+			text = strings.ReplaceAll(text, "-", " ")
+			text = strings.ReplaceAll(text, "_", " ")
+			return strings.Title(text)
+		},
 		"hasDate": func(t time.Time) bool {
 			return !t.IsZero()
 		},

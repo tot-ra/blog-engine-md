@@ -26,6 +26,15 @@ type Frontmatter struct {
 	Layout       string    `yaml:"layout"` // Custom layout template name (e.g., "homepage")
 	RedirectURL  string    `yaml:"redirectUrl"`
 	TemplateHero bool      `yaml:"templateHero"`
+	Year         string    `yaml:"year"`
+	Orgs         []string  `yaml:"orgs"`
+	Topics       []string  `yaml:"topics"`
+	ProductAreas []string  `yaml:"productAreas"`
+	PaperType    string    `yaml:"paperType"`
+	PDF          string    `yaml:"pdf"`
+	DOI          string    `yaml:"doi"`
+	Authors      []string  `yaml:"authors"`
+	Abstract     string    `yaml:"abstract"`
 }
 
 // ParseFrontmatter extracts YAML frontmatter from markdown content
@@ -64,6 +73,15 @@ func ParseFrontmatter(content string) (*Frontmatter, string, error) {
 		Layout       string      `yaml:"layout"`
 		RedirectURL  string      `yaml:"redirectUrl"`
 		TemplateHero bool        `yaml:"templateHero"`
+		Year         string      `yaml:"year"`
+		Orgs         []string    `yaml:"orgs"`
+		Topics       []string    `yaml:"topics"`
+		ProductAreas []string    `yaml:"productAreas"`
+		PaperType    string      `yaml:"paperType"`
+		PDF          string      `yaml:"pdf"`
+		DOI          string      `yaml:"doi"`
+		Authors      []string    `yaml:"authors"`
+		Abstract     string      `yaml:"abstract"`
 	}
 
 	var raw rawFrontmatter
@@ -84,6 +102,15 @@ func ParseFrontmatter(content string) (*Frontmatter, string, error) {
 	fm.Layout = raw.Layout
 	fm.RedirectURL = raw.RedirectURL
 	fm.TemplateHero = raw.TemplateHero
+	fm.Year = raw.Year
+	fm.Orgs = raw.Orgs
+	fm.Topics = raw.Topics
+	fm.ProductAreas = raw.ProductAreas
+	fm.PaperType = raw.PaperType
+	fm.PDF = raw.PDF
+	fm.DOI = raw.DOI
+	fm.Authors = raw.Authors
+	fm.Abstract = raw.Abstract
 
 	parsedDate, err := parseFlexibleTime(raw.Date)
 	if err != nil {
