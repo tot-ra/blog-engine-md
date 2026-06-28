@@ -118,6 +118,36 @@ Content.`,
 	}
 }
 
+func TestParseFrontmatterPreservesCustomParams(t *testing.T) {
+	content := `---
+title: Research Paper
+year: "2025"
+orgs:
+  - University Lab
+customField: custom value
+---
+
+Content.`
+
+	fm, remaining, err := ParseFrontmatter(content)
+	if err != nil {
+		t.Fatalf("ParseFrontmatter failed: %v", err)
+	}
+	if remaining != "Content." {
+		t.Fatalf("remaining = %q, want %q", remaining, "Content.")
+	}
+	if got := fm.Params["year"]; got != "2025" {
+		t.Fatalf("Params[year] = %#v, want 2025", got)
+	}
+	orgs, ok := fm.Params["orgs"].([]interface{})
+	if !ok || len(orgs) != 1 || orgs[0] != "University Lab" {
+		t.Fatalf("Params[orgs] = %#v, want single organization", fm.Params["orgs"])
+	}
+	if got := fm.Params["customField"]; got != "custom value" {
+		t.Fatalf("Params[customField] = %#v, want custom value", got)
+	}
+}
+
 func TestGenerateSlug(t *testing.T) {
 	tests := []struct {
 		input string
