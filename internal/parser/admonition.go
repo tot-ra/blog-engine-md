@@ -16,13 +16,6 @@ const (
 	AdmonitionDanger  AdmonitionType = "danger"
 )
 
-// Admonition represents a parsed admonition block
-type Admonition struct {
-	Type    AdmonitionType
-	Title   string
-	Content string
-}
-
 var admonitionIcons = map[AdmonitionType]string{
 	AdmonitionNote:    "ℹ️",
 	AdmonitionTip:     "💡",
