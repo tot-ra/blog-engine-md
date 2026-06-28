@@ -111,6 +111,42 @@ func TestBuildTree_HideNav(t *testing.T) {
 	}
 }
 
+func TestBuildTree_HidesRedirectPages(t *testing.T) {
+	pages := map[string]*Page{
+		"visible": {
+			ID:          "visible",
+			Title:       "Visible",
+			URL:         "/docs/visible/",
+			Type:        TypeDoc,
+			Frontmatter: &parser.Frontmatter{},
+		},
+		"redirect": {
+			ID:    "redirect",
+			Title: "index",
+			URL:   "/docs/old-products/",
+			Type:  TypeDoc,
+			Frontmatter: &parser.Frontmatter{
+				RedirectURL: "/products/",
+			},
+		},
+	}
+
+	tree := NewNavigationBuilder().BuildTree(pages)
+	docsNode := tree.ByPath["/docs/"]
+	if docsNode == nil {
+		t.Fatal("Expected /docs/ node")
+	}
+	if len(docsNode.Children) != 1 {
+		t.Fatalf("Expected 1 child (redirect excluded), got %d", len(docsNode.Children))
+	}
+	if docsNode.Children[0].Title != "Visible" {
+		t.Errorf("Expected 'Visible', got '%s'", docsNode.Children[0].Title)
+	}
+	if _, ok := tree.ByPath["/docs/old-products/"]; ok {
+		t.Fatal("Expected redirect page to be omitted from navigation lookup")
+	}
+}
+
 func TestFlattenPages(t *testing.T) {
 	pages := map[string]*Page{
 		"p1": {ID: "p1", Title: "A", URL: "/docs/a/", Type: TypeDoc, Frontmatter: &parser.Frontmatter{Order: 1}},

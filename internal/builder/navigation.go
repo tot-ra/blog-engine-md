@@ -68,8 +68,10 @@ func (nb *NavigationBuilder) BuildTree(pages map[string]*Page) *NavTree {
 
 	// Insert each page into the tree
 	for _, page := range pages {
-		if page.Frontmatter != nil && page.Frontmatter.HideNav {
-			continue
+		if page.Frontmatter != nil {
+			if page.Frontmatter.HideNav || strings.TrimSpace(page.Frontmatter.RedirectURL) != "" {
+				continue
+			}
 		}
 		nb.insertPage(tree, page)
 	}
