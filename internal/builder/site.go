@@ -109,21 +109,6 @@ func (b *SiteBuilder) Build() error {
 		addMarkdownLinkPathAliases(pathToURL[lang], file.RelativePath, url)
 	}
 
-	// Set up wiki link resolver
-	defaultLangMap := titleToURL[b.config.I18n.Default]
-	pageBuilder.SetPageResolver(func(title string) (string, bool) {
-		// Try exact match first
-		if url, ok := defaultLangMap[title]; ok {
-			return url, true
-		}
-		// Try slugified version
-		slug := parser.GenerateSlug(title)
-		if url, ok := defaultLangMap[slug]; ok {
-			return url, true
-		}
-		return "", false
-	})
-
 	// Second pass: build pages with wiki and local markdown link resolution
 	pages, buildErrs := b.buildPages(index.MarkdownFiles, titleToURL, pathToURL, explicitIndexDirs)
 	for _, err := range buildErrs {
