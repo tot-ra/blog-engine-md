@@ -197,13 +197,13 @@ func (b *PageBuilder) SetMarkdownLinkResolver(resolver func(destination, pageRel
 // Build creates a Page from a content file
 func (b *PageBuilder) Build(file ContentFile) (*Page, error) {
 	// Read file content
-	content, err := readFile(file.Path)
+	data, err := os.ReadFile(file.Path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file %s: %w", file.Path, err)
 	}
 
 	// Parse frontmatter
-	fm, remaining, err := parser.ParseFrontmatter(content)
+	fm, remaining, err := parser.ParseFrontmatter(string(data))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse frontmatter in %s: %w", file.Path, err)
 	}
@@ -594,13 +594,4 @@ func sanitizeTOCHeading(text string) string {
 	// Collapse whitespace for stable labels/slugs.
 	text = strings.Join(strings.Fields(text), " ")
 	return strings.TrimSpace(text)
-}
-
-// readFile reads a file and returns its content
-func readFile(path string) (string, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
 }

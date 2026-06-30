@@ -72,12 +72,12 @@ func (b *SiteBuilder) Build() error {
 
 	for _, file := range index.MarkdownFiles {
 		// Quick parse to get title and URL without full rendering
-		content, err := readFile(file.Path)
+		data, err := os.ReadFile(file.Path)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error reading file %s: %v\n", file.Path, err)
 			continue
 		}
-		fm, _, err := parser.ParseFrontmatter(content)
+		fm, _, err := parser.ParseFrontmatter(string(data))
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error parsing frontmatter %s: %v\n", file.Path, err)
 			continue
