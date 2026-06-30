@@ -85,30 +85,111 @@ const builtinScripts = `
     var blocks = document.querySelectorAll('pre > code.language-mermaid, pre > code.lang-mermaid');
     if (!blocks.length) return;
 
+    function normalizeMermaidSource(source) {
+      source = (source || '').replace(/\r\n?/g, '\n');
+      if (!/^\s*classDiagram\b/m.test(source)) return source;
+
+      var sqlTypes = {
+        bigint: true, binary: true, bit: true, blob: true, bool: true, boolean: true,
+        char: true, date: true, datetime: true, decimal: true, double: true, enum: true,
+        float: true, int: true, integer: true, json: true, longblob: true, longtext: true,
+        mediumblob: true, mediumint: true, mediumtext: true, numeric: true, real: true,
+        set: true, smallint: true, text: true, time: true, timestamp: true, tinyblob: true,
+        tinyint: true, tinytext: true, varbinary: true, varchar: true, year: true
+      };
+
+      function indentOf(line) {
+        var match = line.match(/^\s*/);
+        return match ? match[0] : '';
+      }
+
+      function safeType(type) {
+        type = (type || '').trim();
+        if (/^enum\s*\(/i.test(type)) return 'enum';
+        type = type.replace(/\(([^)]*)\)/g, '_$1');
+        type = type.replace(/[^A-Za-z0-9_]+/g, '_').replace(/^_+|_+$/g, '').replace(/_+/g, '_');
+        return type || 'field';
+      }
+
+      function normalizeClassMember(line) {
+        var trimmed = line.trim();
+        if (!trimmed || trimmed === '}' || /^%%/.test(trimmed) || /^[+\-#~]/.test(trimmed)) return line;
+
+        var match = trimmed.match(/^(.+?)\s+([A-Za-z_][A-Za-z0-9_]*)\s*$/);
+        if (!match) return line;
+
+        var type = match[1].trim();
+        var name = match[2].trim();
+        var firstTypeToken = type.split(/\s|\(/)[0].toLowerCase();
+        var needsNormalization = sqlTypes[firstTypeToken] || /\s|\(|\)|'|,/.test(type);
+        if (!needsNormalization) return line;
+
+        // WHY: Mermaid 11 rejects SQL-like members such as "int unsigned user_id".
+        // WHAT: keep the visible field name and collapse SQL type metadata to one token.
+        return indentOf(line) + '+' + safeType(type) + ' ' + name;
+      }
+
+      var inClass = false;
+      return source.split('\n').map(function(line) {
+        var trimmed = line.trim();
+        if (/^class\s+[^\s{]+\s*\{\s*$/.test(trimmed)) {
+          inClass = true;
+          return line;
+        }
+        if (inClass && trimmed === '}') {
+          inClass = false;
+          return line;
+        }
+        return inClass ? normalizeClassMember(line) : line;
+      }).join('\n');
+    }
+
+    function renderBlock(mermaid, code, index) {
+      var pre = code.parentElement;
+      if (!pre || pre.dataset.mermaidRendered === 'true') return;
+
+      var source = normalizeMermaidSource(code.textContent || '');
+      var diagram = document.createElement('div');
+      diagram.className = 'mermaid';
+      diagram.id = 'mermaid-diagram-' + index;
+      pre.dataset.mermaidRendered = 'true';
+      pre.replaceWith(diagram);
+
+      try {
+        var renderResult = mermaid.render('mermaid-svg-' + index, source, diagram);
+        if (renderResult && typeof renderResult.then === 'function') {
+          renderResult.then(function(result) {
+            diagram.innerHTML = result.svg;
+            if (result.bindFunctions) result.bindFunctions(diagram);
+          }).catch(function() {
+            diagram.replaceWith(pre);
+            pre.dataset.mermaidRendered = 'false';
+          });
+          return;
+        }
+        if (renderResult && renderResult.svg) {
+          diagram.innerHTML = renderResult.svg;
+          if (renderResult.bindFunctions) renderResult.bindFunctions(diagram);
+        }
+      } catch (_) {
+        diagram.replaceWith(pre);
+        pre.dataset.mermaidRendered = 'false';
+      }
+    }
+
     function replaceBlocks(mermaid) {
       try {
         mermaid.initialize({
           startOnLoad: false,
           securityLevel: 'strict',
-          theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+          theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default',
+          suppressErrorRendering: true
         });
       } catch (_) {}
 
       blocks.forEach(function(code, index) {
-        var pre = code.parentElement;
-        if (!pre || pre.dataset.mermaidRendered === 'true') return;
-        var diagram = document.createElement('div');
-        diagram.className = 'mermaid';
-        diagram.textContent = code.textContent || '';
-        diagram.id = 'mermaid-diagram-' + index;
-        pre.dataset.mermaidRendered = 'true';
-        pre.replaceWith(diagram);
+        renderBlock(mermaid, code, index);
       });
-
-      try {
-        var result = mermaid.run({ querySelector: '.mermaid' });
-        if (result && typeof result.catch === 'function') result.catch(function() {});
-      } catch (_) {}
     }
 
     if (window.mermaid) {

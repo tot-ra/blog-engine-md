@@ -28,3 +28,23 @@ func TestBuiltinScriptsScopeSidebarModeStorageToConfiguredDefault(t *testing.T) 
 		t.Fatalf("expected old sidebar mode storage key not to be used")
 	}
 }
+
+func TestBuiltinScriptsNormalizeSQLLikeMermaidClassMembers(t *testing.T) {
+	outDir := t.TempDir()
+	bundle, err := NewJSProcessor(false).Process(nil, outDir)
+	if err != nil {
+		t.Fatalf("process js: %v", err)
+	}
+
+	checks := []string{
+		`function normalizeMermaidSource(source)`,
+		`Mermaid 11 rejects SQL-like members`,
+		`return indentOf(line) + '+' + safeType(type) + ' ' + name;`,
+		`suppressErrorRendering: true`,
+	}
+	for _, check := range checks {
+		if !strings.Contains(bundle.Content, check) {
+			t.Fatalf("expected Mermaid normalizer bundle to contain %q", check)
+		}
+	}
+}
