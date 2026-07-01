@@ -1,0 +1,125 @@
+{{define "base_scripts"}}
+    <script>
+    (function() {
+        var players = document.querySelectorAll("[data-audio-player]");
+        players.forEach(function(container) {
+            var audio = container.querySelector("[data-audio-element]");
+            var toggleBtn = container.querySelector("[data-audio-toggle]");
+            var wave = container.querySelector("[data-audio-wave]");
+            if (!audio || !toggleBtn || !wave) {
+                return;
+            }
+            var audioCtx = null;
+            var sourceNode = null;
+            var analyser = null;
+            var waveData = null;
+            var rafId = 0;
+
+            function syncToggleState() {
+                var isPlaying = !audio.paused && !audio.ended;
+                toggleBtn.classList.toggle("is-playing", isPlaying);
+                var label = isPlaying ? (toggleBtn.dataset.stopLabel || "Stop") : (toggleBtn.dataset.playLabel || "Listen");
+                toggleBtn.setAttribute("aria-label", label);
+                toggleBtn.setAttribute("title", label);
+            }
+
+            function ensureVisualizer() {
+                if (analyser) {
+                    return;
+                }
+                var AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) {
+                    return;
+                }
+                audioCtx = new AudioCtx();
+                sourceNode = audioCtx.createMediaElementSource(audio);
+                analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 1024;
+                waveData = new Uint8Array(analyser.fftSize);
+                sourceNode.connect(analyser);
+                analyser.connect(audioCtx.destination);
+            }
+
+            function stopWave() {
+                if (rafId) {
+                    cancelAnimationFrame(rafId);
+                    rafId = 0;
+                }
+            }
+
+            function drawWave() {
+                if (!analyser || !wave) {
+                    return;
+                }
+                var dpr = window.devicePixelRatio || 1;
+                var w = Math.max(88, wave.clientWidth || 88);
+                var h = Math.max(28, wave.clientHeight || 28);
+                if (wave.width !== Math.floor(w * dpr) || wave.height !== Math.floor(h * dpr)) {
+                    wave.width = Math.floor(w * dpr);
+                    wave.height = Math.floor(h * dpr);
+                }
+                var ctx = wave.getContext("2d");
+                if (!ctx) {
+                    return;
+                }
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                ctx.clearRect(0, 0, w, h);
+                ctx.strokeStyle = "#0066cc";
+                ctx.lineWidth = 1.2;
+
+                analyser.getByteTimeDomainData(waveData);
+                ctx.beginPath();
+                var slice = waveData.length / w;
+                for (var x = 0; x < w; x++) {
+                    var idx = Math.floor(x * slice);
+                    var y = ((waveData[idx] - 128) / 128) * (h * 0.36) + (h / 2);
+                    if (x === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+                ctx.stroke();
+
+                if (!audio.paused && !audio.ended) {
+                    rafId = requestAnimationFrame(drawWave);
+                } else {
+                    stopWave();
+                }
+            }
+
+            toggleBtn.addEventListener("click", function() {
+                if (!audio.paused && !audio.ended) {
+                    audio.pause();
+                    audio.currentTime = 0;
+                    syncToggleState();
+                    stopWave();
+                    return;
+                }
+                ensureVisualizer();
+                if (audioCtx && audioCtx.state === "suspended") {
+                    audioCtx.resume().catch(function() {});
+                }
+                var started = audio.play();
+                if (started && typeof started.then === "function") {
+                    started.then(function() {
+                        syncToggleState();
+                        drawWave();
+                    }).catch(function() {});
+                    return;
+                }
+                syncToggleState();
+                drawWave();
+            });
+            audio.addEventListener("pause", syncToggleState);
+            audio.addEventListener("play", syncToggleState);
+            audio.addEventListener("ended", function() {
+                syncToggleState();
+                stopWave();
+            });
+
+            syncToggleState();
+        });
+    })();
+    </script>
+{{end}}

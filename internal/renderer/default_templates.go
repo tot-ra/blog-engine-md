@@ -1,8 +1,8 @@
 package renderer
 
-import _ "embed"
+import "embed"
 
-// defaultTemplates contains built-in templates.
+// defaultTemplateFS contains built-in templates split into logical partials.
 //
-//go:embed default_templates.html
-var defaultTemplates string
+//go:embed default_templates/*.html
+var defaultTemplateFS embed.FS

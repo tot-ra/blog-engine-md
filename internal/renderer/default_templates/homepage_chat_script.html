@@ -1,0 +1,26 @@
+{{define "homepage_chat_script"}}
+    {{if .Homepage.Chat.Enabled}}
+    <script type="module">
+        const chatRoot = document.getElementById("triangle-chat-root");
+        let triangleWidget = null;
+
+        async function ensureTriangleWidget() {
+            if (triangleWidget || !chatRoot) {
+                return;
+            }
+            const mod = await import("/assets/triangle/embed.js");
+            const baseUrl = chatRoot.dataset.baseUrl || window.location.origin;
+            const recipientAgentId = chatRoot.dataset.recipientAgentId || "";
+            const title = chatRoot.dataset.title || "{{.UI.Chat}}";
+            triangleWidget = mod.createTriangleWidget({
+                baseUrl: baseUrl,
+                recipientAgentId: recipientAgentId,
+                title: title,
+                mount: chatRoot
+            });
+        }
+
+        void ensureTriangleWidget();
+    </script>
+    {{end}}
+{{end}}

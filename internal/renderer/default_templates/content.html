@@ -1,0 +1,95 @@
+{{define "content"}}
+<article>
+    {{if .Breadcrumbs}}
+    <nav aria-label="{{.UI.Breadcrumb}}">
+        <ol class="breadcrumbs">
+            {{range .Breadcrumbs}}
+            <li>
+                {{if .IsCurrent}}
+                    <span aria-current="page">{{.Title}}</span>
+                {{else}}
+                    <a href="{{.URL}}">{{.Title}}</a>
+                {{end}}
+            </li>
+            {{end}}
+        </ol>
+    </nav>
+    {{end}}
+    <h1>{{.Page.Title}}</h1>
+    {{if or (hasDate .Frontmatter.Date) .Page.AudioURL}}
+    <div class="article-meta">
+        {{if hasDate .Frontmatter.Date}}
+        <time datetime="{{.Frontmatter.Date.Format "2006-01-02T15:04:05Z07:00"}}">
+            {{formatDateLocalized .Frontmatter.Date .Page.Language}}
+        </time>
+        {{else}}<span></span>{{end}}
+        {{if .Page.AudioURL}}
+        <div class="article-audio" data-audio-player>
+            <audio preload="metadata" src="{{.Page.AudioURL}}" data-audio-element></audio>
+            <button type="button" data-audio-toggle data-play-label="{{.UI.Listen}}" data-stop-label="{{.UI.Stop}}" aria-label="{{.UI.Listen}}" title="{{.UI.Listen}}">
+                <svg class="icon-play" viewBox="0 0 24 24" aria-hidden="true">
+                    <polygon points="8,5 19,12 8,19"></polygon>
+                </svg>
+                <svg class="icon-stop" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="7" y="7" width="10" height="10"></rect>
+                </svg>
+            </button>
+            <canvas class="audio-wave" data-audio-wave></canvas>
+        </div>
+        {{end}}
+    </div>
+    {{end}}
+    <div class="content">
+        {{.Content}}
+    </div>
+    {{if and (eq .Page.Layout "projects") .Homepage.Projects}}
+    <section class="projects-grid" aria-label="{{.UI.Projects}}">
+        {{range .Homepage.Projects}}
+        <div class="project-card">
+            {{if .Image}}<img src="{{.Image}}" alt="{{.Title}}" class="project-image">{{end}}
+            <div class="project-content">
+                <h3>
+                    {{if .URL}}
+                    <a href="{{.URL}}">{{.Title}}</a>
+                    {{else if .GitHub}}
+                    <a href="{{.GitHub}}">{{.Title}}</a>
+                    {{else}}
+                    {{.Title}}
+                    {{end}}
+                </h3>
+                <p>{{.Description}}</p>
+                {{if .Tags}}
+                <div class="project-tags">
+                    {{range .Tags}}<span class="project-tag">{{.}}</span>{{end}}
+                </div>
+                {{end}}
+            </div>
+        </div>
+        {{end}}
+    </section>
+    {{end}}
+    {{if .Frontmatter.Tags}}
+    <div class="tags">
+        {{range .Frontmatter.Tags}}
+        <a class="tag" href="{{call $.TagURL .}}">#{{.}}</a>
+        {{end}}
+    </div>
+    {{end}}
+    {{if .PrevNext}}
+    <nav class="prev-next" aria-label="{{.UI.PageNavigation}}">
+        {{if .PrevNext.Prev}}
+        <a href="{{.PrevNext.Prev.URL}}" class="prev-link">
+            <span class="prev-label">← {{.UI.Previous}}</span>
+            <span class="prev-title">{{.PrevNext.Prev.Title}}</span>
+        </a>
+        {{end}}
+        {{if .PrevNext.Next}}
+        <a href="{{.PrevNext.Next.URL}}" class="next-link">
+            <span class="next-label">{{.UI.Next}} →</span>
+            <span class="next-title">{{.PrevNext.Next.Title}}</span>
+        </a>
+        {{end}}
+    </nav>
+    {{end}}
+</article>
+{{end}}

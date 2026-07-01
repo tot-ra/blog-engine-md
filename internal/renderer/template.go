@@ -133,7 +133,11 @@ func (e *TemplateEngine) LoadTemplates(dir string) error {
 	// Check if templates directory exists
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		// Use embedded default templates
-		e.templates = template.Must(template.New("").Funcs(e.funcs).Parse(defaultTemplates))
+		tmpl, err := e.loadDefaultTemplates()
+		if err != nil {
+			return err
+		}
+		e.templates = tmpl
 		return nil
 	}
 
@@ -167,11 +171,19 @@ func (e *TemplateEngine) LoadTemplates(dir string) error {
 	// Check if any templates were loaded
 	if !templatesLoaded {
 		// Use default templates
-		tmpl = template.Must(template.New("").Funcs(e.funcs).Parse(defaultTemplates))
+		var err error
+		tmpl, err = e.loadDefaultTemplates()
+		if err != nil {
+			return err
+		}
 	}
 
 	e.templates = tmpl
 	return nil
+}
+
+func (e *TemplateEngine) loadDefaultTemplates() (*template.Template, error) {
+	return template.New("").Funcs(e.funcs).ParseFS(defaultTemplateFS, "default_templates/*.html")
 }
 
 // Render renders a template with data

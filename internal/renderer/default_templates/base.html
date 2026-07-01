@@ -1,0 +1,66 @@
+{{define "base"}}
+<!DOCTYPE html>
+<html lang="{{.Page.Language}}" dir="{{.Page.Direction}}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Page.Title}}{{if .Site.Site.Title}} | {{.Site.Site.Title}}{{end}}</title>
+    {{if .MetaDescription}}
+    <meta name="description" content="{{.MetaDescription}}">
+    {{end}}
+    {{if .Site.SEO.Enabled}}
+    {{if .CanonicalURL}}<link rel="canonical" href="{{.CanonicalURL}}">{{end}}
+    <meta property="og:title" content="{{.Page.Title}}">
+    {{if .MetaDescription}}<meta property="og:description" content="{{.MetaDescription}}">{{end}}
+    <meta property="og:type" content="{{.OpenGraphType}}">
+    {{if .CanonicalURL}}<meta property="og:url" content="{{.CanonicalURL}}">{{end}}
+    {{if .SocialImageURL}}<meta property="og:image" content="{{.SocialImageURL}}">{{end}}
+    {{if .Site.Site.Title}}<meta property="og:site_name" content="{{.Site.Site.Title}}">{{end}}
+    <meta name="twitter:card" content="{{.SocialCard}}">
+    <meta name="twitter:title" content="{{.Page.Title}}">
+    {{if .MetaDescription}}<meta name="twitter:description" content="{{.MetaDescription}}">{{end}}
+    {{if .SocialImageURL}}<meta name="twitter:image" content="{{.SocialImageURL}}">{{end}}
+    {{if .Site.SEO.Twitter.Site}}<meta name="twitter:site" content="{{.Site.SEO.Twitter.Site}}">{{end}}
+    {{if .Site.SEO.Twitter.Creator}}<meta name="twitter:creator" content="{{.Site.SEO.Twitter.Creator}}">{{end}}
+    {{end}}
+    {{if .Site.Site.Favicon}}<link rel="icon" href="{{.Site.Site.Favicon}}">{{end}}
+    {{template "base_styles" .}}
+    {{if .CSSPath}}<link rel="stylesheet" href="{{.CSSPath}}">{{end}}
+</head>
+<body class="{{if .Page.Layout}}page-layout-{{.Page.Layout}}{{else}}page-layout-page{{end}}">
+    <header class="site-header">
+        <div class="header-left">
+            <a class="navbar-logo" href="{{.HomeURL}}">
+                <img class="no-transform" src="{{.Site.Site.Logo}}" alt="{{.Site.Site.Title}}">
+            </a>
+            <nav class="site-nav">
+                {{range .HeaderNav}}<a href="{{.URL}}"{{if .Class}} class="{{.Class}}"{{end}}{{if .IsCurrent}} aria-current="page"{{end}}>{{.Title}}</a>{{end}}
+            </nav>
+        </div>
+        <div class="header-right">
+            <nav class="lang-switcher" aria-label="{{.UI.Languages}}">
+                {{range .Languages}}<a class="lang-link{{if .Active}} is-active{{end}}" href="{{.URL}}" hreflang="{{.Code}}">{{.Label}}</a>{{end}}
+            </nav>
+            <button id="theme-toggle" class="theme-toggle" aria-label="{{.UI.ToggleTheme}}" title="{{.UI.ToggleTheme}}">
+                <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="4"></circle>
+                    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
+                </svg>
+                <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3c0 0 0 0 0 0A7 7 0 0 0 21 12.79z"></path>
+                </svg>
+            </button>
+        </div>
+    </header>
+    <div class="site-layout">
+        {{if .Sidebar}}{{.Sidebar}}{{end}}
+        <main class="site-content">
+            {{template "content" .}}
+        </main>
+        {{if .TOC}}{{.TOC}}{{end}}
+    </div>
+    {{template "base_scripts" .}}
+    {{if .JSPath}}<script defer src="{{.JSPath}}"></script>{{end}}
+</body>
+</html>
+{{end}}
