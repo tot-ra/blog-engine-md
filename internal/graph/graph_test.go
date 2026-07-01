@@ -1,6 +1,10 @@
 package graph
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -167,5 +171,134 @@ func TestNormalizeLinkURL(t *testing.T) {
 		if got != tt.expect {
 			t.Errorf("normalizeLinkURL(%q, %q) = %q, want %q", tt.source, tt.link, got, tt.expect)
 		}
+	}
+}
+
+func TestWriteGraphJSONWritesIndentedGraphData(t *testing.T) {
+	graph := &GraphData{
+		Nodes: []GraphNode{{
+			ID:    "page-1",
+			Label: "Page One",
+			Type:  "page",
+			URL:   "/page-1/",
+			Size:  3,
+			Color: "#607D8B",
+		}},
+		Edges: []GraphEdge{{
+			Source: "page-1",
+			Target: "tag-go",
+			Type:   "tag",
+			Weight: 0.5,
+		}},
+	}
+	outputDir := t.TempDir()
+
+	if err := WriteGraphJSON(graph, outputDir); err != nil {
+		t.Fatalf("WriteGraphJSON returned error: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(outputDir, "graph.json"))
+	if err != nil {
+		t.Fatalf("failed to read graph.json: %v", err)
+	}
+
+	var got GraphData
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("graph.json does not contain valid JSON: %v", err)
+	}
+	if len(got.Nodes) != 1 || got.Nodes[0].ID != "page-1" {
+		t.Fatalf("unexpected nodes in graph.json: %#v", got.Nodes)
+	}
+	if len(got.Edges) != 1 || got.Edges[0].Target != "tag-go" || got.Edges[0].Weight != 0.5 {
+		t.Fatalf("unexpected edges in graph.json: %#v", got.Edges)
+	}
+	if !strings.Contains(string(data), "\n  \"nodes\"") {
+		t.Fatalf("expected indented JSON, got: %s", string(data))
+	}
+}
+
+func TestWriteGraphJSONReturnsDirectoryError(t *testing.T) {
+	filePath := filepath.Join(t.TempDir(), "not-a-dir")
+	if err := os.WriteFile(filePath, []byte("content"), 0644); err != nil {
+		t.Fatalf("failed to create blocking file: %v", err)
+	}
+
+	err := WriteGraphJSON(&GraphData{}, filePath)
+	if err == nil {
+		t.Fatal("expected error when output path parent is a file")
+	}
+	if !strings.Contains(err.Error(), "failed to create directory for graph.json") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestWriteGraphPageWritesEscapedHTML(t *testing.T) {
+	outputDir := t.TempDir()
+	siteTitle := `My <Site> & "Graph"`
+
+	if err := WriteGraphPage(outputDir, siteTitle); err != nil {
+		t.Fatalf("WriteGraphPage returned error: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(outputDir, "graph", "index.html"))
+	if err != nil {
+		t.Fatalf("failed to read graph page: %v", err)
+	}
+	html := string(data)
+
+	if !strings.Contains(html, "Graph View | My &lt;Site&gt; &amp; &#34;Graph&#34;") {
+		t.Fatalf("expected escaped site title in graph title, got: %s", html)
+	}
+	if strings.Contains(html, "Graph View | "+siteTitle) {
+		t.Fatalf("site title was written without escaping: %s", html)
+	}
+	if !strings.Contains(html, `fetch((langPrefix || '') + '/graph.json')`) {
+		t.Fatal("expected graph page to fetch graph.json")
+	}
+	if !strings.Contains(html, `postMessage({ type: 'blog-graph-navigate'`) {
+		t.Fatal("expected embedded graph navigation support")
+	}
+}
+
+func TestWriteGraphPageReturnsDirectoryError(t *testing.T) {
+	filePath := filepath.Join(t.TempDir(), "not-a-dir")
+	if err := os.WriteFile(filePath, []byte("content"), 0644); err != nil {
+		t.Fatalf("failed to create blocking file: %v", err)
+	}
+
+	err := WriteGraphPage(filePath, "Site")
+	if err == nil {
+		t.Fatal("expected error when output path parent is a file")
+	}
+	if !strings.Contains(err.Error(), "failed to create graph directory") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestBuildGraphCapsNodeSize(t *testing.T) {
+	pages := []PageInfo{{
+		ID:    "hub",
+		Title: "Hub",
+		URL:   "/hub/",
+		Type:  "doc",
+	}}
+	for i := 0; i < 20; i++ {
+		pages[0].Tags = append(pages[0].Tags, string(rune('a'+i)))
+	}
+
+	graph := BuildGraph(pages)
+
+	var hubNode *GraphNode
+	for i := range graph.Nodes {
+		if graph.Nodes[i].ID == "hub" {
+			hubNode = &graph.Nodes[i]
+			break
+		}
+	}
+	if hubNode == nil {
+		t.Fatal("hub node not found")
+	}
+	if hubNode.Size != 20 {
+		t.Fatalf("expected capped hub size 20, got %d", hubNode.Size)
 	}
 }

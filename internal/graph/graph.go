@@ -3,6 +3,7 @@ package graph
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -570,5 +571,5 @@ func generateGraphHTML(siteTitle string) string {
     })();
     </script>
 </body>
-</html>`, siteTitle)
+</html>`, html.EscapeString(siteTitle))
 }
