@@ -2,6 +2,9 @@ dist/
 blog-engine
 .cache/
 
+# IDE
+.idea/
+
 # macOS Finder metadata files can appear when deploying/copying from Macs.
 # Keep them out of prod checkouts and Go package directories.
 .DS_Store
