@@ -121,6 +121,11 @@ func NewTemplateEngine() *TemplateEngine {
 		"hasDate": func(t time.Time) bool {
 			return !t.IsZero()
 		},
+		"split": strings.Split,
+		"contains": strings.Contains,
+		"safeHTML": func(s string) template.HTML {
+			return template.HTML(s)
+		},
 	}
 
 	return &TemplateEngine{
@@ -128,27 +133,23 @@ func NewTemplateEngine() *TemplateEngine {
 	}
 }
 
-// LoadTemplates loads templates from a directory
+// LoadTemplates loads embedded defaults and overlays site-specific templates.
 func (e *TemplateEngine) LoadTemplates(dir string) error {
-	// Check if templates directory exists
+	tmpl, err := e.loadDefaultTemplates()
+	if err != nil {
+		return err
+	}
+
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		// Use embedded default templates
-		tmpl, err := e.loadDefaultTemplates()
-		if err != nil {
-			return err
-		}
 		e.templates = tmpl
 		return nil
 	}
 
-	// Load from directory
 	patterns := []string{
 		filepath.Join(dir, "*.html"),
 		filepath.Join(dir, "**", "*.html"),
 	}
 
-	tmpl := template.New("").Funcs(e.funcs)
-	templatesLoaded := false
 	for _, pattern := range patterns {
 		matches, err := filepath.Glob(pattern)
 		if err != nil {
@@ -164,17 +165,6 @@ func (e *TemplateEngine) LoadTemplates(dir string) error {
 			if err != nil {
 				return fmt.Errorf("failed to parse template %s: %w", match, err)
 			}
-			templatesLoaded = true
-		}
-	}
-
-	// Check if any templates were loaded
-	if !templatesLoaded {
-		// Use default templates
-		var err error
-		tmpl, err = e.loadDefaultTemplates()
-		if err != nil {
-			return err
 		}
 	}
 
