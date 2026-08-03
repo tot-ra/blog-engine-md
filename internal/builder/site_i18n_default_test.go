@@ -78,6 +78,23 @@ func TestBuildLanguageOptionsUsesRootForDefaultLanguage(t *testing.T) {
 	}
 }
 
+func TestBuildLanguageOptionsUsesExistingPrefixedDefaultLanguagePage(t *testing.T) {
+	b := newDefaultRootI18nBuilder(t)
+	b.pagesByURL["/en/about/"] = &Page{URL: "/en/about/", Language: "en"}
+	b.pagesByURL["/ru/about/"] = &Page{URL: "/ru/about/", Language: "ru"}
+
+	options := b.buildLanguageOptions(&Page{URL: "/ru/about/", Language: "ru"})
+	if len(options) != 2 {
+		t.Fatalf("expected 2 language options, got %d", len(options))
+	}
+	if options[0].Code != "en" || options[0].URL != "/en/about/" {
+		t.Fatalf("expected existing prefixed English page, got %+v", options[0])
+	}
+	if options[1].Code != "ru" || options[1].URL != "/ru/about/" {
+		t.Fatalf("expected existing prefixed Russian page, got %+v", options[1])
+	}
+}
+
 func TestGeneratedTagAndArchivePagesUseRootForDefaultLanguage(t *testing.T) {
 	b := newDefaultRootI18nBuilder(t)
 	postDate := time.Date(2026, time.June, 8, 0, 0, 0, 0, time.UTC)

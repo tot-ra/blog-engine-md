@@ -404,13 +404,13 @@ func (b *SiteBuilder) buildLanguageOptions(page *Page) []renderer.LanguageOption
 		if targetPath == "/" {
 			targetPath = ""
 		}
-		candidate := b.buildLanguageScopedURL(code, targetPath)
+		candidate, exists := b.existingLanguageScopedURL(code, targetPath)
 
-		if _, ok := b.pagesByURL[candidate]; !ok {
+		if !exists {
 			if section != "" {
-				candidate = b.buildLanguageScopedURL(code, section)
+				candidate, _ = b.existingLanguageScopedURL(code, section)
 			} else {
-				candidate = b.buildLanguageScopedURL(code, "")
+				candidate, _ = b.existingLanguageScopedURL(code, "")
 			}
 		}
 
@@ -422,4 +422,22 @@ func (b *SiteBuilder) buildLanguageOptions(page *Page) []renderer.LanguageOption
 		})
 	}
 	return options
+}
+
+func (b *SiteBuilder) existingLanguageScopedURL(lang, path string) (string, bool) {
+	canonical := b.buildLanguageScopedURL(lang, path)
+	if _, ok := b.pagesByURL[canonical]; ok {
+		return canonical, true
+	}
+
+	// Explicitly prefixed default-language content is also supported. Prefer the
+	// canonical root form when both routes exist, but use the real prefixed page
+	// instead of returning a missing root URL.
+	prefixed := buildLanguageScopedURL(lang, path)
+	if prefixed != canonical {
+		if _, ok := b.pagesByURL[prefixed]; ok {
+			return prefixed, true
+		}
+	}
+	return canonical, false
 }
