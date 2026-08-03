@@ -37,7 +37,10 @@ func (b *SiteBuilder) buildHeaderNav(lang, currentURL string) []renderer.NavLink
 			if len(b.config.I18n.Languages) > 1 {
 				langPrefix = strings.Trim(languageURLPrefix(lang, b.config.I18n.Default, currentURL), "/")
 			}
-			target = b.buildLanguageScopedURL(langPrefix, path)
+			// Preserve the URL shape of the page being rendered. Some sites keep
+			// explicitly localized default-language content under /<lang>/, while
+			// others publish it at the root.
+			target = buildLanguageScopedURL(langPrefix, path)
 		}
 		if target == "" {
 			continue

@@ -333,17 +333,18 @@ func languageURLPrefix(language, defaultLanguage, currentURL string) string {
 		return ""
 	}
 
-	// Default-language content is canonical at root even in multilingual sites.
-	if trimmedDefault != "" && strings.EqualFold(trimmedLang, trimmedDefault) {
-		return ""
-	}
-
 	trimmedURL := strings.Trim(currentURL, "/")
 	if trimmedURL != "" {
 		parts := strings.Split(trimmedURL, "/")
 		if len(parts) > 0 && strings.EqualFold(parts[0], trimmedLang) {
 			return "/" + parts[0]
 		}
+	}
+
+	// Default-language content without an explicit language prefix stays at the
+	// root. If currentURL was explicitly prefixed, preserve that shape above.
+	if trimmedDefault != "" && strings.EqualFold(trimmedLang, trimmedDefault) {
+		return ""
 	}
 
 	return "/" + trimmedLang

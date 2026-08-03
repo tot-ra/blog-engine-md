@@ -145,6 +145,40 @@ func TestBuildHeaderNavDefaultLanguageUsesCurrentURLShape(t *testing.T) {
 	}
 }
 
+func TestBuildHeaderNavDefaultLanguagePreservesExplicitPrefix(t *testing.T) {
+	b := &SiteBuilder{
+		config: &config.SiteConfig{
+			I18n: config.I18nConfig{
+				Default: "ru",
+				Languages: []config.LanguageConfig{
+					{Code: "ru", Label: "Русский"},
+					{Code: "en", Label: "English"},
+				},
+			},
+			Navigation: config.Navigation{
+				Header: config.HeaderConfig{
+					Enabled: true,
+					Items: []config.HeaderItem{
+						{Title: "Docs", Path: "docs"},
+						{Title: "Blog", Path: "blog"},
+					},
+				},
+			},
+		},
+	}
+
+	nav := b.buildHeaderNav("ru", "/ru/docs/getting-started/")
+	if len(nav) != 2 {
+		t.Fatalf("expected two nav items, got %d", len(nav))
+	}
+	if nav[0].URL != "/ru/docs/" || !nav[0].IsCurrent {
+		t.Fatalf("expected active prefixed docs URL, got %+v", nav[0])
+	}
+	if nav[1].URL != "/ru/blog/" {
+		t.Fatalf("expected prefixed blog URL, got %+v", nav[1])
+	}
+}
+
 func TestBuildHeaderNavUsesLocalizedContentLabels(t *testing.T) {
 	b := &SiteBuilder{
 		config: &config.SiteConfig{
