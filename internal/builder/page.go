@@ -520,6 +520,7 @@ func normalizeHeadingText(text string) string {
 func extractTOC(content string) []*TocItem {
 	var toc []*TocItem
 	var stack []*TocItem
+	usedAnchors := map[string]bool{}
 
 	lines := strings.Split(content, "\n")
 	for _, line := range lines {
@@ -545,7 +546,7 @@ func extractTOC(content string) []*TocItem {
 
 		// Extract and normalize heading text for cleaner TOC labels.
 		text := sanitizeTOCHeading(strings.TrimSpace(line[level:]))
-		anchor := parser.GenerateSlug(text)
+		anchor := uniqueTOCAnchor(parser.GenerateSlug(text), usedAnchors)
 
 		item := &TocItem{
 			Level:  level,
@@ -572,6 +573,24 @@ func extractTOC(content string) []*TocItem {
 	}
 
 	return toc
+}
+
+// uniqueTOCAnchor keeps TOC hrefs aligned with slugIDs uniqueness (-1, -2, ...).
+func uniqueTOCAnchor(base string, used map[string]bool) string {
+	if base == "" {
+		base = "heading"
+	}
+	if !used[base] {
+		used[base] = true
+		return base
+	}
+	for i := 1; ; i++ {
+		candidate := fmt.Sprintf("%s-%d", base, i)
+		if !used[candidate] {
+			used[candidate] = true
+			return candidate
+		}
+	}
 }
 
 func sanitizeTOCHeading(text string) string {

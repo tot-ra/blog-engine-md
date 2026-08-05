@@ -322,4 +322,73 @@ const builtinScripts = `
     });
   });
 })();
+
+// TOC scrollspy: highlight the nav item for the section currently in view.
+// WHY: native JS only (no deps), same idea as Twitter's section spy.
+(function() {
+  document.addEventListener('DOMContentLoaded', function() {
+    var toc = document.querySelector('nav.toc');
+    if (!toc) return;
+
+    var links = Array.prototype.slice.call(toc.querySelectorAll('a[href^="#"]'));
+    if (!links.length) return;
+
+    var linkById = {};
+    var sections = [];
+    links.forEach(function(link) {
+      var id = decodeURIComponent((link.getAttribute('href') || '').slice(1));
+      if (!id) return;
+      var el = document.getElementById(id);
+      if (!el) return;
+      linkById[id] = link;
+      sections.push(el);
+    });
+    if (!sections.length) return;
+
+    var activeId = '';
+
+    function setActive(id) {
+      if (id === activeId) return;
+      activeId = id;
+      links.forEach(function(link) {
+        var on = linkById[id] === link;
+        link.classList.toggle('is-active', on);
+        if (on) {
+          link.setAttribute('aria-current', 'location');
+        } else {
+          link.removeAttribute('aria-current');
+        }
+      });
+    }
+
+    // Prefer the last section whose top has crossed ~25% of the viewport.
+    function syncFromScroll() {
+      var marker = window.scrollY + Math.min(180, window.innerHeight * 0.25);
+      var current = sections[0] ? sections[0].id : '';
+      for (var i = 0; i < sections.length; i++) {
+        var top = sections[i].getBoundingClientRect().top + window.scrollY;
+        if (top <= marker) {
+          current = sections[i].id;
+        } else {
+          break;
+        }
+      }
+      if (current) setActive(current);
+    }
+
+    var ticking = false;
+    function onScroll() {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(function() {
+        ticking = false;
+        syncFromScroll();
+      });
+    }
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    syncFromScroll();
+  });
+})();
 `

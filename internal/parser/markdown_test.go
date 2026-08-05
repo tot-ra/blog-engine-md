@@ -76,6 +76,23 @@ func TestMarkdownParser_Render(t *testing.T) {
 	}
 }
 
+func TestMarkdownParser_RenderCyrillicHeadingIDsMatchSlug(t *testing.T) {
+	p := NewMarkdownParser()
+	html, err := p.Render("## Профессия\n\ntext\n\n## Образование\n")
+	if err != nil {
+		t.Fatalf("Render failed: %v", err)
+	}
+	if !strings.Contains(html, `<h2 id="professiya">Профессия</h2>`) {
+		t.Fatalf("expected transliterated heading id, got:\n%s", html)
+	}
+	if !strings.Contains(html, `<h2 id="obrazovanie">Образование</h2>`) {
+		t.Fatalf("expected second transliterated heading id, got:\n%s", html)
+	}
+	if strings.Contains(html, `id="heading"`) {
+		t.Fatalf("did not expect goldmark fallback heading id:\n%s", html)
+	}
+}
+
 func TestMarkdownParser_RenderWithMeta(t *testing.T) {
 	parser := NewMarkdownParser()
 	content := `---

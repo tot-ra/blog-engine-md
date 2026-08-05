@@ -29,6 +29,26 @@ func TestBuiltinScriptsScopeSidebarModeStorageToConfiguredDefault(t *testing.T) 
 	}
 }
 
+func TestBuiltinScriptsIncludeTOCScrollspy(t *testing.T) {
+	outDir := t.TempDir()
+	bundle, err := NewJSProcessor(false).Process(nil, outDir)
+	if err != nil {
+		t.Fatalf("process js: %v", err)
+	}
+
+	checks := []string{
+		`TOC scrollspy`,
+		`nav.toc`,
+		`classList.toggle('is-active'`,
+		`aria-current`,
+	}
+	for _, check := range checks {
+		if !strings.Contains(bundle.Content, check) {
+			t.Fatalf("expected TOC scrollspy bundle to contain %q", check)
+		}
+	}
+}
+
 func TestBuiltinScriptsNormalizeSQLLikeMermaidClassMembers(t *testing.T) {
 	outDir := t.TempDir()
 	bundle, err := NewJSProcessor(false).Process(nil, outDir)

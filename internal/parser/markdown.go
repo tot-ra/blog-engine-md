@@ -53,7 +53,9 @@ func NewMarkdownParser() *MarkdownParser {
 func (p *MarkdownParser) Render(content string) (string, error) {
 	content = preprocessMDXCompat(content)
 	var buf bytes.Buffer
-	if err := p.md.Convert([]byte(content), &buf); err != nil {
+	// WHY: use slug IDs so heading anchors match TOC links for Cyrillic headings.
+	context := parser.NewContext(parser.WithIDs(NewSlugIDs()))
+	if err := p.md.Convert([]byte(content), &buf, parser.WithContext(context)); err != nil {
 		return "", fmt.Errorf("failed to render markdown: %w", err)
 	}
 	return buf.String(), nil
@@ -63,7 +65,7 @@ func (p *MarkdownParser) Render(content string) (string, error) {
 func (p *MarkdownParser) RenderWithMeta(content string) (string, map[string]interface{}, error) {
 	content = preprocessMDXCompat(content)
 	var buf bytes.Buffer
-	context := parser.NewContext()
+	context := parser.NewContext(parser.WithIDs(NewSlugIDs()))
 
 	if err := p.md.Convert([]byte(content), &buf, parser.WithContext(context)); err != nil {
 		return "", nil, fmt.Errorf("failed to render markdown: %w", err)
