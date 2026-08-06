@@ -105,6 +105,10 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 	}
 	data.Site.Site.Language = page.Language
 	data.Homepage = b.homepageForLanguage(page.Language)
+	data.HomeURL, _ = b.existingLanguageScopedURL(page.Language, "")
+	if page.Frontmatter.Layout == "homepage" && data.Homepage.BlogShowcase.Enabled {
+		data.BlogShowcase = b.homepageBlogShowcase(page.Language, data.Homepage.BlogShowcase.Limit)
+	}
 	if b.cssBundle != nil {
 		data.CSSPath = b.cssBundle.Path
 	}
@@ -423,6 +427,50 @@ func renderRecentEmbedHTML(provider, rawContent string) string {
 	}
 }
 
+func (b *SiteBuilder) homepageBlogShowcase(language string, limit int) []renderer.BlogShowcasePost {
+	if limit <= 0 {
+		limit = 4
+	}
+
+	posts := make([]*Page, 0, limit)
+	for _, page := range b.pages {
+		if page == nil || page.Type != TypeBlog || page.Language != language || strings.TrimSpace(page.SourcePath) == "" {
+			continue
+		}
+		if page.Frontmatter != nil && (page.Frontmatter.HideNav || strings.TrimSpace(page.Frontmatter.RedirectURL) != "") {
+			continue
+		}
+		posts = append(posts, page)
+	}
+	sort.SliceStable(posts, func(i, j int) bool {
+		di := sectionPageSortDate(posts[i])
+		dj := sectionPageSortDate(posts[j])
+		if !di.Equal(dj) {
+			return di.After(dj)
+		}
+		return strings.ToLower(posts[i].Title) < strings.ToLower(posts[j].Title)
+	})
+	if len(posts) > limit {
+		posts = posts[:limit]
+	}
+
+	showcase := make([]renderer.BlogShowcasePost, 0, len(posts))
+	for _, post := range posts {
+		description := extractPreviewText(post.RawContent, 2, 220)
+		if description == "" {
+			description = strings.TrimSpace(post.Description)
+		}
+		showcase = append(showcase, renderer.BlogShowcasePost{
+			Title:       post.Title,
+			URL:         post.URL,
+			Description: description,
+			ImageHTML:   template.HTML(firstPreviewImageHTML(post)),
+			Date:        sectionPageSortDate(post),
+		})
+	}
+	return showcase
+}
+
 func (b *SiteBuilder) homepageForLanguage(lang string) config.HomepageConfig {
 	base := b.config.Homepage
 	code := strings.ToLower(strings.TrimSpace(lang))
@@ -474,6 +522,15 @@ func mergeHomepageConfig(base, override config.HomepageConfig) config.HomepageCo
 	}
 	if override.Chat.Title != "" {
 		out.Chat.Title = override.Chat.Title
+	}
+	if override.BlogShowcase.Enabled {
+		out.BlogShowcase.Enabled = true
+	}
+	if override.BlogShowcase.Limit > 0 {
+		out.BlogShowcase.Limit = override.BlogShowcase.Limit
+	}
+	if override.BlogShowcase.Title != "" {
+		out.BlogShowcase.Title = override.BlogShowcase.Title
 	}
 	if override.HideProjects {
 		out.HideProjects = true

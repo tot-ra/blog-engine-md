@@ -25,10 +25,18 @@ type HomepageConfig struct {
 	Enabled      bool               `yaml:"enabled"`
 	Hero         HeroConfig         `yaml:"hero"`
 	Chat         HomepageChatConfig `yaml:"chat"`
+	BlogShowcase BlogShowcaseConfig `yaml:"blogShowcase"`
 	HideProjects bool               `yaml:"hideProjects"`
 	Projects     []ProjectConfig    `yaml:"projects"`
 	SocialLinks  []SocialLinkGroup  `yaml:"socialLinks"`
 	CustomHTML   string             `yaml:"customHTML"` // Additional custom HTML/JS
+}
+
+// BlogShowcaseConfig controls the automatically generated latest-posts showcase.
+type BlogShowcaseConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Limit   int    `yaml:"limit"`
+	Title   string `yaml:"title"`
 }
 
 // HeroConfig contains hero section settings

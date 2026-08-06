@@ -58,10 +58,20 @@ type PrevNextLinks struct {
 	Next *NavLink
 }
 
+// BlogShowcasePost represents one automatically selected homepage blog card.
+type BlogShowcasePost struct {
+	Title       string
+	URL         string
+	Description string
+	ImageHTML   template.HTML
+	Date        time.Time
+}
+
 // PageData holds data for template rendering
 type PageData struct {
 	Site            config.SiteConfig
 	Homepage        config.HomepageConfig
+	BlogShowcase    []BlogShowcasePost
 	Page            Page
 	HomeURL         string
 	TagURL          func(string) string
@@ -121,7 +131,7 @@ func NewTemplateEngine() *TemplateEngine {
 		"hasDate": func(t time.Time) bool {
 			return !t.IsZero()
 		},
-		"split": strings.Split,
+		"split":    strings.Split,
 		"contains": strings.Contains,
 		"safeHTML": func(s string) template.HTML {
 			return template.HTML(s)

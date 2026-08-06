@@ -98,6 +98,29 @@
     </section>
     {{end}}
 
+    {{if .BlogShowcase}}
+    <section class="blog-showcase content-section" aria-labelledby="blog-showcase-title">
+        <div class="blog-showcase-heading">
+            <h2 id="blog-showcase-title">{{.Homepage.BlogShowcase.Title}}</h2>
+            <a href="{{.HomeURL}}blog/">{{.UI.Blog}} →</a>
+        </div>
+        <div class="blog-showcase-grid">
+            {{range $index, $post := .BlogShowcase}}
+            <article class="blog-showcase-card{{if eq $index 0}} is-featured{{end}}">
+                <a class="blog-showcase-image" href="{{$post.URL}}" aria-label="{{$post.Title}}">
+                    {{if $post.ImageHTML}}{{$post.ImageHTML}}{{else}}<span class="blog-showcase-placeholder" aria-hidden="true"></span>{{end}}
+                </a>
+                <div class="blog-showcase-copy">
+                    {{if hasDate $post.Date}}<time datetime="{{formatDate $post.Date "2006-01-02"}}">{{formatDateLocalized $post.Date $.Page.Language}}</time>{{end}}
+                    <h3><a href="{{$post.URL}}">{{$post.Title}}</a></h3>
+                    {{if $post.Description}}<p>{{$post.Description}}</p>{{end}}
+                </div>
+            </article>
+            {{end}}
+        </div>
+    </section>
+    {{end}}
+
     <!-- Main Content from Markdown -->
     {{if .Content}}
     <div class="main-content">

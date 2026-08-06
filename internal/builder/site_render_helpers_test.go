@@ -3,8 +3,10 @@ package builder
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tot-ra/blog-engine/internal/config"
+	"github.com/tot-ra/blog-engine/internal/parser"
 	"github.com/tot-ra/blog-engine/internal/renderer"
 )
 
@@ -106,6 +108,11 @@ func TestMergeHomepageConfig_OverlaysNonZeroFields(t *testing.T) {
 			RecipientAgentID: "base-agent",
 			Title:            "Base chat",
 		},
+		BlogShowcase: config.BlogShowcaseConfig{
+			Enabled: true,
+			Limit:   4,
+			Title:   "Latest posts",
+		},
 		Projects:    []config.ProjectConfig{{Title: "Base project"}},
 		SocialLinks: []config.SocialLinkGroup{{Title: "Base socials"}},
 		CustomHTML:  "<p>base</p>",
@@ -117,6 +124,9 @@ func TestMergeHomepageConfig_OverlaysNonZeroFields(t *testing.T) {
 		},
 		Chat: config.HomepageChatConfig{
 			Title: "Localized chat",
+		},
+		BlogShowcase: config.BlogShowcaseConfig{
+			Title: "Neueste Beiträge",
 		},
 		HideProjects: true,
 		CustomHTML:   "<p>localized</p>",
@@ -135,11 +145,42 @@ func TestMergeHomepageConfig_OverlaysNonZeroFields(t *testing.T) {
 	if got.Chat.BaseURL != "https://chat.example.com" || got.Chat.RecipientAgentID != "base-agent" || got.Chat.Title != "Localized chat" {
 		t.Fatalf("expected chat fields merged, got %#v", got.Chat)
 	}
+	if !got.BlogShowcase.Enabled || got.BlogShowcase.Limit != 4 || got.BlogShowcase.Title != "Neueste Beiträge" {
+		t.Fatalf("expected localized blog showcase fields merged, got %#v", got.BlogShowcase)
+	}
 	if !got.HideProjects || got.CustomHTML != "<p>localized</p>" {
 		t.Fatalf("expected localized homepage fields, got %#v", got)
 	}
 	if got.Projects[0].Title != "Base project" || got.SocialLinks[0].Title != "Base socials" {
 		t.Fatalf("expected collection fields inherited when override is empty, got %#v", got)
+	}
+}
+
+func TestHomepageBlogShowcaseSelectsLatestLocalizedPosts(t *testing.T) {
+	cfg := config.DefaultConfig()
+	b := NewSiteBuilder(cfg)
+	b.pages = map[string]*Page{
+		"new": {
+			Title: "Newest", URL: "/ru/blog/new/", Language: "ru", Type: TypeBlog, SourcePath: "/tmp/new.md",
+			Content: `<p><img src="cover.jpg" alt="Cover"></p>`, RawContent: "Newest preview.",
+			Frontmatter: &parser.Frontmatter{Date: time.Date(2026, time.January, 3, 0, 0, 0, 0, time.UTC)},
+		},
+		"old": {
+			Title: "Older", URL: "/ru/blog/old/", Language: "ru", Type: TypeBlog, SourcePath: "/tmp/old.md",
+			RawContent: "Older preview.", Frontmatter: &parser.Frontmatter{Date: time.Date(2026, time.January, 2, 0, 0, 0, 0, time.UTC)},
+		},
+		"en": {
+			Title: "English", URL: "/blog/en/", Language: "en", Type: TypeBlog, SourcePath: "/tmp/en.md",
+			Frontmatter: &parser.Frontmatter{Date: time.Date(2026, time.January, 4, 0, 0, 0, 0, time.UTC)},
+		},
+	}
+
+	got := b.homepageBlogShowcase("ru", 2)
+	if len(got) != 2 || got[0].Title != "Newest" || got[1].Title != "Older" {
+		t.Fatalf("expected two latest Russian posts, got %#v", got)
+	}
+	if !strings.Contains(string(got[0].ImageHTML), `src="cover.jpg"`) || got[0].Description != "Newest preview." {
+		t.Fatalf("expected image and excerpt on newest card, got %#v", got[0])
 	}
 }
 
