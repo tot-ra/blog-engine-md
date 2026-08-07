@@ -114,11 +114,15 @@ func TestCollectBlogPostsAndByLanguageSortByDateDescending(t *testing.T) {
 	newer := datedPage("newer", "/blog/newer/", "en", TypeBlog, time.Date(2024, time.March, 1, 0, 0, 0, 0, time.UTC))
 	russian := datedPage("ru", "/ru/blog/post/", "ru", TypeBlog, time.Date(2024, time.February, 1, 0, 0, 0, 0, time.UTC))
 	doc := datedPage("doc", "/docs/page/", "en", TypeDoc, time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC))
+	redirect := datedPage("redirect", "/blog/2024-03-01-newer/", "en", TypeBlog, time.Date(2024, time.March, 1, 0, 0, 0, 0, time.UTC))
+	redirect.Frontmatter.HideNav = true
+	redirect.Frontmatter.RedirectURL = "/blog/newer/"
 	b := &SiteBuilder{pages: map[string]*Page{
-		older.ID:   older,
-		newer.ID:   newer,
-		russian.ID: russian,
-		doc.ID:     doc,
+		older.ID:    older,
+		newer.ID:    newer,
+		russian.ID:  russian,
+		doc.ID:      doc,
+		redirect.ID: redirect,
 	}}
 
 	posts := b.collectBlogPosts()

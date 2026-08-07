@@ -126,7 +126,9 @@ func (b *SiteBuilder) copyTriangleModules() error {
 func (b *SiteBuilder) collectBlogPosts() []*Page {
 	var posts []*Page
 	for _, page := range b.pages {
-		if page.Type == TypeBlog {
+		// Redirect/hideNav stubs keep old URLs working but must not duplicate
+		// the canonical post in timeline, archive, or feeds.
+		if page.Type == TypeBlog && !isHiddenFromListings(page) {
 			posts = append(posts, page)
 		}
 	}
@@ -217,7 +219,7 @@ func buildBlogTimeline(posts []*Page, maxPerYear int) []renderer.TimelineYear {
 func (b *SiteBuilder) collectBlogPostsByLanguage() map[string][]*Page {
 	out := make(map[string][]*Page)
 	for _, page := range b.pages {
-		if page.Type != TypeBlog {
+		if page.Type != TypeBlog || isHiddenFromListings(page) {
 			continue
 		}
 		out[page.Language] = append(out[page.Language], page)

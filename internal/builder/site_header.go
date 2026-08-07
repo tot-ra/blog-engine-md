@@ -282,6 +282,15 @@ func isRedirectPage(page *Page) bool {
 	return page != nil && page.Frontmatter != nil && strings.TrimSpace(page.Frontmatter.RedirectURL) != ""
 }
 
+// isHiddenFromListings skips redirect stubs and hideNav pages from blog
+// timelines, archives, and feeds while still rendering their redirect HTML.
+func isHiddenFromListings(page *Page) bool {
+	if page == nil || page.Frontmatter == nil {
+		return false
+	}
+	return page.Frontmatter.HideNav || strings.TrimSpace(page.Frontmatter.RedirectURL) != ""
+}
+
 func localizedEngineSegmentTitle(title, lang string) string {
 	switch strings.ToLower(strings.TrimSpace(title)) {
 	case "blog", "docs", "tags", "archive", "graph":
