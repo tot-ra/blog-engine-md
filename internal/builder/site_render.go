@@ -100,6 +100,9 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 		data.SocialCard = "summary_large_image"
 	}
 	data.MetaDescription = b.metaDescriptionForPage(page)
+	if b.config.Build.PublishMarkdown && strings.TrimSpace(page.SourcePath) != "" && (page.Frontmatter == nil || strings.TrimSpace(page.Frontmatter.RedirectURL) == "") {
+		data.MarkdownURL = pageMarkdownURL(page.URL)
+	}
 	data.TagURL = func(tag string) string {
 		return b.buildLanguageScopedURL(page.Language, "tags/"+parser.GenerateSlug(tag))
 	}
@@ -228,6 +231,35 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 
+	if data.MarkdownURL != "" {
+		if err := b.writeMarkdownAlternative(page, outputPath); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func pageMarkdownURL(pageURL string) string {
+	if strings.HasSuffix(pageURL, "/") {
+		return pageURL + "index.md"
+	}
+	return strings.TrimSuffix(pageURL, ".html") + ".md"
+}
+
+func (b *SiteBuilder) writeMarkdownAlternative(page *Page, htmlOutputPath string) error {
+	source, err := os.ReadFile(page.SourcePath)
+	if err != nil {
+		return fmt.Errorf("failed to read markdown alternative %s: %w", page.SourcePath, err)
+	}
+
+	markdownOutputPath := filepath.Join(filepath.Dir(htmlOutputPath), "index.md")
+	if strings.HasSuffix(page.URL, ".html") {
+		markdownOutputPath = strings.TrimSuffix(htmlOutputPath, ".html") + ".md"
+	}
+	if err := os.WriteFile(markdownOutputPath, source, 0644); err != nil {
+		return fmt.Errorf("failed to write markdown alternative: %w", err)
+	}
 	return nil
 }
 

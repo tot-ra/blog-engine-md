@@ -8,6 +8,7 @@
     {{if .MetaDescription}}
     <meta name="description" content="{{.MetaDescription}}">
     {{end}}
+    {{if .MarkdownURL}}<link rel="alternate" type="text/markdown" href="{{.MarkdownURL}}" title="Markdown source">{{end}}
     {{if .Site.SEO.Enabled}}
     {{if .CanonicalURL}}<link rel="canonical" href="{{.CanonicalURL}}">{{end}}
     <meta property="og:title" content="{{.Page.Title}}">

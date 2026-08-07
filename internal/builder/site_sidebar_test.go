@@ -257,6 +257,70 @@ func readRenderedPage(t *testing.T, cfg *config.SiteConfig, rel string) string {
 	return string(data)
 }
 
+func TestRenderPage_PublishesDiscoverableMarkdownAlternative(t *testing.T) {
+	cfg := sidebarRenderTestConfig(t)
+	cfg.Build.PublishMarkdown = true
+	sourceDir := t.TempDir()
+	sourcePath := filepath.Join(sourceDir, "post.md")
+	source := "---\ntitle: Agent-friendly post\ntags: [AI]\n---\n\n# Agent-friendly post\n\nOriginal markdown.\n"
+	if err := os.WriteFile(sourcePath, []byte(source), 0644); err != nil {
+		t.Fatalf("write source markdown: %v", err)
+	}
+
+	page := &Page{
+		ID:          "agent-friendly-post",
+		URL:         "/en/blog/agent-friendly-post/",
+		Language:    "en",
+		SourcePath:  sourcePath,
+		Title:       "Agent-friendly post",
+		Content:     "<p>Original markdown.</p>",
+		Type:        TypeBlog,
+		Frontmatter: &parser.Frontmatter{},
+	}
+	b := sidebarRenderTestBuilder(t, cfg, page)
+
+	if err := b.renderPage(page); err != nil {
+		t.Fatalf("render page: %v", err)
+	}
+
+	html := readRenderedPage(t, cfg, "en/blog/agent-friendly-post/index.html")
+	wantLink := `<link rel="alternate" type="text/markdown" href="/en/blog/agent-friendly-post/index.md" title="Markdown source">`
+	if !strings.Contains(html, wantLink) {
+		t.Fatalf("expected Markdown discovery link %q, got:\n%s", wantLink, html)
+	}
+	markdown := readRenderedPage(t, cfg, "en/blog/agent-friendly-post/index.md")
+	if markdown != source {
+		t.Fatalf("expected published Markdown to preserve the complete source; got %q", markdown)
+	}
+}
+
+func TestRenderPage_DoesNotPublishMarkdownForGeneratedPage(t *testing.T) {
+	cfg := sidebarRenderTestConfig(t)
+	cfg.Build.PublishMarkdown = true
+	page := &Page{
+		ID:          "generated-blog-index",
+		URL:         "/en/blog/",
+		Language:    "en",
+		Title:       "Blog",
+		Content:     "<p>Generated listing.</p>",
+		Type:        TypeBlog,
+		Frontmatter: &parser.Frontmatter{},
+	}
+	b := sidebarRenderTestBuilder(t, cfg, page)
+
+	if err := b.renderPage(page); err != nil {
+		t.Fatalf("render generated page: %v", err)
+	}
+
+	html := readRenderedPage(t, cfg, "en/blog/index.html")
+	if strings.Contains(html, `type="text/markdown"`) {
+		t.Fatalf("generated page must not advertise unavailable Markdown, got:\n%s", html)
+	}
+	if _, err := os.Stat(filepath.Join(cfg.Build.OutputDir, "en/blog/index.md")); !os.IsNotExist(err) {
+		t.Fatalf("generated page must not publish Markdown, stat error: %v", err)
+	}
+}
+
 func sidebarNavHTML(t *testing.T, html string) string {
 	t.Helper()
 

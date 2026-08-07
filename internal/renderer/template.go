@@ -80,6 +80,7 @@ type PageData struct {
 	OpenGraphType   string
 	SocialCard      string
 	MetaDescription string
+	MarkdownURL     string
 	UI              i18n.UIStrings
 	Frontmatter     Frontmatter
 	Content         template.HTML

@@ -236,7 +236,9 @@ dist/
 │   │   └── 2/index.html
 │   └── tech/
 │       └── backend/
-│           └── shpargalka-po-golang/index.html
+│           └── shpargalka-po-golang/
+│               ├── index.html
+│               └── index.md # when build.publishMarkdown is enabled
 ├── docs/
 │   └── ob-avtore/index.html
 ├── tags/
@@ -278,6 +280,7 @@ build:
   outputDir: "dist"
   cacheDir: ".cache"
   parallelWorkers: 4
+  publishMarkdown: true # optional: expose source-backed routes as discoverable index.md alternatives
   
 features:
   search: true

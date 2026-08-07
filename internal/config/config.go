@@ -333,6 +333,7 @@ type Build struct {
 	CacheDir        string `yaml:"cacheDir"`
 	ParallelWorkers int    `yaml:"parallelWorkers"`
 	Profile         bool   `yaml:"profile"`
+	PublishMarkdown bool   `yaml:"publishMarkdown"` // Publish source-backed pages as discoverable text/markdown alternatives
 }
 
 // AdvancedConfig contains Phase 5 advanced feature settings

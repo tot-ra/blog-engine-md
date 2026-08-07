@@ -23,6 +23,7 @@ author:
 build:
   contentDir: "content"
   outputDir: "output"
+  publishMarkdown: true
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
 		t.Fatalf("Failed to write test config: %v", err)
@@ -51,6 +52,10 @@ build:
 
 	if cfg.Build.ContentDir != "content" {
 		t.Errorf("Expected content dir 'content', got '%s'", cfg.Build.ContentDir)
+	}
+
+	if !cfg.Build.PublishMarkdown {
+		t.Error("Expected publishMarkdown to be enabled")
 	}
 }
 

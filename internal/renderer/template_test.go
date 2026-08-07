@@ -52,6 +52,26 @@ func TestTemplateEngine_LoadTemplatesUsesDefaultsWhenDirectoryMissing(t *testing
 	}
 }
 
+func TestTemplateEngine_HomepageRendersMarkdownAlternative(t *testing.T) {
+	engine := NewTemplateEngine()
+	missingDir := filepath.Join(t.TempDir(), "missing")
+	if err := engine.LoadTemplates(missingDir); err != nil {
+		t.Fatalf("LoadTemplates() returned error: %v", err)
+	}
+
+	html, err := engine.RenderPage(PageData{
+		Page:        Page{Title: "Home", Layout: "homepage"},
+		MarkdownURL: "/index.md",
+	})
+	if err != nil {
+		t.Fatalf("RenderPage() homepage returned error: %v", err)
+	}
+	want := `<link rel="alternate" type="text/markdown" href="/index.md" title="Markdown source">`
+	if !strings.Contains(html, want) {
+		t.Fatalf("expected homepage to contain %q, got:\n%s", want, html)
+	}
+}
+
 func TestTemplateEngine_DefaultTemplateRendersTagLinks(t *testing.T) {
 	engine := NewTemplateEngine()
 	missingDir := filepath.Join(t.TempDir(), "missing")
