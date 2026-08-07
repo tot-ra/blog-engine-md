@@ -521,18 +521,38 @@
         a:hover { text-decoration: underline; }
         img { max-width: 100%; height: auto; }
         pre {
-            background: #f4f4f4;
+            background: #f6f8fa;
+            color: #24292f;
             padding: 15px;
             overflow-x: auto;
-            border-radius: 4px;
+            border: 1px solid #d8dee4;
+            border-radius: 6px;
         }
         code {
             background: #f4f4f4;
             padding: 2px 6px;
             border-radius: 3px;
-            font-family: "Monaco", "Menlo", monospace;
+            font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
         }
-        pre code { padding: 0; background: none; }
+        pre code { display: block; min-width: max-content; padding: 0; background: none; color: inherit; }
+        .chroma .line { display: block; }
+        .chroma .k, .chroma .kc, .chroma .kd, .chroma .kn, .chroma .kp, .chroma .kr, .chroma .kt, .chroma .o, .chroma .ow { color: #cf222e; }
+        .chroma .na, .chroma .nc, .chroma .nd, .chroma .ne, .chroma .nf, .chroma .nl { color: #8250df; }
+        .chroma .nb, .chroma .bp { color: #953800; }
+        .chroma .no, .chroma .nv, .chroma .vc, .chroma .vg, .chroma .vi, .chroma .m, .chroma .mb, .chroma .mf, .chroma .mh, .chroma .mi, .chroma .il, .chroma .mo { color: #0550ae; }
+        .chroma .nn, .chroma .nt { color: #116329; }
+        .chroma .s, .chroma .sa, .chroma .sb, .chroma .sc, .chroma .dl, .chroma .sd, .chroma .s2, .chroma .se, .chroma .sh, .chroma .si, .chroma .sx, .chroma .sr, .chroma .s1, .chroma .ss { color: #0a3069; }
+        .chroma .c, .chroma .ch, .chroma .cm, .chroma .c1, .chroma .cs, .chroma .cp, .chroma .cpf { color: #6e7781; font-style: italic; }
+        html[data-theme='dark'] pre { background: #161b22; color: #e6edf3; border-color: #30363d; }
+        html[data-theme='dark'] code { background: #232a36; color: #e6edf3; }
+        html[data-theme='dark'] pre code { background: none; }
+        html[data-theme='dark'] .chroma .k, html[data-theme='dark'] .chroma .kc, html[data-theme='dark'] .chroma .kd, html[data-theme='dark'] .chroma .kn, html[data-theme='dark'] .chroma .kp, html[data-theme='dark'] .chroma .kr, html[data-theme='dark'] .chroma .kt, html[data-theme='dark'] .chroma .o, html[data-theme='dark'] .chroma .ow { color: #ff7b72; }
+        html[data-theme='dark'] .chroma .na, html[data-theme='dark'] .chroma .nc, html[data-theme='dark'] .chroma .nd, html[data-theme='dark'] .chroma .ne, html[data-theme='dark'] .chroma .nf, html[data-theme='dark'] .chroma .nl { color: #d2a8ff; }
+        html[data-theme='dark'] .chroma .nb, html[data-theme='dark'] .chroma .bp { color: #ffa657; }
+        html[data-theme='dark'] .chroma .no, html[data-theme='dark'] .chroma .nv, html[data-theme='dark'] .chroma .vc, html[data-theme='dark'] .chroma .vg, html[data-theme='dark'] .chroma .vi, html[data-theme='dark'] .chroma .m, html[data-theme='dark'] .chroma .mb, html[data-theme='dark'] .chroma .mf, html[data-theme='dark'] .chroma .mh, html[data-theme='dark'] .chroma .mi, html[data-theme='dark'] .chroma .il, html[data-theme='dark'] .chroma .mo { color: #79c0ff; }
+        html[data-theme='dark'] .chroma .nn, html[data-theme='dark'] .chroma .nt { color: #7ee787; }
+        html[data-theme='dark'] .chroma .s, html[data-theme='dark'] .chroma .sa, html[data-theme='dark'] .chroma .sb, html[data-theme='dark'] .chroma .sc, html[data-theme='dark'] .chroma .dl, html[data-theme='dark'] .chroma .sd, html[data-theme='dark'] .chroma .s2, html[data-theme='dark'] .chroma .se, html[data-theme='dark'] .chroma .sh, html[data-theme='dark'] .chroma .si, html[data-theme='dark'] .chroma .sx, html[data-theme='dark'] .chroma .sr, html[data-theme='dark'] .chroma .s1, html[data-theme='dark'] .chroma .ss { color: #a5d6ff; }
+        html[data-theme='dark'] .chroma .c, html[data-theme='dark'] .chroma .ch, html[data-theme='dark'] .chroma .cm, html[data-theme='dark'] .chroma .c1, html[data-theme='dark'] .chroma .cs, html[data-theme='dark'] .chroma .cp, html[data-theme='dark'] .chroma .cpf { color: #8b949e; font-style: italic; }
         table { border-collapse: collapse; width: 100%; margin: 1em 0; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background: #f4f4f4; }

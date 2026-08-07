@@ -31,7 +31,7 @@ func TestMarkdownParser_Render(t *testing.T) {
 		{
 			name:     "code block",
 			input:    "```go\nfunc main() {}\n```",
-			contains: []string{"<pre", "<code", "func main()"},
+			contains: []string{"<pre", `class="chroma"`, `class="kd"`, `class="nf"`, "main"},
 		},
 		{
 			name:     "inline code",
@@ -71,6 +71,50 @@ func TestMarkdownParser_Render(t *testing.T) {
 				if !strings.Contains(html, want) {
 					t.Errorf("Output doesn't contain %q:\n%s", want, html)
 				}
+			}
+		})
+	}
+}
+
+func TestMarkdownParser_HighlightsFencedCodeServerSide(t *testing.T) {
+	p := NewMarkdownParser()
+	html, err := p.Render("```ruby\nclass Order < ApplicationRecord\nend\n```")
+	if err != nil {
+		t.Fatalf("Render failed: %v", err)
+	}
+
+	for _, want := range []string{`class="chroma"`, `class="k"`, `class="nc"`, "Order"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("highlighted output doesn't contain %q:\n%s", want, html)
+		}
+	}
+	if strings.Contains(html, "<script") {
+		t.Fatalf("syntax highlighting must not require client-side JavaScript:\n%s", html)
+	}
+}
+
+func TestMarkdownParser_PreservesUnknownAndUnspecifiedCodeBlocks(t *testing.T) {
+	p := NewMarkdownParser()
+
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "unknown language", input: "```madeup\n<safe>\n```", want: `class="language-madeup"`},
+		{name: "no language", input: "```\n<safe>\n```", want: "<pre><code>"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			html, err := p.Render(tt.input)
+			if err != nil {
+				t.Fatalf("Render failed: %v", err)
+			}
+			if !strings.Contains(html, tt.want) || !strings.Contains(html, "&lt;safe&gt;") {
+				t.Fatalf("expected escaped fallback code block containing %q:\n%s", tt.want, html)
+			}
+			if strings.Contains(html, `class="chroma"`) {
+				t.Fatalf("did not expect highlighting without a known language:\n%s", html)
 			}
 		})
 	}

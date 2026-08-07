@@ -8,7 +8,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/alecthomas/chroma/v2/formatters/html"
 	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark-highlighting/v2"
 	"github.com/yuin/goldmark-meta"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
@@ -35,6 +37,11 @@ func NewMarkdownParser() *MarkdownParser {
 			extension.Linkify,
 			extension.TaskList,
 			meta.Meta,
+			// WHY: emit syntax token classes at build time so sites can theme code
+			// without shipping a client-side highlighter or inline color styles.
+			highlighting.NewHighlighting(
+				highlighting.WithFormatOptions(html.WithClasses(true)),
+			),
 		),
 		goldmark.WithParserOptions(
 			parser.WithAutoHeadingID(),
