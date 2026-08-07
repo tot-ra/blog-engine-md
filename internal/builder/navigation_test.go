@@ -272,3 +272,44 @@ func TestBuildTree_DoesNotUseRegularLeafPageForParentSectionLabel(t *testing.T) 
 		t.Fatalf("expected engine-owned docs label to remain, got %q", node.Title)
 	}
 }
+
+func TestBuildTree_CollapsedSelfNamedPageDoesNotLabelGrandparent(t *testing.T) {
+	// blog/EDC/EDC.md collapses onto /ru/blog/EDC/. That page must label the
+	// EDC section, not retitle the blog index to "EDC".
+	pages := map[string]*Page{
+		"edc": {
+			ID:          "edc",
+			Title:       "EDC",
+			URL:         "/ru/blog/EDC/",
+			Language:    "ru",
+			SourcePath:  "content/ru/blog/EDC/EDC.md",
+			Type:        TypeBlog,
+			Frontmatter: &parser.Frontmatter{},
+		},
+		"other": {
+			ID:          "other",
+			Title:       "Other post",
+			URL:         "/ru/blog/tech/other/",
+			Language:    "ru",
+			SourcePath:  "content/ru/blog/tech/other.md",
+			Type:        TypeBlog,
+			Frontmatter: &parser.Frontmatter{},
+		},
+	}
+
+	tree := NewNavigationBuilder().BuildTree(pages)
+	edcNode := tree.ByPath["/ru/blog/EDC/"]
+	if edcNode == nil {
+		t.Fatal("expected /ru/blog/EDC/ node")
+	}
+	if edcNode.Title != "EDC" {
+		t.Fatalf("expected collapsed self-named page to label its section, got %q", edcNode.Title)
+	}
+	blogNode := tree.ByPath["/ru/blog/"]
+	if blogNode == nil {
+		t.Fatal("expected /ru/blog/ node")
+	}
+	if blogNode.Title != "Блог" {
+		t.Fatalf("expected blog index to keep segment label, got %q", blogNode.Title)
+	}
+}

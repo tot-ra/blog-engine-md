@@ -319,24 +319,32 @@ func pageTitleCandidateURLs(page *Page) []pageTitleCandidate {
 	slug := parser.GenerateSlug(name)
 	dirSlug := parser.GenerateSlug(parentDirName)
 	isSelfNamed := strings.EqualFold(parentDirName, name) || (dirSlug != "" && strings.EqualFold(dirSlug, slug))
-	if isSelfNamed && len(parts) > 1 && (strings.EqualFold(name, last) || (slug != "" && strings.EqualFold(slug, last))) {
-		// A common docs pattern is section/section.md instead of section/index.md.
-		// Treat that self-named page title as the section label.
-		candidates = append(candidates, pageTitleCandidate{
-			URL:      "/" + strings.Join(parts[:len(parts)-1], "/") + "/",
-			Priority: 1,
-		})
+	if !isSelfNamed || len(parts) < 2 {
+		return candidates
 	}
 
-	// Product pages commonly use folder/file pairs such as web_app/web_app.md,
-	// while generated URLs use hyphenated slugs (/web_app/web-app/). Treat the
-	// folder-matching source filename as the parent product label as well.
-	if len(parts) > 1 && dirSlug != "" && strings.EqualFold(dirSlug, slug) {
-		candidates = append(candidates, pageTitleCandidate{
-			URL:      "/" + strings.Join(parts[:len(parts)-1], "/") + "/",
-			Priority: 1,
-		})
+	// Promote a self-named page title to its containing section only when the
+	// page still lives at a child slug under that section:
+	//   section/section.md -> /section/section/  => also label /section/
+	//   web_app/web_app.md -> /web_app/web-app/   => also label /web_app/
+	// If URL generation already collapsed the file onto the section directory
+	// (blog/EDC/EDC.md -> /blog/EDC/), the page already labels that section.
+	// Climbing one more level would wrongly retitle the grandparent (/blog/).
+	lastIsFileSlug := strings.EqualFold(name, last) || (slug != "" && strings.EqualFold(slug, last))
+	if !lastIsFileSlug {
+		return candidates
 	}
+	secondLast := parts[len(parts)-2]
+	secondLastIsSourceDir := strings.EqualFold(secondLast, parentDirName) ||
+		(dirSlug != "" && strings.EqualFold(secondLast, dirSlug))
+	if !secondLastIsSourceDir {
+		return candidates
+	}
+
+	candidates = append(candidates, pageTitleCandidate{
+		URL:      "/" + strings.Join(parts[:len(parts)-1], "/") + "/",
+		Priority: 1,
+	})
 	return candidates
 }
 
