@@ -34,9 +34,7 @@
             <a class="navbar-logo" href="{{.HomeURL}}">
                 <img class="no-transform" src="{{.Site.Site.Logo}}" alt="{{.Site.Site.Title}}">
             </a>
-            <nav class="site-nav">
-                {{range .HeaderNav}}<a href="{{.URL}}"{{if .Class}} class="{{.Class}}"{{end}}{{if .IsCurrent}} aria-current="page"{{end}}>{{.Title}}</a>{{end}}
-            </nav>
+            {{template "header_nav" .}}
         </div>
         <div class="header-right">
             <nav class="lang-switcher" aria-label="{{.UI.Languages}}">

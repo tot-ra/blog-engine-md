@@ -1,0 +1,16 @@
+{{define "header_nav"}}
+{{/* Desktop: inline links. Mobile: details dropdown showing the current section label. */}}
+{{$currentTitle := .UI.Navigation}}
+{{range .HeaderNav}}{{if .IsCurrent}}{{$currentTitle = .Title}}{{end}}{{end}}
+<nav class="site-nav" aria-label="{{.UI.Navigation}}">
+    <details class="site-nav-dropdown">
+        <summary class="site-nav-current">{{$currentTitle}}</summary>
+        <div class="site-nav-menu">
+            {{range .HeaderNav}}<a href="{{.URL}}"{{if .Class}} class="{{.Class}}"{{end}}{{if .IsCurrent}} aria-current="page"{{end}}>{{.Title}}</a>{{end}}
+        </div>
+    </details>
+    <div class="site-nav-links">
+        {{range .HeaderNav}}<a href="{{.URL}}"{{if .Class}} class="{{.Class}}"{{end}}{{if .IsCurrent}} aria-current="page"{{end}}>{{.Title}}</a>{{end}}
+    </div>
+</nav>
+{{end}}
