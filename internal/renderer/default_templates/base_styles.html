@@ -615,8 +615,10 @@
         html[data-theme='dark'] .chroma .s, html[data-theme='dark'] .chroma .sa, html[data-theme='dark'] .chroma .sb, html[data-theme='dark'] .chroma .sc, html[data-theme='dark'] .chroma .dl, html[data-theme='dark'] .chroma .sd, html[data-theme='dark'] .chroma .s2, html[data-theme='dark'] .chroma .se, html[data-theme='dark'] .chroma .sh, html[data-theme='dark'] .chroma .si, html[data-theme='dark'] .chroma .sx, html[data-theme='dark'] .chroma .sr, html[data-theme='dark'] .chroma .s1, html[data-theme='dark'] .chroma .ss { color: #a5d6ff; }
         html[data-theme='dark'] .chroma .c, html[data-theme='dark'] .chroma .ch, html[data-theme='dark'] .chroma .cm, html[data-theme='dark'] .chroma .c1, html[data-theme='dark'] .chroma .cs, html[data-theme='dark'] .chroma .cp, html[data-theme='dark'] .chroma .cpf { color: #8b949e; font-style: italic; }
         table { border-collapse: collapse; width: 100%; margin: 1em 0; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background: #f4f4f4; }
+        /* WHY: hardcoded light gray (#f4f4f4/#ddd) made th text nearly invisible in dark mode.
+           WHAT: theme tokens keep header/body cells readable in both themes. */
+        th, td { border: 1px solid var(--nav-border); padding: 8px; text-align: left; color: var(--text-primary); }
+        th { background: var(--nav-bg); color: var(--text-primary); font-weight: 700; }
         .section-index { list-style: none; padding: 0; }
         .section-index li { padding: 6px 0; border-bottom: 1px solid var(--nav-border); }
         .section-index li a { font-weight: 500; }
