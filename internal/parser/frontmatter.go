@@ -50,21 +50,23 @@ func ParseFrontmatter(content string) (*Frontmatter, string, error) {
 	remaining := strings.TrimSpace(content[endIdx+6:])
 
 	type rawFrontmatter struct {
-		Title        string      `yaml:"title"`
-		NavTitle     string      `yaml:"navTitle"`
-		Date         interface{} `yaml:"date"`
-		Draft        bool        `yaml:"draft"`
-		Tags         []string    `yaml:"tags"`
-		Description  string      `yaml:"description"`
-		Slug         string      `yaml:"slug"`
-		Order        int         `yaml:"order"`
-		HideToc      bool        `yaml:"hideToc"`
-		HideNav      bool        `yaml:"hideNav"`
-		ShowChildren bool        `yaml:"showChildren"`
-		HideChildren bool        `yaml:"hideChildren"`
-		Layout       string      `yaml:"layout"`
-		RedirectURL  string      `yaml:"redirectUrl"`
-		TemplateHero bool        `yaml:"templateHero"`
+		Title       string      `yaml:"title"`
+		NavTitle    string      `yaml:"navTitle"`
+		Date        interface{} `yaml:"date"`
+		Draft       bool        `yaml:"draft"`
+		Tags        []string    `yaml:"tags"`
+		Description string      `yaml:"description"`
+		Slug        string      `yaml:"slug"`
+		Order       int         `yaml:"order"`
+		// sidebar_position is the Docusaurus-compatible alias used by migrated content.
+		SidebarPosition int    `yaml:"sidebar_position"`
+		HideToc         bool   `yaml:"hideToc"`
+		HideNav         bool   `yaml:"hideNav"`
+		ShowChildren    bool   `yaml:"showChildren"`
+		HideChildren    bool   `yaml:"hideChildren"`
+		Layout          string `yaml:"layout"`
+		RedirectURL     string `yaml:"redirectUrl"`
+		TemplateHero    bool   `yaml:"templateHero"`
 	}
 	params := map[string]interface{}{}
 	if err := yaml.Unmarshal([]byte(fmContent), &params); err != nil {
@@ -81,7 +83,12 @@ func ParseFrontmatter(content string) (*Frontmatter, string, error) {
 	fm.Tags = raw.Tags
 	fm.Description = raw.Description
 	fm.Slug = raw.Slug
+	// Prefer explicit `order`; fall back to Docusaurus `sidebar_position` so migrated
+	// docs keep their intended nav order without rewriting every markdown file.
 	fm.Order = raw.Order
+	if fm.Order == 0 && raw.SidebarPosition != 0 {
+		fm.Order = raw.SidebarPosition
+	}
 	fm.HideToc = raw.HideToc
 	fm.HideNav = raw.HideNav
 	fm.ShowChildren = raw.ShowChildren

@@ -62,7 +62,7 @@ content/
 - Footnotes
 
 #### Extended Features
-- **YAML Frontmatter**: Metadata support (title, date, tags, description, draft, sidebar_position)
+- **YAML Frontmatter**: Metadata support (title, date, tags, description, draft, `order` / Docusaurus `sidebar_position`)
 - **Custom Directives**:
   - `<!--truncate-->`: Article preview cutoff point
   - Mermaid diagrams (```mermaid blocks)
@@ -537,7 +537,7 @@ jobs:
 1. Copy `blog/` and `docs/` content
 2. Convert `docusaurus.config.ts` → `config.yaml`
 3. Move `static/` assets
-4. Adjust frontmatter (sidebar_position → order)
+4. Frontmatter: `sidebar_position` is accepted as an alias for `order` (no rename required)
 5. Update internal links (Docusaurus uses `.md` extensions)
 6. Test build and fix issues
 

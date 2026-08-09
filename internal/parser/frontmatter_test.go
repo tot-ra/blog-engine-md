@@ -118,6 +118,58 @@ Content.`,
 	}
 }
 
+func TestParseFrontmatterSidebarPositionAlias(t *testing.T) {
+	tests := []struct {
+		name      string
+		content   string
+		wantOrder int
+	}{
+		{
+			name: "sidebar_position alone",
+			content: `---
+title: Exove
+sidebar_position: 4
+---
+
+Content.`,
+			wantOrder: 4,
+		},
+		{
+			name: "order takes precedence over sidebar_position",
+			content: `---
+title: Mixed
+order: 2
+sidebar_position: 9
+---
+
+Content.`,
+			wantOrder: 2,
+		},
+		{
+			name: "plain order still works",
+			content: `---
+title: Native
+order: 3
+---
+
+Content.`,
+			wantOrder: 3,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fm, _, err := ParseFrontmatter(tt.content)
+			if err != nil {
+				t.Fatalf("ParseFrontmatter failed: %v", err)
+			}
+			if fm.Order != tt.wantOrder {
+				t.Fatalf("Order = %d, want %d", fm.Order, tt.wantOrder)
+			}
+		})
+	}
+}
+
 func TestParseFrontmatterPreservesCustomParams(t *testing.T) {
 	content := `---
 title: Research Paper

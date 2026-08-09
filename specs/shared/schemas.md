@@ -74,6 +74,10 @@ Frontmatter:
       type: integer
       description: Sort order in navigation (docs only)
       example: 1
+    sidebar_position:
+      type: integer
+      description: Docusaurus-compatible alias for order; used when order is unset
+      example: 1
     hideToc:
       type: boolean
       default: false
