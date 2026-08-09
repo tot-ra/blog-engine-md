@@ -35,6 +35,7 @@
             {{template "header_nav" .}}
         </div>
         <div class="header-right">
+            {{template "header_social" .}}
             <nav class="lang-switcher" aria-label="{{.UI.Languages}}">
                 {{range .Languages}}<a class="lang-link{{if .Active}} is-active{{end}}" href="{{.URL}}" hreflang="{{.Code}}">{{.Label}}</a>{{end}}
             </nav>

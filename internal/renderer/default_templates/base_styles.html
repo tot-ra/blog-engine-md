@@ -113,6 +113,31 @@
             gap: 12px;
             flex-shrink: 0;
         }
+        .header-social {
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+        }
+        .header-social-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 34px;
+            height: 34px;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            text-decoration: none;
+        }
+        .header-social-link:hover {
+            color: var(--text-primary);
+            background: var(--nav-bg);
+        }
+        .header-social-link svg {
+            width: 18px;
+            height: 18px;
+            fill: currentColor;
+            display: block;
+        }
         .lang-switcher {
             display: inline-flex;
             gap: 4px;

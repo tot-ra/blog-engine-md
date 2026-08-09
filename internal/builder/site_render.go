@@ -120,6 +120,7 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 	}
 
 	data.HeaderNav = b.buildHeaderNav(page.Language, page.URL)
+	data.HeaderSocial = b.buildHeaderSocial()
 	data.Languages = b.buildLanguageOptions(page)
 
 	// Generate sidebar

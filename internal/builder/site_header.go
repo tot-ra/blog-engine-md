@@ -450,3 +450,65 @@ func (b *SiteBuilder) existingLanguageScopedURL(lang, path string) (string, bool
 	}
 	return canonical, false
 }
+
+// buildHeaderSocial maps author.social entries to header icon links.
+// Only networks with built-in SVG icons are included; order is stable.
+func (b *SiteBuilder) buildHeaderSocial() []renderer.HeaderSocialLink {
+	if b.config == nil || len(b.config.Author.Social) == 0 {
+		return nil
+	}
+
+	type socialDef struct {
+		key   string
+		label string
+		icon  string
+	}
+	// Keep GitHub/LinkedIn first - they are the primary professional profiles.
+	defs := []socialDef{
+		{key: "github", label: "GitHub", icon: "github"},
+		{key: "linkedin", label: "LinkedIn", icon: "linkedin"},
+	}
+
+	out := make([]renderer.HeaderSocialLink, 0, len(defs))
+	for _, def := range defs {
+		raw, ok := b.config.Author.Social[def.key]
+		if !ok {
+			continue
+		}
+		url := resolveAuthorSocialURL(def.key, raw)
+		if url == "" {
+			continue
+		}
+		out = append(out, renderer.HeaderSocialLink{
+			Label: def.label,
+			URL:   url,
+			Icon:  def.icon,
+		})
+	}
+	return out
+}
+
+func resolveAuthorSocialURL(network, value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	lower := strings.ToLower(value)
+	if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") {
+		return value
+	}
+
+	handle := strings.TrimPrefix(value, "@")
+	switch strings.ToLower(strings.TrimSpace(network)) {
+	case "github":
+		return "https://github.com/" + handle
+	case "linkedin":
+		handle = strings.TrimPrefix(handle, "/")
+		if strings.Contains(handle, "/") {
+			return "https://www.linkedin.com/" + handle
+		}
+		return "https://www.linkedin.com/in/" + handle
+	default:
+		return value
+	}
+}

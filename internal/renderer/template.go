@@ -52,6 +52,13 @@ type NavLink struct {
 	IsCurrent bool
 }
 
+// HeaderSocialLink is an icon link rendered in the site header.
+type HeaderSocialLink struct {
+	Label string
+	URL   string
+	Icon  string
+}
+
 // PrevNextLinks holds previous and next navigation links for templates
 type PrevNextLinks struct {
 	Prev *NavLink
@@ -87,6 +94,7 @@ type PageData struct {
 	CSSPath         string
 	JSPath          string
 	HeaderNav       []NavLink
+	HeaderSocial    []HeaderSocialLink
 	Languages       []LanguageOption
 	// Navigation fields (Phase 2)
 	Sidebar     template.HTML
