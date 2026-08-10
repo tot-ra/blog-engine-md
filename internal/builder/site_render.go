@@ -368,6 +368,19 @@ func (b *SiteBuilder) sectionRecentEmbedsHTML(page *Page, cfg config.RecentEmbed
 	}
 
 	title := strings.TrimSpace(cfg.Title)
+	if page != nil && len(cfg.TitleI18n) > 0 {
+		lang := strings.ToLower(strings.TrimSpace(page.Language))
+		if localized, ok := cfg.TitleI18n[lang]; ok && strings.TrimSpace(localized) != "" {
+			title = strings.TrimSpace(localized)
+		} else {
+			for code, localized := range cfg.TitleI18n {
+				if strings.ToLower(strings.TrimSpace(code)) == lang && strings.TrimSpace(localized) != "" {
+					title = strings.TrimSpace(localized)
+					break
+				}
+			}
+		}
+	}
 	if title == "" {
 		title = "Latest embeds"
 	}

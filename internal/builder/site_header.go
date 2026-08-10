@@ -171,6 +171,13 @@ func (b *SiteBuilder) localizedHeaderTitle(item config.HeaderItem, lang, target 
 	if fallback == "" {
 		fallback = strings.Trim(strings.TrimSpace(item.Path), "/")
 	}
+	// Prefer config titleI18n first. Default-language contentNavTitle intentionally
+	// skips page titles, so sites that keep short Russian/Estonian labels in
+	// config.yaml (dina.kurapov.ee, kurapov.ee) would otherwise render English
+	// fallback titles like "About" / "Pedagogy".
+	if title := headerItemTitleI18n(item, lang); title != "" {
+		return title
+	}
 	labelTarget := target
 	if candidate := b.localizedHeaderCandidate(lang, target); candidate != "" && b.hasPageOrNavRoute(candidate) {
 		labelTarget = candidate
@@ -187,6 +194,22 @@ func (b *SiteBuilder) localizedHeaderTitle(item config.HeaderItem, lang, target 
 		return title
 	}
 	return localizedStaticHeaderTitle(fallback, lang)
+}
+
+func headerItemTitleI18n(item config.HeaderItem, lang string) string {
+	if len(item.TitleI18n) == 0 {
+		return ""
+	}
+	current := strings.ToLower(strings.TrimSpace(lang))
+	if title, ok := item.TitleI18n[current]; ok {
+		return strings.TrimSpace(title)
+	}
+	for code, title := range item.TitleI18n {
+		if strings.ToLower(strings.TrimSpace(code)) == current {
+			return strings.TrimSpace(title)
+		}
+	}
+	return ""
 }
 
 func (b *SiteBuilder) contentNavTitle(target, lang, fallback string) string {

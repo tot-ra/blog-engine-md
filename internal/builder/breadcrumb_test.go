@@ -58,6 +58,31 @@ func TestBreadcrumb_DefaultLanguageUnprefixedPage(t *testing.T) {
 	}
 }
 
+func TestBreadcrumb_DefaultLanguagePrefixedPageKeepsLangHome(t *testing.T) {
+	pages := map[string]*Page{
+		"about": {
+			ID:          "about",
+			Title:       "Обо мне",
+			URL:         "/rus/about/",
+			Language:    "rus",
+			Frontmatter: &parser.Frontmatter{},
+		},
+	}
+	tree := NewNavigationBuilder().BuildTree(pages)
+	gen := NewDefaultAwareBreadcrumbGenerator(map[string]struct{}{"rus": {}, "est": {}}, "rus")
+	crumbs := gen.Generate(pages["about"], tree)
+
+	if len(crumbs) != 2 {
+		t.Fatalf("expected 2 crumbs, got %d", len(crumbs))
+	}
+	if crumbs[0].URL != "/rus/" {
+		t.Fatalf("expected prefixed default-language home URL, got %q", crumbs[0].URL)
+	}
+	if crumbs[1].Title != "Обо мне" || !crumbs[1].IsCurrent {
+		t.Fatalf("expected current about crumb from nav tree, got %+v", crumbs[1])
+	}
+}
+
 func TestBreadcrumb_WithNavTree(t *testing.T) {
 	pages := map[string]*Page{
 		"p1": {ID: "p1", Title: "My Post", URL: "/en/blog/my-post/", Language: "en", Type: TypeBlog, Frontmatter: &parser.Frontmatter{}},

@@ -38,25 +38,24 @@ func detectLanguageAndContentPath(relPath, defaultLang string, languages map[str
 func languageBasePath(pageURL, lang, defaultLang string) string {
 	trimmedLang := strings.Trim(strings.TrimSpace(lang), "/")
 	trimmedDefault := strings.Trim(strings.TrimSpace(defaultLang), "/")
-	// The default language is served from root URLs (/...), not /<lang>/.
+
+	trimmed := strings.Trim(pageURL, "/")
+	if trimmed != "" {
+		parts := strings.Split(trimmed, "/")
+		// Preserve an explicit /<lang>/ prefix even when lang is the site default.
+		// Sites like dina.kurapov.ee keep default-language content under /rus/, and
+		// breadcrumbs must stay in that shape or home links fall back to "/" and
+		// trigger the browser language redirect to the front page.
+		if len(parts) > 0 && trimmedLang != "" && strings.EqualFold(parts[0], trimmedLang) {
+			return "/" + parts[0] + "/"
+		}
+	}
+
+	// Default-language content without an explicit language prefix stays at root.
 	if trimmedDefault != "" && strings.EqualFold(trimmedLang, trimmedDefault) {
 		return "/"
 	}
 
-	trimmed := strings.Trim(pageURL, "/")
-	if trimmed == "" {
-		if trimmedLang == "" {
-			return "/"
-		}
-		return "/" + trimmedLang + "/"
-	}
-	parts := strings.Split(trimmed, "/")
-	if len(parts) == 0 {
-		return "/"
-	}
-	if trimmedLang != "" && strings.EqualFold(parts[0], trimmedLang) {
-		return "/" + parts[0] + "/"
-	}
 	if trimmedLang == "" {
 		return "/"
 	}

@@ -252,6 +252,69 @@ func TestBuildHeaderNavUsesLocalizedContentLabels(t *testing.T) {
 	}
 }
 
+func TestBuildHeaderNavUsesTitleI18nForDefaultLanguage(t *testing.T) {
+	b := &SiteBuilder{
+		config: &config.SiteConfig{
+			I18n: config.I18nConfig{
+				Default: "rus",
+				Languages: []config.LanguageConfig{
+					{Code: "rus", Label: "Русский"},
+					{Code: "est", Label: "Eesti"},
+				},
+			},
+			Navigation: config.Navigation{
+				Header: config.HeaderConfig{
+					Enabled: true,
+					Items: []config.HeaderItem{
+						{
+							Title: "About",
+							TitleI18n: map[string]string{
+								"rus": "Об авторе",
+								"est": "Autorist",
+							},
+							Path: "about",
+						},
+						{
+							Title: "Pedagogy",
+							TitleI18n: map[string]string{
+								"rus": "Педагогика",
+								"est": "Pedagoogika",
+							},
+							Path: "study",
+						},
+					},
+				},
+			},
+		},
+		languages: map[string]struct{}{"rus": {}, "est": {}},
+		pagesByURL: map[string]*Page{
+			"/rus/about/": {
+				URL:         "/rus/about/",
+				Language:    "rus",
+				Title:       "Обо мне",
+				Frontmatter: &parser.Frontmatter{},
+			},
+			"/rus/study/": {
+				URL:         "/rus/study/",
+				Language:    "rus",
+				Title:       "Педагогика",
+				Frontmatter: &parser.Frontmatter{},
+			},
+		},
+	}
+
+	nav := b.buildHeaderNav("rus", "/rus/about/")
+	if len(nav) != 2 {
+		t.Fatalf("expected 2 nav items, got %d", len(nav))
+	}
+	if nav[0].Title != "Об авторе" || nav[0].URL != "/rus/about/" {
+		t.Fatalf("expected Russian titleI18n about item, got %+v", nav[0])
+	}
+	if nav[1].Title != "Педагогика" || nav[1].URL != "/rus/study/" {
+		t.Fatalf("expected Russian titleI18n pedagogy item, got %+v", nav[1])
+	}
+}
+
 func TestBuildHeaderNavKeepsConfiguredDefaultLanguageLabels(t *testing.T) {
 	b := &SiteBuilder{
 		config: &config.SiteConfig{

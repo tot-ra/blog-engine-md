@@ -218,11 +218,12 @@ type HeaderConfig struct {
 
 // HeaderItem contains one configurable header navigation item.
 type HeaderItem struct {
-	Title     string   `yaml:"title"`
-	Languages []string `yaml:"languages"`
-	Path      string   `yaml:"path"`
-	URL       string   `yaml:"url"`
-	Class     string   `yaml:"class"`
+	Title     string            `yaml:"title"`
+	TitleI18n map[string]string `yaml:"titleI18n"`
+	Languages []string          `yaml:"languages"`
+	Path      string            `yaml:"path"`
+	URL       string            `yaml:"url"`
+	Class     string            `yaml:"class"`
 }
 
 // SidebarConfig contains sidebar settings
@@ -254,11 +255,12 @@ type SidebarSectionConfig struct {
 
 // RecentEmbedsConfig controls a generic "latest embedded media" block for section index pages.
 type RecentEmbedsConfig struct {
-	Enabled  bool   `yaml:"enabled"`
-	Provider string `yaml:"provider"`
-	Limit    int    `yaml:"limit"`
-	SortBy   string `yaml:"sortBy"`
-	Title    string `yaml:"title"`
+	Enabled   bool              `yaml:"enabled"`
+	Provider  string            `yaml:"provider"`
+	Limit     int               `yaml:"limit"`
+	SortBy    string            `yaml:"sortBy"`
+	Title     string            `yaml:"title"`
+	TitleI18n map[string]string `yaml:"titleI18n"`
 }
 
 // TOCConfig contains table of contents settings
