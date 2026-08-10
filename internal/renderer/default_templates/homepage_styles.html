@@ -267,6 +267,35 @@
             justify-content: flex-start;
             flex-wrap: wrap;
         }
+        /* Author social icons sit under the Chat/CTA buttons on the homepage. */
+        .hero-social {
+            margin-top: 18px;
+        }
+        .hero-social .header-social {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .hero-social .header-social-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            color: {{if .Homepage.Hero.Background}}rgba(255, 255, 255, 0.88){{else}}var(--text-secondary){{end}};
+            text-decoration: none;
+        }
+        .hero-social .header-social-link:hover {
+            color: {{if .Homepage.Hero.Background}}#fff{{else}}var(--text-primary){{end}};
+            background: {{if .Homepage.Hero.Background}}rgba(255, 255, 255, 0.14){{else}}var(--bg-secondary){{end}};
+        }
+        .hero-social .header-social-link svg {
+            width: 22px;
+            height: 22px;
+            fill: currentColor;
+            display: block;
+        }
         .hero-media {
             width: 100%;
             max-width: 560px;

@@ -26,7 +26,7 @@
     {{template "homepage_styles" .}}
     {{if .CSSPath}}<link rel="stylesheet" href="{{.CSSPath}}">{{end}}
 </head>
-<body>
+<body class="homepage">
     <header class="site-header">
         <div class="header-left">
             <a class="navbar-logo" href="{{.HomeURL}}">
@@ -35,7 +35,6 @@
             {{template "header_nav" .}}
         </div>
         <div class="header-right">
-            {{template "header_social" .}}
             <nav class="lang-switcher" aria-label="{{.UI.Languages}}">
                 {{range .Languages}}<a class="lang-link{{if .Active}} is-active{{end}}" href="{{.URL}}" hreflang="{{.Code}}">{{.Label}}</a>{{end}}
             </nav>
@@ -68,6 +67,10 @@
                         {{end}}
                     </div>
                     {{end}}
+                    {{/* Author social icons live under CTA buttons (not in the header). */}}
+                    <div class="hero-social">
+                        {{template "header_social" .}}
+                    </div>
                 </div>
                 {{if .Homepage.Hero.VideoEmbed}}
                 <div class="hero-media">
