@@ -644,7 +644,16 @@
            WHAT: theme tokens keep header/body cells readable in both themes. */
         th, td { border: 1px solid var(--nav-border); padding: 4px 8px; font-size: 0.9em; text-align: left; color: var(--text-primary); }
         th { background: var(--nav-bg); color: var(--text-primary); font-weight: 700; }
-        td img[src*="simpleicons.org"] { vertical-align: middle; margin-right: 6px; }
+        /* WHY: global img { height: auto } ignores HTML height on SVG without intrinsic size (defaults ~300px).
+           WHAT: pin tech logos to text-adjacent size. */
+        td img.tech-icon,
+        td img[src*="simpleicons.org"] {
+            width: 12px;
+            height: 12px;
+            max-width: 12px;
+            vertical-align: -0.1em;
+            margin-right: 4px;
+        }
         .section-index { list-style: none; padding: 0; }
         .section-index li { padding: 6px 0; border-bottom: 1px solid var(--nav-border); }
         .section-index li a { font-weight: 500; }
