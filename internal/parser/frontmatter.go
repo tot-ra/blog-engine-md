@@ -59,14 +59,16 @@ func ParseFrontmatter(content string) (*Frontmatter, string, error) {
 		Slug        string      `yaml:"slug"`
 		Order       int         `yaml:"order"`
 		// sidebar_position is the Docusaurus-compatible alias used by migrated content.
-		SidebarPosition int    `yaml:"sidebar_position"`
-		HideToc         bool   `yaml:"hideToc"`
-		HideNav         bool   `yaml:"hideNav"`
-		ShowChildren    bool   `yaml:"showChildren"`
-		HideChildren    bool   `yaml:"hideChildren"`
-		Layout          string `yaml:"layout"`
-		RedirectURL     string `yaml:"redirectUrl"`
-		TemplateHero    bool   `yaml:"templateHero"`
+		SidebarPosition int `yaml:"sidebar_position"`
+		HideToc         bool `yaml:"hideToc"`
+		// hide_table_of_contents is the Docusaurus-compatible alias for hideToc.
+		HideTableOfContents bool   `yaml:"hide_table_of_contents"`
+		HideNav             bool   `yaml:"hideNav"`
+		ShowChildren        bool   `yaml:"showChildren"`
+		HideChildren        bool   `yaml:"hideChildren"`
+		Layout              string `yaml:"layout"`
+		RedirectURL         string `yaml:"redirectUrl"`
+		TemplateHero        bool   `yaml:"templateHero"`
 	}
 	params := map[string]interface{}{}
 	if err := yaml.Unmarshal([]byte(fmContent), &params); err != nil {
@@ -89,7 +91,8 @@ func ParseFrontmatter(content string) (*Frontmatter, string, error) {
 	if fm.Order == 0 && raw.SidebarPosition != 0 {
 		fm.Order = raw.SidebarPosition
 	}
-	fm.HideToc = raw.HideToc
+	// Prefer explicit hideToc; accept Docusaurus hide_table_of_contents as alias.
+	fm.HideToc = raw.HideToc || raw.HideTableOfContents
 	fm.HideNav = raw.HideNav
 	fm.ShowChildren = raw.ShowChildren
 	fm.HideChildren = raw.HideChildren

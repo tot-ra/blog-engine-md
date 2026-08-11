@@ -170,6 +170,56 @@ Content.`,
 	}
 }
 
+func TestParseFrontmatterHideTocAlias(t *testing.T) {
+	tests := []struct {
+		name       string
+		content    string
+		wantHideToc bool
+	}{
+		{
+			name: "hide_table_of_contents alone",
+			content: `---
+title: About
+hide_table_of_contents: true
+---
+
+Content.`,
+			wantHideToc: true,
+		},
+		{
+			name: "hideToc alone",
+			content: `---
+title: About
+hideToc: true
+---
+
+Content.`,
+			wantHideToc: true,
+		},
+		{
+			name: "neither flag",
+			content: `---
+title: About
+---
+
+Content.`,
+			wantHideToc: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fm, _, err := ParseFrontmatter(tt.content)
+			if err != nil {
+				t.Fatalf("ParseFrontmatter failed: %v", err)
+			}
+			if fm.HideToc != tt.wantHideToc {
+				t.Fatalf("HideToc = %t, want %t", fm.HideToc, tt.wantHideToc)
+			}
+		})
+	}
+}
+
 func TestParseFrontmatterPreservesCustomParams(t *testing.T) {
 	content := `---
 title: Research Paper
