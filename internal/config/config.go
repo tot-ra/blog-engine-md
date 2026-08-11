@@ -249,6 +249,9 @@ type SidebarSectionConfig struct {
 	GraphPath        string             `yaml:"graphPath"`
 	MatchPaths       []string           `yaml:"matchPaths"`
 	SidebarRoot      string             `yaml:"sidebarRoot"`
+	// HideSidebar drops the left nav for matching pages when in-page links are enough
+	// (e.g. about career/education cards) or the section is listed only in the header.
+	HideSidebar      bool               `yaml:"hideSidebar"`
 	ShowChildrenList *bool              `yaml:"showChildrenList"`
 	RecentEmbeds     RecentEmbedsConfig `yaml:"recentEmbeds"`
 }

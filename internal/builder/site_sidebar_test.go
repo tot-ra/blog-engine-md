@@ -12,6 +12,45 @@ import (
 	"github.com/tot-ra/blog-engine/internal/renderer"
 )
 
+func TestRenderPage_HideSidebarSectionOmitsLeftNav(t *testing.T) {
+	cfg := sidebarRenderTestConfig(t)
+	cfg.Navigation.Sidebar.Sections = map[string]config.SidebarSectionConfig{
+		"about": {
+			MatchPaths:  []string{"about"},
+			HideSidebar: true,
+		},
+	}
+
+	page := &Page{
+		ID:          "about",
+		URL:         "/en/about/",
+		Language:    "en",
+		Title:       "About",
+		Content:     "<p>About</p>",
+		Type:        TypeDoc,
+		Frontmatter: &parser.Frontmatter{},
+	}
+	child := &Page{
+		ID:          "about-job",
+		URL:         "/en/about/work/",
+		Language:    "en",
+		Title:       "Work",
+		Content:     "<p>Work</p>",
+		Type:        TypeDoc,
+		Frontmatter: &parser.Frontmatter{},
+	}
+	b := sidebarRenderTestBuilder(t, cfg, page, child)
+
+	if err := b.renderPage(page); err != nil {
+		t.Fatalf("render page: %v", err)
+	}
+
+	html := readRenderedPage(t, cfg, "en/about/index.html")
+	if strings.Contains(html, `<nav class="sidebar"`) {
+		t.Fatalf("expected hideSidebar section to omit left nav, got sidebar in HTML")
+	}
+}
+
 func TestRenderPage_CategoryOnlySidebarSectionUsesRegularSidebar(t *testing.T) {
 	cfg := sidebarRenderTestConfig(t)
 	cfg.Navigation.Sidebar.Sections = map[string]config.SidebarSectionConfig{

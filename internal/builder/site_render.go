@@ -135,6 +135,11 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 		}
 	}
 	sidebarSectionKey, matchedSectionCfg := b.matchingSidebarSection(page)
+	// WHY: sites can opt out of left nav for a whole section via config (about page
+	// links cover career/education; talks lives in the header instead).
+	if matchedSectionCfg.HideSidebar {
+		hideSidebar = true
+	}
 	if targetURL := localizedSectionURLForPage(page.Language, b.config.I18n.Default, page.URL, matchedSectionCfg.SidebarRoot); targetURL != "" {
 		if found := findSidebarNodeByURL(rendererRoot, targetURL); found != nil {
 			sidebarRoot = found

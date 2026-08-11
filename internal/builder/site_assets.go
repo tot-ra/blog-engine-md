@@ -248,6 +248,9 @@ func (b *SiteBuilder) sidebarSectionConfig(section string) config.SidebarSection
 		cfg.EnableTime = custom.EnableTime
 		cfg.EnableGraph = custom.EnableGraph
 		cfg.GraphPath = custom.GraphPath
+		cfg.SidebarRoot = custom.SidebarRoot
+		cfg.MatchPaths = custom.MatchPaths
+		cfg.HideSidebar = custom.HideSidebar
 		cfg.ShowChildrenList = custom.ShowChildrenList
 		cfg.RecentEmbeds = custom.RecentEmbeds
 	}
