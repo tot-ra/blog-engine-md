@@ -642,8 +642,9 @@
         table { border-collapse: collapse; width: 100%; margin: 1em 0; }
         /* WHY: hardcoded light gray (#f4f4f4/#ddd) made th text nearly invisible in dark mode.
            WHAT: theme tokens keep header/body cells readable in both themes. */
-        th, td { border: 1px solid var(--nav-border); padding: 8px; text-align: left; color: var(--text-primary); }
+        th, td { border: 1px solid var(--nav-border); padding: 4px 8px; font-size: 0.9em; text-align: left; color: var(--text-primary); }
         th { background: var(--nav-bg); color: var(--text-primary); font-weight: 700; }
+        td img[src*="simpleicons.org"] { vertical-align: middle; margin-right: 6px; }
         .section-index { list-style: none; padding: 0; }
         .section-index li { padding: 6px 0; border-bottom: 1px solid var(--nav-border); }
         .section-index li a { font-weight: 500; }
