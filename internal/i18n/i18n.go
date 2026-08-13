@@ -296,6 +296,10 @@ func SegmentLabel(lang, segment string) string {
 			return "Архив"
 		case "graph":
 			return "Граф"
+		case "events":
+			// Content folders are kept in Latin so /en/... and /ru/... paths match
+			// and the language switcher can pair pages; label them in Russian.
+			return "События"
 		}
 	case "et":
 		switch seg {
