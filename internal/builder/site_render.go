@@ -100,7 +100,7 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 		data.SocialCard = "summary_large_image"
 	}
 	data.MetaDescription = b.metaDescriptionForPage(page)
-	if b.config.Build.PublishMarkdown && strings.TrimSpace(page.SourcePath) != "" && (page.Frontmatter == nil || strings.TrimSpace(page.Frontmatter.RedirectURL) == "") {
+	if b.config.Build.PublishMarkdown && isMarkdownSource(page.SourcePath) && (page.Frontmatter == nil || strings.TrimSpace(page.Frontmatter.RedirectURL) == "") {
 		data.MarkdownURL = pageMarkdownURL(page.URL)
 	}
 	data.TagURL = func(tag string) string {
@@ -255,6 +255,11 @@ func pageMarkdownURL(pageURL string) string {
 		return pageURL + "index.md"
 	}
 	return strings.TrimSuffix(pageURL, ".html") + ".md"
+}
+
+func isMarkdownSource(sourcePath string) bool {
+	_, ok := markdownExtensions[strings.ToLower(filepath.Ext(sourcePath))]
+	return ok
 }
 
 func (b *SiteBuilder) writeMarkdownAlternative(page *Page, htmlOutputPath string) error {

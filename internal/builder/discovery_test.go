@@ -15,6 +15,7 @@ func TestDiscover(t *testing.T) {
 		"blog/post1.md":               "# Post 1",
 		"blog/post2.md":               "# Post 2",
 		"docs/readme.md":              "# Readme",
+		"blog/interactive.html":       "<!--\n---\ntitle: Interactive\n---\n-->\n<section>Demo</section>",
 		"img/logo.png":                "fake png data",
 		"css/style.css":               "body {}",
 		".hidden/file.md":             "# Hidden",
@@ -39,6 +40,11 @@ func TestDiscover(t *testing.T) {
 	// Check markdown files
 	if len(index.MarkdownFiles) != 3 {
 		t.Errorf("Expected 3 markdown files, got %d", len(index.MarkdownFiles))
+	}
+
+	// HTML partials are content pages, not copied assets.
+	if len(index.HTMLFiles) != 1 || index.HTMLFiles[0].ContentType != TypeHTML {
+		t.Errorf("Expected 1 HTML content file, got %#v", index.HTMLFiles)
 	}
 
 	// Check image files

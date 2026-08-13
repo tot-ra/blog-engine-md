@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -118,6 +119,37 @@ Content.`,
 	}
 }
 
+func TestParseHTMLFrontmatter(t *testing.T) {
+	content := `<!--
+---
+title: Interactive Post
+tags: [Go, Concurrency]
+---
+-->
+<section data-demo>Interactive body</section>
+<style>.demo { color: red; }</style>
+<script>window.demoLoaded = true;</script>`
+
+	fm, remaining, err := ParseHTMLFrontmatter(content)
+	if err != nil {
+		t.Fatalf("ParseHTMLFrontmatter() error = %v", err)
+	}
+	if fm.Title != "Interactive Post" {
+		t.Fatalf("title = %q", fm.Title)
+	}
+	if len(fm.Tags) != 2 || fm.Tags[0] != "go" {
+		t.Fatalf("tags = %#v", fm.Tags)
+	}
+	if strings.Contains(remaining, "title: Interactive Post") {
+		t.Fatal("frontmatter comment leaked into HTML content")
+	}
+	for _, want := range []string{"<section data-demo>", "<style>", "<script>"} {
+		if !strings.Contains(remaining, want) {
+			t.Fatalf("remaining content missing %q: %s", want, remaining)
+		}
+	}
+}
+
 func TestParseFrontmatterSidebarPositionAlias(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -172,8 +204,8 @@ Content.`,
 
 func TestParseFrontmatterHideTocAlias(t *testing.T) {
 	tests := []struct {
-		name       string
-		content    string
+		name        string
+		content     string
 		wantHideToc bool
 	}{
 		{

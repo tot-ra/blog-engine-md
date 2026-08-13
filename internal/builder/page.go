@@ -202,8 +202,8 @@ func (b *PageBuilder) Build(file ContentFile) (*Page, error) {
 		return nil, fmt.Errorf("failed to read file %s: %w", file.Path, err)
 	}
 
-	// Parse frontmatter
-	fm, remaining, err := parser.ParseFrontmatter(string(data))
+	// Parse metadata using the syntax appropriate for this content type.
+	fm, remaining, err := parseContentFrontmatter(file, string(data))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse frontmatter in %s: %w", file.Path, err)
 	}
@@ -239,31 +239,43 @@ func (b *PageBuilder) Build(file ContentFile) (*Page, error) {
 		title = strings.ReplaceAll(title, "_", " ")
 	}
 
-	// Avoid rendering the same top-level heading twice. Page templates already render
-	// page.Title as the visible <h1>, while many imported markdown files also include
-	// an identical "# Title" heading, sometimes after a hero image block.
-	renderContent := stripDuplicateTitleHeading(remaining, title)
-
-	// Process wiki links [[Page Title]] -> [Page Title](/page-title/)
-	processedContent := renderContent
-	if b.pageResolver != nil {
-		processedContent = parser.ProcessWikiLinks(renderContent, b.pageResolver)
+	var htmlContent, renderContent string
+	if file.ContentType == TypeHTML {
+		// HTML content is author-controlled and may intentionally contain inline CSS/JS.
+		// Keep it byte-for-byte apart from trimming the metadata comment.
+		renderContent = remaining
+		htmlContent = remaining
 	} else {
-		processedContent = parser.SimpleWikiLinkProcessor(renderContent)
-	}
-	processedContent = rewriteLocalMarkdownLinks(processedContent, file.RelativePath, b.markdownLinkResolver)
-	processedContent = rewriteLocalAssetReferences(processedContent, file.RelativePath)
-	processedContent = rewritePDFObjects(processedContent)
-	processedContent = parser.TransformEmbeds(processedContent)
+		// Avoid rendering the same top-level heading twice. Page templates already render
+		// page.Title as the visible <h1>, while many imported markdown files also include
+		// an identical "# Title" heading, sometimes after a hero image block.
+		renderContent = stripDuplicateTitleHeading(remaining, title)
 
-	// Render markdown to HTML
-	htmlContent, err := b.mdParser.Render(processedContent)
-	if err != nil {
-		return nil, fmt.Errorf("failed to render markdown in %s: %w", file.Path, err)
+		// Process wiki links [[Page Title]] -> [Page Title](/page-title/)
+		processedContent := renderContent
+		if b.pageResolver != nil {
+			processedContent = parser.ProcessWikiLinks(renderContent, b.pageResolver)
+		} else {
+			processedContent = parser.SimpleWikiLinkProcessor(renderContent)
+		}
+		processedContent = rewriteLocalMarkdownLinks(processedContent, file.RelativePath, b.markdownLinkResolver)
+		processedContent = rewriteLocalAssetReferences(processedContent, file.RelativePath)
+		processedContent = rewritePDFObjects(processedContent)
+		processedContent = parser.TransformEmbeds(processedContent)
+
+		// Render markdown to HTML
+		htmlContent, err = b.mdParser.Render(processedContent)
+		if err != nil {
+			return nil, fmt.Errorf("failed to render markdown in %s: %w", file.Path, err)
+		}
 	}
 
-	// Extract TOC from rendered markdown content
-	toc := extractTOC(renderContent)
+	// Markdown TOCs are syntax-aware. Interactive HTML articles provide their own
+	// in-article structure and are left out of the generated sidebar TOC.
+	var toc []*TocItem
+	if file.ContentType != TypeHTML {
+		toc = extractTOC(renderContent)
+	}
 
 	page := &Page{
 		ID:           id,
@@ -281,6 +293,13 @@ func (b *PageBuilder) Build(file ContentFile) (*Page, error) {
 	}
 
 	return page, nil
+}
+
+func parseContentFrontmatter(file ContentFile, content string) (*parser.Frontmatter, string, error) {
+	if file.ContentType == TypeHTML {
+		return parser.ParseHTMLFrontmatter(content)
+	}
+	return parser.ParseFrontmatter(content)
 }
 
 func inferDateFromFilename(relPath string) time.Time {

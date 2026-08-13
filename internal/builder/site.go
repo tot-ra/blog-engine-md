@@ -60,24 +60,26 @@ func (b *SiteBuilder) Build() error {
 		return fmt.Errorf("failed to discover content: %w", err)
 	}
 
-	fmt.Printf("Found %d markdown files, %d images, %d assets\n",
-		len(index.MarkdownFiles), len(index.ImageFiles), len(index.AssetFiles))
+	contentFiles := append([]ContentFile{}, index.MarkdownFiles...)
+	contentFiles = append(contentFiles, index.HTMLFiles...)
+	fmt.Printf("Found %d markdown files, %d HTML files, %d images, %d assets\n",
+		len(index.MarkdownFiles), len(index.HTMLFiles), len(index.ImageFiles), len(index.AssetFiles))
 
 	// First pass: collect page info for wiki and local markdown link resolution
 	pageBuilder := NewPageBuilder(b.config.Site.URL, b.config.I18n.Default, b.languages)
-	explicitIndexDirs := collectExplicitIndexDirs(index.MarkdownFiles)
+	explicitIndexDirs := collectExplicitIndexDirs(contentFiles)
 	pageBuilder.urlGen.SetExplicitIndexDirs(explicitIndexDirs)
 	titleToURL := make(map[string]map[string]string)
 	pathToURL := make(map[string]map[string]string)
 
-	for _, file := range index.MarkdownFiles {
+	for _, file := range contentFiles {
 		// Quick parse to get title and URL without full rendering
 		data, err := os.ReadFile(file.Path)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error reading file %s: %v\n", file.Path, err)
 			continue
 		}
-		fm, _, err := parser.ParseFrontmatter(string(data))
+		fm, _, err := parseContentFrontmatter(file, string(data))
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error parsing frontmatter %s: %v\n", file.Path, err)
 			continue
@@ -110,7 +112,7 @@ func (b *SiteBuilder) Build() error {
 	}
 
 	// Second pass: build pages with wiki and local markdown link resolution
-	pages, buildErrs := b.buildPages(index.MarkdownFiles, titleToURL, pathToURL, explicitIndexDirs)
+	pages, buildErrs := b.buildPages(contentFiles, titleToURL, pathToURL, explicitIndexDirs)
 	for _, err := range buildErrs {
 		fmt.Fprintf(os.Stderr, "Error building page: %v\n", err)
 	}

@@ -63,6 +63,17 @@ content/
 
 #### Extended Features
 - **YAML Frontmatter**: Metadata support (title, date, tags, description, draft, `order` / Docusaurus `sidebar_position`)
+- **Interactive HTML partials**: `.html` content files are embedded without Markdown conversion, including per-article inline `<style>` and `<script>`. Put the same YAML frontmatter inside a leading HTML comment:
+  ```html
+  <!--
+  ---
+  title: Interactive article
+  date: 2026-08-13
+  tags: [demo]
+  ---
+  -->
+  <section>...</section>
+  ```
 - **Custom Directives**:
   - `<!--truncate-->`: Article preview cutoff point
   - Mermaid diagrams (```mermaid blocks)

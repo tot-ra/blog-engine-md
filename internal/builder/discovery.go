@@ -12,6 +12,7 @@ type ContentType string
 
 const (
 	TypeMarkdown ContentType = "markdown"
+	TypeHTML     ContentType = "html"
 	TypeImage    ContentType = "image"
 	TypeAsset    ContentType = "asset"
 )
@@ -28,6 +29,7 @@ type ContentFile struct {
 // ContentIndex holds all discovered content files
 type ContentIndex struct {
 	MarkdownFiles []ContentFile
+	HTMLFiles     []ContentFile
 	ImageFiles    []ContentFile
 	AssetFiles    []ContentFile
 }
@@ -36,6 +38,7 @@ type ContentIndex struct {
 func Discover(root string) (*ContentIndex, error) {
 	index := &ContentIndex{
 		MarkdownFiles: make([]ContentFile, 0),
+		HTMLFiles:     make([]ContentFile, 0),
 		ImageFiles:    make([]ContentFile, 0),
 		AssetFiles:    make([]ContentFile, 0),
 	}
@@ -89,6 +92,9 @@ func Discover(root string) (*ContentIndex, error) {
 		case ".md", ".markdown":
 			file.ContentType = TypeMarkdown
 			index.MarkdownFiles = append(index.MarkdownFiles, file)
+		case ".html":
+			file.ContentType = TypeHTML
+			index.HTMLFiles = append(index.HTMLFiles, file)
 		case ".jpg", ".jpeg", ".png", ".gif", ".svg", ".webp":
 			file.ContentType = TypeImage
 			index.ImageFiles = append(index.ImageFiles, file)

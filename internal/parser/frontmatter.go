@@ -9,7 +9,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Frontmatter represents YAML frontmatter from markdown files
+// Frontmatter represents YAML frontmatter shared by Markdown and HTML content files
 type Frontmatter struct {
 	Title        string                 `yaml:"title"`
 	NavTitle     string                 `yaml:"navTitle"`
@@ -29,7 +29,8 @@ type Frontmatter struct {
 	Params       map[string]interface{} `yaml:"-"`
 }
 
-// ParseFrontmatter extracts YAML frontmatter from markdown content
+// ParseFrontmatter extracts YAML frontmatter from Markdown content.
+// HTML partials use ParseHTMLFrontmatter so their metadata remains a valid comment.
 // Returns the parsed frontmatter, remaining content, and any error
 func ParseFrontmatter(content string) (*Frontmatter, string, error) {
 	fm := &Frontmatter{}
@@ -59,7 +60,7 @@ func ParseFrontmatter(content string) (*Frontmatter, string, error) {
 		Slug        string      `yaml:"slug"`
 		Order       int         `yaml:"order"`
 		// sidebar_position is the Docusaurus-compatible alias used by migrated content.
-		SidebarPosition int `yaml:"sidebar_position"`
+		SidebarPosition int  `yaml:"sidebar_position"`
 		HideToc         bool `yaml:"hideToc"`
 		// hide_table_of_contents is the Docusaurus-compatible alias for hideToc.
 		HideTableOfContents bool   `yaml:"hide_table_of_contents"`
@@ -113,6 +114,35 @@ func ParseFrontmatter(content string) (*Frontmatter, string, error) {
 	}
 
 	return fm, remaining, nil
+}
+
+// ParseHTMLFrontmatter extracts the standard YAML block from a leading HTML comment:
+// <!--\n---\ntitle: Example\n---\n-->
+func ParseHTMLFrontmatter(content string) (*Frontmatter, string, error) {
+	trimmed := strings.TrimPrefix(content, "\ufeff")
+	if !strings.HasPrefix(trimmed, "<!--") {
+		return &Frontmatter{}, content, nil
+	}
+
+	commentEnd := strings.Index(trimmed[4:], "-->")
+	if commentEnd == -1 {
+		return &Frontmatter{}, content, nil
+	}
+
+	comment := strings.TrimSpace(trimmed[4 : commentEnd+4])
+	if !strings.HasPrefix(comment, "---") {
+		return &Frontmatter{}, content, nil
+	}
+
+	fm, remainder, err := ParseFrontmatter(comment)
+	if err != nil {
+		return nil, "", err
+	}
+	if strings.TrimSpace(remainder) != "" {
+		return nil, "", fmt.Errorf("HTML frontmatter comment must contain only the YAML frontmatter block")
+	}
+
+	return fm, strings.TrimSpace(trimmed[commentEnd+7:]), nil
 }
 
 func parseFlexibleTime(v interface{}) (time.Time, error) {
