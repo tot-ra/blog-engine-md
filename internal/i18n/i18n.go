@@ -326,6 +326,8 @@ func SegmentLabel(lang, segment string) string {
 			return "Archive"
 		case "graph":
 			return "Graph"
+		case "events":
+			return "Events"
 		}
 	}
 	return ""
