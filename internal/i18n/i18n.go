@@ -10,6 +10,7 @@ import (
 type UIStrings struct {
 	Home            string
 	Blog            string
+	Events          string
 	Docs            string
 	Languages       string
 	Navigation      string
@@ -128,6 +129,7 @@ func UI(lang string) UIStrings {
 		return UIStrings{
 			Home:            "Главная",
 			Blog:            "Блог",
+			Events:          "События",
 			Docs:            "Документы",
 			Languages:       "Языки",
 			Navigation:      "Навигация",
@@ -160,6 +162,7 @@ func UI(lang string) UIStrings {
 		return UIStrings{
 			Home:            "Avaleht",
 			Blog:            "Blogi",
+			Events:          "Sündmused",
 			Docs:            "Dokumendid",
 			Languages:       "Keeled",
 			Navigation:      "Navigeerimine",
@@ -192,6 +195,7 @@ func UI(lang string) UIStrings {
 		return UIStrings{
 			Home:            "Home",
 			Blog:            "Blog",
+			Events:          "Events",
 			Docs:            "Docs",
 			Languages:       "Languages",
 			Navigation:      "Navigation",

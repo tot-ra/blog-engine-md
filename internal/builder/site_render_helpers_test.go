@@ -113,6 +113,11 @@ func TestMergeHomepageConfig_OverlaysNonZeroFields(t *testing.T) {
 			Limit:   4,
 			Title:   "Latest posts",
 		},
+		EventsShowcase: config.BlogShowcaseConfig{
+			Enabled: true,
+			Limit:   3,
+			Title:   "Latest events",
+		},
 		Projects:    []config.ProjectConfig{{Title: "Base project"}},
 		SocialLinks: []config.SocialLinkGroup{{Title: "Base socials"}},
 		CustomHTML:  "<p>base</p>",
@@ -127,6 +132,9 @@ func TestMergeHomepageConfig_OverlaysNonZeroFields(t *testing.T) {
 		},
 		BlogShowcase: config.BlogShowcaseConfig{
 			Title: "Neueste Beiträge",
+		},
+		EventsShowcase: config.BlogShowcaseConfig{
+			Title: "Neueste Events",
 		},
 		HideProjects: true,
 		CustomHTML:   "<p>localized</p>",
@@ -147,6 +155,9 @@ func TestMergeHomepageConfig_OverlaysNonZeroFields(t *testing.T) {
 	}
 	if !got.BlogShowcase.Enabled || got.BlogShowcase.Limit != 4 || got.BlogShowcase.Title != "Neueste Beiträge" {
 		t.Fatalf("expected localized blog showcase fields merged, got %#v", got.BlogShowcase)
+	}
+	if !got.EventsShowcase.Enabled || got.EventsShowcase.Limit != 3 || got.EventsShowcase.Title != "Neueste Events" {
+		t.Fatalf("expected localized events showcase fields merged, got %#v", got.EventsShowcase)
 	}
 	if !got.HideProjects || got.CustomHTML != "<p>localized</p>" {
 		t.Fatalf("expected localized homepage fields, got %#v", got)
@@ -181,6 +192,71 @@ func TestHomepageBlogShowcaseSelectsLatestLocalizedPosts(t *testing.T) {
 	}
 	if !strings.Contains(string(got[0].ImageHTML), `src="cover.jpg"`) || got[0].Description != "Newest preview." {
 		t.Fatalf("expected image and excerpt on newest card, got %#v", got[0])
+	}
+}
+
+func TestHomepageEventsShowcaseSelectsLatestLocalizedEvents(t *testing.T) {
+	cfg := config.DefaultConfig()
+	b := NewSiteBuilder(cfg)
+	b.pages = map[string]*Page{
+		"new": {
+			Title: "Newest event", URL: "/ru/events/new/", Language: "ru", Type: TypePage, SourcePath: "/tmp/new.md",
+			Content: `<p><img src="event.jpg" alt="Event"></p>`, RawContent: "Newest event preview.",
+			Frontmatter: &parser.Frontmatter{Date: time.Date(2026, time.July, 23, 0, 0, 0, 0, time.UTC)},
+		},
+		"mid": {
+			Title: "Mid event", URL: "/ru/events/mid/", Language: "ru", Type: TypePage, SourcePath: "/tmp/mid.md",
+			Frontmatter: &parser.Frontmatter{Date: time.Date(2026, time.July, 13, 0, 0, 0, 0, time.UTC)},
+		},
+		"old": {
+			Title: "Older event", URL: "/ru/events/old/", Language: "ru", Type: TypePage, SourcePath: "/tmp/old.md",
+			Frontmatter: &parser.Frontmatter{Date: time.Date(2026, time.June, 13, 0, 0, 0, 0, time.UTC)},
+		},
+		"index": {
+			Title: "Events", URL: "/ru/events/", Language: "ru", Type: TypePage, SourcePath: "/tmp/index.md",
+			Frontmatter: &parser.Frontmatter{Date: time.Date(2026, time.August, 1, 0, 0, 0, 0, time.UTC)},
+		},
+		"blog-events-stub": {
+			Title: "Stub", URL: "/ru/blog/events/stub/", Language: "ru", Type: TypeBlog, SourcePath: "/tmp/stub.md",
+			Frontmatter: &parser.Frontmatter{
+				Date:        time.Date(2026, time.August, 2, 0, 0, 0, 0, time.UTC),
+				HideNav:     true,
+				RedirectURL: "/ru/events/stub/",
+			},
+		},
+		"en": {
+			Title: "English event", URL: "/en/events/en/", Language: "en", Type: TypePage, SourcePath: "/tmp/en.md",
+			Frontmatter: &parser.Frontmatter{Date: time.Date(2026, time.August, 3, 0, 0, 0, 0, time.UTC)},
+		},
+	}
+
+	got := b.homepageEventsShowcase("ru", 3)
+	if len(got) != 3 || got[0].Title != "Newest event" || got[1].Title != "Mid event" || got[2].Title != "Older event" {
+		t.Fatalf("expected three latest Russian events, got %#v", got)
+	}
+	if !strings.Contains(string(got[0].ImageHTML), `src="event.jpg"`) {
+		t.Fatalf("expected image on newest event card, got %#v", got[0])
+	}
+}
+
+func TestIsLanguageSectionPost(t *testing.T) {
+	tests := []struct {
+		url     string
+		section string
+		want    bool
+	}{
+		{"/ru/events/meetup/", "events", true},
+		{"/en/events/meetup/", "events", true},
+		{"/events/meetup/", "events", true},
+		{"/ru/events/", "events", false},
+		{"/ru/events/img/", "events", false},
+		{"/ru/blog/events/meetup/", "events", false},
+		{"/ru/blog/post/", "events", false},
+	}
+	for _, tt := range tests {
+		if got := isLanguageSectionPost(tt.url, tt.section); got != tt.want {
+			t.Fatalf("isLanguageSectionPost(%q, %q) = %v, want %v", tt.url, tt.section, got, tt.want)
+		}
 	}
 }
 

@@ -22,17 +22,19 @@ type SiteConfig struct {
 
 // HomepageConfig contains homepage-specific settings
 type HomepageConfig struct {
-	Enabled      bool               `yaml:"enabled"`
-	Hero         HeroConfig         `yaml:"hero"`
-	Chat         HomepageChatConfig `yaml:"chat"`
-	BlogShowcase BlogShowcaseConfig `yaml:"blogShowcase"`
-	HideProjects bool               `yaml:"hideProjects"`
-	Projects     []ProjectConfig    `yaml:"projects"`
-	SocialLinks  []SocialLinkGroup  `yaml:"socialLinks"`
-	CustomHTML   string             `yaml:"customHTML"` // Additional custom HTML/JS
+	Enabled        bool               `yaml:"enabled"`
+	Hero           HeroConfig         `yaml:"hero"`
+	Chat           HomepageChatConfig `yaml:"chat"`
+	BlogShowcase   BlogShowcaseConfig `yaml:"blogShowcase"`
+	EventsShowcase BlogShowcaseConfig `yaml:"eventsShowcase"`
+	HideProjects   bool               `yaml:"hideProjects"`
+	Projects       []ProjectConfig    `yaml:"projects"`
+	SocialLinks    []SocialLinkGroup  `yaml:"socialLinks"`
+	CustomHTML     string             `yaml:"customHTML"` // Additional custom HTML/JS
 }
 
 // BlogShowcaseConfig controls the automatically generated latest-posts showcase.
+// Reused for eventsShowcase (same enabled/limit/title knobs).
 type BlogShowcaseConfig struct {
 	Enabled bool   `yaml:"enabled"`
 	Limit   int    `yaml:"limit"`

@@ -217,7 +217,9 @@ func (b *PageBuilder) Build(file ContentFile) (*Page, error) {
 
 	// Determine page type
 	pageType := determinePageType(contentPath)
-	if pageType == TypeBlog && fm.Date.IsZero() {
+	// WHY: dated notes under /events/ are TypePage, but filenames still carry YYYY-MM-DD.
+	// Infer for any page so section listings and homepage showcases sort correctly.
+	if fm.Date.IsZero() {
 		fm.Date = inferDateFromFilename(contentPath)
 	}
 

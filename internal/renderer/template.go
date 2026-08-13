@@ -65,7 +65,7 @@ type PrevNextLinks struct {
 	Next *NavLink
 }
 
-// BlogShowcasePost represents one automatically selected homepage blog card.
+// BlogShowcasePost represents one automatically selected homepage blog/event card.
 type BlogShowcasePost struct {
 	Title       string
 	URL         string
@@ -79,6 +79,7 @@ type PageData struct {
 	Site            config.SiteConfig
 	Homepage        config.HomepageConfig
 	BlogShowcase    []BlogShowcasePost
+	EventsShowcase  []BlogShowcasePost
 	Page            Page
 	HomeURL         string
 	TagURL          func(string) string

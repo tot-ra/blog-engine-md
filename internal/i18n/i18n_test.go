@@ -39,6 +39,7 @@ func TestUI_LocalizedStrings(t *testing.T) {
 			want: UIStrings{
 				Home:            "Home",
 				Blog:            "Blog",
+				Events:          "Events",
 				Docs:            "Docs",
 				Languages:       "Languages",
 				Navigation:      "Navigation",
@@ -74,6 +75,7 @@ func TestUI_LocalizedStrings(t *testing.T) {
 			want: UIStrings{
 				Home:            "Главная",
 				Blog:            "Блог",
+				Events:          "События",
 				Docs:            "Документы",
 				Languages:       "Языки",
 				Navigation:      "Навигация",
@@ -109,6 +111,7 @@ func TestUI_LocalizedStrings(t *testing.T) {
 			want: UIStrings{
 				Home:            "Avaleht",
 				Blog:            "Blogi",
+				Events:          "Sündmused",
 				Docs:            "Dokumendid",
 				Languages:       "Keeled",
 				Navigation:      "Navigeerimine",

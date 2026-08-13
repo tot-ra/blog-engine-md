@@ -112,6 +112,9 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 	if page.Frontmatter.Layout == "homepage" && data.Homepage.BlogShowcase.Enabled {
 		data.BlogShowcase = b.homepageBlogShowcase(page.Language, data.Homepage.BlogShowcase.Limit)
 	}
+	if page.Frontmatter.Layout == "homepage" && data.Homepage.EventsShowcase.Enabled {
+		data.EventsShowcase = b.homepageEventsShowcase(page.Language, data.Homepage.EventsShowcase.Limit)
+	}
 	if b.cssBundle != nil {
 		data.CSSPath = b.cssBundle.Path
 	}
@@ -496,6 +499,33 @@ func (b *SiteBuilder) homepageBlogShowcase(language string, limit int) []rendere
 		}
 		posts = append(posts, page)
 	}
+	return b.buildHomepageShowcase(posts, limit)
+}
+
+// homepageEventsShowcase picks the latest notes under the top-level /events/ section.
+// WHY: events live outside blog/ so they are TypePage; filter by URL segment instead of type.
+func (b *SiteBuilder) homepageEventsShowcase(language string, limit int) []renderer.BlogShowcasePost {
+	if limit <= 0 {
+		limit = 3
+	}
+
+	posts := make([]*Page, 0, limit)
+	for _, page := range b.pages {
+		if page == nil || page.Language != language || strings.TrimSpace(page.SourcePath) == "" {
+			continue
+		}
+		if !isLanguageSectionPost(page.URL, "events") {
+			continue
+		}
+		if page.Frontmatter != nil && (page.Frontmatter.HideNav || strings.TrimSpace(page.Frontmatter.RedirectURL) != "") {
+			continue
+		}
+		posts = append(posts, page)
+	}
+	return b.buildHomepageShowcase(posts, limit)
+}
+
+func (b *SiteBuilder) buildHomepageShowcase(posts []*Page, limit int) []renderer.BlogShowcasePost {
 	sort.SliceStable(posts, func(i, j int) bool {
 		di := sectionPageSortDate(posts[i])
 		dj := sectionPageSortDate(posts[j])
@@ -523,6 +553,27 @@ func (b *SiteBuilder) homepageBlogShowcase(language string, limit int) []rendere
 		})
 	}
 	return showcase
+}
+
+// isLanguageSectionPost reports whether URL is a post under /{lang?}/section/slug/
+// (not the section index and not an /img/ asset folder page).
+func isLanguageSectionPost(pageURL, section string) bool {
+	section = strings.ToLower(strings.TrimSpace(section))
+	if section == "" {
+		return false
+	}
+	parts := strings.Split(strings.Trim(pageURL, "/"), "/")
+	switch len(parts) {
+	case 0, 1:
+		return false
+	case 2:
+		return strings.EqualFold(parts[0], section) && !strings.EqualFold(parts[1], "img")
+	default:
+		if strings.EqualFold(parts[0], section) && !strings.EqualFold(parts[1], "img") {
+			return true
+		}
+		return strings.EqualFold(parts[1], section) && !strings.EqualFold(parts[2], "img")
+	}
 }
 
 func (b *SiteBuilder) homepageForLanguage(lang string) config.HomepageConfig {
@@ -585,6 +636,15 @@ func mergeHomepageConfig(base, override config.HomepageConfig) config.HomepageCo
 	}
 	if override.BlogShowcase.Title != "" {
 		out.BlogShowcase.Title = override.BlogShowcase.Title
+	}
+	if override.EventsShowcase.Enabled {
+		out.EventsShowcase.Enabled = true
+	}
+	if override.EventsShowcase.Limit > 0 {
+		out.EventsShowcase.Limit = override.EventsShowcase.Limit
+	}
+	if override.EventsShowcase.Title != "" {
+		out.EventsShowcase.Title = override.EventsShowcase.Title
 	}
 	if override.HideProjects {
 		out.HideProjects = true
