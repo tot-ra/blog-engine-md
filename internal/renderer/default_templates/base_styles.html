@@ -1,4 +1,12 @@
 {{define "base_styles"}}
+    <script>document.documentElement.classList.add("js");</script>
+    <style>
+        .js body img[data-load-sequence]:not(.is-loaded) { opacity: 0; }
+        .js body img[data-load-sequence] { transition: opacity 120ms ease-out; }
+        @media (prefers-reduced-motion: reduce) {
+            .js body img[data-load-sequence] { transition: none; }
+        }
+    </style>
     <style>
         :root {
             --sidebar-width: 280px;
@@ -642,7 +650,7 @@
         table { border-collapse: collapse; width: 100%; margin: 1em 0; }
         /* WHY: hardcoded light gray (#f4f4f4/#ddd) made th text nearly invisible in dark mode.
            WHAT: theme tokens keep header/body cells readable in both themes. */
-        th, td { border: 1px solid var(--nav-border); padding: 4px 8px; font-size: 0.9em; text-align: left; color: var(--text-primary); }
+        th, td { border: 1px solid var(--nav-border); padding: 8px; font-size: 0.9em; text-align: left; color: var(--text-primary); }
         th { background: var(--nav-bg); color: var(--text-primary); font-weight: 700; }
         /* WHY: global img { height: auto } ignores HTML height on SVG without intrinsic size (defaults ~300px).
            WHAT: pin tech logos to text-adjacent size. */

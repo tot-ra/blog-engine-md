@@ -45,6 +45,8 @@ func TestTemplateEngine_LoadTemplatesUsesDefaultsWhenDirectoryMissing(t *testing
 		"<title>About | Example</title>",
 		"<h1>About</h1>",
 		"<p>Hello from content</p>",
+		"th, td { border: 1px solid var(--nav-border); padding: 8px;",
+		`querySelectorAll("body img:not(.navbar-logo img)")`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Fatalf("expected rendered HTML to contain %q, got:\n%s", want, html)
@@ -69,6 +71,17 @@ func TestTemplateEngine_HomepageRendersMarkdownAlternative(t *testing.T) {
 	want := `<link rel="alternate" type="text/markdown" href="/index.md" title="Markdown source">`
 	if !strings.Contains(html, want) {
 		t.Fatalf("expected homepage to contain %q, got:\n%s", want, html)
+	}
+	for _, want := range []string{
+		`document.documentElement.classList.add("js")`,
+		`querySelectorAll("body img:not(.navbar-logo img)")`,
+		`img[data-load-sequence]:not(.is-loaded)`,
+		`requestAnimationFrame(function()`,
+		`transition: opacity 120ms ease-out`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("expected homepage image loading behavior to contain %q, got:\n%s", want, html)
+		}
 	}
 }
 

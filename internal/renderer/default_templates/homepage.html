@@ -182,6 +182,7 @@
 
     {{if .Homepage.CustomHTML}}{{.Homepage.CustomHTML}}{{end}}
     {{template "homepage_chat_script" .}}
+    {{template "base_scripts" .}}
     {{if .JSPath}}<script defer src="{{.JSPath}}"></script>{{end}}
 </body>
 </html>

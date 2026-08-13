@@ -122,4 +122,50 @@
         });
     })();
     </script>
+    <script>
+    (function() {
+        var images = Array.prototype.slice.call(document.querySelectorAll("body img:not(.navbar-logo img)"));
+
+        // WHY: revealing in DOM order prevents lower images from appearing before
+        // earlier content. Only the managed snapshot is hidden, so images later
+        // injected by custom scripts remain visible.
+        images.forEach(function(image) {
+            image.setAttribute("data-load-sequence", "");
+        });
+
+        function waitUntilReady(image) {
+            // Promote only the current item so native lazy loading cannot stall the queue
+            // when the page opens at an anchor below earlier images.
+            image.loading = "eager";
+            return new Promise(function(resolve) {
+                if (image.complete) {
+                    resolve();
+                    return;
+                }
+                function settled() {
+                    image.removeEventListener("load", settled);
+                    image.removeEventListener("error", settled);
+                    resolve();
+                }
+                image.addEventListener("load", settled);
+                image.addEventListener("error", settled);
+            });
+        }
+
+        images.reduce(function(previous, image) {
+            return previous.then(function() {
+                return waitUntilReady(image);
+            }).then(function() {
+                return new Promise(function(resolve) {
+                    requestAnimationFrame(function() {
+                        requestAnimationFrame(function() {
+                            image.classList.add("is-loaded");
+                            resolve();
+                        });
+                    });
+                });
+            });
+        }, Promise.resolve());
+    })();
+    </script>
 {{end}}

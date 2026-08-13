@@ -1,4 +1,12 @@
 {{define "homepage_styles"}}
+    <script>document.documentElement.classList.add("js");</script>
+    <style>
+        .js body img[data-load-sequence]:not(.is-loaded) { opacity: 0; }
+        .js body img[data-load-sequence] { transition: opacity 120ms ease-out; }
+        @media (prefers-reduced-motion: reduce) {
+            .js body img[data-load-sequence] { transition: none; }
+        }
+    </style>
     <style>
         :root {
             --bg-primary: #ffffff;
