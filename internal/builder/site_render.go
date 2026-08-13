@@ -297,7 +297,9 @@ func (b *SiteBuilder) sectionChildrenContent(page *Page) string {
 		showChildrenList = *sectionCfg.ShowChildrenList
 	}
 	if showChildrenList {
-		sb.WriteString(sectionChildrenHTML(sectionChildrenFromNode(node)))
+		// Prefer linked video/image posters over a plain bullet list when children
+		// contain embeds - talks indexes become visual without inlining iframes.
+		sb.WriteString(sectionChildrenWithMediaHTML(sectionChildrenFromNode(node), b.pagesByURL))
 	}
 	return sb.String()
 }

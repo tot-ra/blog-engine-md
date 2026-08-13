@@ -152,6 +152,136 @@ func sectionChildrenHTML(children []SectionChild) string {
 	return sb.String()
 }
 
+// sectionChildrenWithMediaHTML renders showChildren as a poster grid when at least
+// one child page has a YouTube/Vimeo embed (or a regular preview image). Each
+// poster links to the talk/page itself - never to an external player. Falls back
+// to the plain sectionChildrenHTML list when no media is available.
+func sectionChildrenWithMediaHTML(children []SectionChild, pages map[string]*Page) string {
+	if len(children) == 0 {
+		return ""
+	}
+	if shouldUseSectionMatrix(children) {
+		return sectionChildrenHTML(children)
+	}
+
+	type mediaChild struct {
+		Title string
+		URL   string
+		Thumb string
+	}
+	entries := make([]mediaChild, 0, len(children))
+	hasThumb := false
+	for _, child := range children {
+		page := lookupPageByURL(pages, child.URL)
+		thumb := ""
+		if page != nil {
+			thumb = pageVideoThumbnailURL(page)
+			if thumb == "" {
+				if img := firstPreviewImageHTML(page); img != "" {
+					if match := firstImageSrcRe.FindStringSubmatch(img); len(match) >= 2 {
+						thumb = match[1]
+					}
+				}
+			}
+		}
+		if thumb != "" {
+			hasThumb = true
+		}
+		entries = append(entries, mediaChild{Title: child.Title, URL: child.URL, Thumb: thumb})
+	}
+	if !hasThumb {
+		return sectionChildrenHTML(children)
+	}
+
+	var sb strings.Builder
+	sb.WriteString("<div class=\"section-video-preview-list\">\n")
+	for _, entry := range entries {
+		sb.WriteString(fmt.Sprintf(
+			"  <a class=\"section-video-preview\" href=\"%s\">\n",
+			template.HTMLEscapeString(entry.URL),
+		))
+		if entry.Thumb != "" {
+			sb.WriteString(fmt.Sprintf(
+				"    <span class=\"section-video-preview-thumb\"><img src=\"%s\" alt=\"%s\" loading=\"lazy\" decoding=\"async\"><span class=\"section-video-preview-play\" aria-hidden=\"true\"></span></span>\n",
+				template.HTMLEscapeString(entry.Thumb),
+				template.HTMLEscapeString(entry.Title),
+			))
+		}
+		sb.WriteString(fmt.Sprintf(
+			"    <span class=\"section-video-preview-title\">%s</span>\n  </a>\n",
+			template.HTMLEscapeString(entry.Title),
+		))
+	}
+	sb.WriteString("</div>\n")
+	return sb.String()
+}
+
+func lookupPageByURL(pages map[string]*Page, url string) *Page {
+	if pages == nil || strings.TrimSpace(url) == "" {
+		return nil
+	}
+	if page := pages[url]; page != nil {
+		return page
+	}
+	alt := ensureTrailingSlash(url)
+	if page := pages[alt]; page != nil {
+		return page
+	}
+	trimmed := strings.TrimSuffix(url, "/")
+	if page := pages[trimmed]; page != nil {
+		return page
+	}
+	return nil
+}
+
+var (
+	youtubeEmbedIDRe = regexp.MustCompile(`(?i)(?:youtube(?:-nocookie)?\.com/embed/|youtu\.be/)([A-Za-z0-9_-]{11})`)
+	vimeoEmbedIDRe   = regexp.MustCompile(`(?i)player\.vimeo\.com/video/([0-9]+)`)
+)
+
+func pageVideoThumbnailURL(page *Page) string {
+	if page == nil {
+		return ""
+	}
+	for _, src := range []string{page.RawContent, page.Content} {
+		if id := firstYoutubeVideoID(src); id != "" {
+			return "https://i.ytimg.com/vi/" + id + "/hqdefault.jpg"
+		}
+		if id := firstVimeoVideoID(src); id != "" {
+			// Vimeo has no stable public poster URL; vumbnail serves a static frame
+			// so indexes can stay image-only (no iframe) for older Vimeo talks.
+			return "https://vumbnail.com/" + id + ".jpg"
+		}
+	}
+	return ""
+}
+
+func firstYoutubeVideoID(content string) string {
+	if strings.TrimSpace(content) == "" {
+		return ""
+	}
+	if match := youtubeShortcodeRe.FindStringSubmatch(content); len(match) == 2 {
+		return match[1]
+	}
+	if match := youtubeEmbedIDRe.FindStringSubmatch(content); len(match) == 2 {
+		return match[1]
+	}
+	return ""
+}
+
+func firstVimeoVideoID(content string) string {
+	if strings.TrimSpace(content) == "" {
+		return ""
+	}
+	if match := vimeoShortcodeRe.FindStringSubmatch(content); len(match) == 2 {
+		return match[1]
+	}
+	if match := vimeoEmbedIDRe.FindStringSubmatch(content); len(match) == 2 {
+		return match[1]
+	}
+	return ""
+}
+
 func sectionBlogPostsHTML(sectionURL string, pages map[string]*Page) string {
 	posts := collectBlogPostsForSection(sectionURL, pages)
 	if len(posts) == 0 {

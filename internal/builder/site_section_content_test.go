@@ -9,6 +9,71 @@ import (
 	"github.com/tot-ra/blog-engine/internal/parser"
 )
 
+func TestSectionChildrenContent_RendersVideoPosterGrid(t *testing.T) {
+	b := &SiteBuilder{
+		config: &config.SiteConfig{},
+		pagesByURL: map[string]*Page{
+			"/ru/talks/": {
+				URL:      "/ru/talks/",
+				Language: "ru",
+				Title:    "Доклады",
+				Frontmatter: &parser.Frontmatter{
+					ShowChildren: true,
+				},
+			},
+			"/ru/talks/bees/": {
+				URL:        "/ru/talks/bees/",
+				Language:   "ru",
+				Title:      "Bees talk",
+				RawContent: `<iframe src="https://www.youtube.com/embed/MtCDgqzdYnM"></iframe>`,
+			},
+			"/ru/talks/oauth/": {
+				URL:        "/ru/talks/oauth/",
+				Language:   "ru",
+				Title:      "OAuth talk",
+				RawContent: `<iframe src="https://player.vimeo.com/video/17136348?h=0b6ff5aa77"></iframe>`,
+			},
+			"/ru/talks/notes/": {
+				URL:      "/ru/talks/notes/",
+				Language: "ru",
+				Title:    "Notes only",
+			},
+		},
+		navTree: &NavTree{
+			ByPath: map[string]*NavNode{
+				"/ru/talks/": {
+					URL: "/ru/talks/",
+					Children: []*NavNode{
+						{Title: "Bees talk", URL: "/ru/talks/bees/"},
+						{Title: "OAuth talk", URL: "/ru/talks/oauth/"},
+						{Title: "Notes only", URL: "/ru/talks/notes/"},
+					},
+				},
+			},
+		},
+	}
+
+	got := b.sectionChildrenContent(b.pagesByURL["/ru/talks/"])
+	if strings.Contains(got, `<ul class="section-index">`) {
+		t.Fatalf("expected media poster grid instead of plain list, got %q", got)
+	}
+	if !strings.Contains(got, `class="section-video-preview-list"`) {
+		t.Fatalf("expected section-video-preview-list, got %q", got)
+	}
+	if !strings.Contains(got, `href="/ru/talks/bees/"`) || !strings.Contains(got, "https://i.ytimg.com/vi/MtCDgqzdYnM/hqdefault.jpg") {
+		t.Fatalf("expected YouTube poster linking to talk page, got %q", got)
+	}
+	if !strings.Contains(got, `href="/ru/talks/oauth/"`) || !strings.Contains(got, "https://vumbnail.com/17136348.jpg") {
+		t.Fatalf("expected Vimeo poster linking to talk page, got %q", got)
+	}
+	if strings.Contains(got, "youtube.com/embed") || strings.Contains(got, "player.vimeo.com") {
+		t.Fatalf("expected image posters only, not embeds, got %q", got)
+	}
+	if !strings.Contains(got, "Notes only") {
+		t.Fatalf("expected title-only child to remain in grid, got %q", got)
+	}
+}
+
 func TestSectionChildrenContent_UsesConfiguredRecentEmbeds(t *testing.T) {
 	hideChildren := false
 	b := &SiteBuilder{
