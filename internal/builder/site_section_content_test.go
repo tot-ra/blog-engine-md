@@ -126,6 +126,65 @@ func TestSectionChildrenContent_ImagePreviewGridOmitsPlayButton(t *testing.T) {
 	}
 }
 
+func TestSectionChildrenContent_DatedChildrenSortNewestFirst(t *testing.T) {
+	// WHY: nav tree sorts children A-Z by title; events indexes must be chronological.
+	newer := time.Date(2026, time.July, 23, 0, 0, 0, 0, time.UTC)
+	older := time.Date(2025, time.April, 29, 0, 0, 0, 0, time.UTC)
+	b := &SiteBuilder{
+		config: &config.SiteConfig{},
+		pagesByURL: map[string]*Page{
+			"/en/events/": {
+				URL:      "/en/events/",
+				Language: "en",
+				Title:    "Events",
+				Frontmatter: &parser.Frontmatter{
+					ShowChildren: true,
+				},
+			},
+			"/en/events/agi/": {
+				URL:      "/en/events/agi/",
+				Language: "en",
+				Title:    "AGI Beyond the Hype",
+				Content:  `<p><img src="/en/events/img/agi.jpg" alt="AGI"></p>`,
+				Frontmatter: &parser.Frontmatter{
+					Date: older,
+				},
+			},
+			"/en/events/cursor/": {
+				URL:      "/en/events/cursor/",
+				Language: "en",
+				Title:    "Cursor Hackathon",
+				Content:  `<p><img src="/en/events/img/cursor.jpg" alt="Cursor"></p>`,
+				Frontmatter: &parser.Frontmatter{
+					Date: newer,
+				},
+			},
+		},
+		navTree: &NavTree{
+			ByPath: map[string]*NavNode{
+				"/en/events/": {
+					URL: "/en/events/",
+					Children: []*NavNode{
+						// Alphabetical nav order (AGI before Cursor) on purpose.
+						{Title: "AGI Beyond the Hype", URL: "/en/events/agi/"},
+						{Title: "Cursor Hackathon", URL: "/en/events/cursor/"},
+					},
+				},
+			},
+		},
+	}
+
+	got := b.sectionChildrenContent(b.pagesByURL["/en/events/"])
+	cursorIdx := strings.Index(got, `href="/en/events/cursor/"`)
+	agiIdx := strings.Index(got, `href="/en/events/agi/"`)
+	if cursorIdx < 0 || agiIdx < 0 {
+		t.Fatalf("expected both event cards in output, got %q", got)
+	}
+	if cursorIdx > agiIdx {
+		t.Fatalf("expected newest event (cursor) before older (agi), got %q", got)
+	}
+}
+
 func TestSectionChildrenContent_UsesConfiguredRecentEmbeds(t *testing.T) {
 	hideChildren := false
 	b := &SiteBuilder{

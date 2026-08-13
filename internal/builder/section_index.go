@@ -163,6 +163,10 @@ func sectionChildrenWithMediaHTML(children []SectionChild, pages map[string]*Pag
 	if len(children) == 0 {
 		return ""
 	}
+	// Nav children are alphabetical by title; dated sections (events) should list
+	// newest first. Skip when no child has a frontmatter/inferred date so docs
+	// indexes keep their intentional Order/title order.
+	children = sortSectionChildrenByDateDescIfDated(children, pages)
 	if shouldUseSectionMatrix(children) {
 		return sectionChildrenHTML(children)
 	}
@@ -243,6 +247,53 @@ func lookupPageByURL(pages map[string]*Page, url string) *Page {
 		return page
 	}
 	return nil
+}
+
+// sortSectionChildrenByDateDescIfDated reorders showChildren entries newest-first
+// when at least one child has a non-zero frontmatter date (including dates inferred
+// from YYYY-MM-DD filenames). Undated children keep their relative nav order after
+// all dated ones so docs trees without dates are left unchanged.
+func sortSectionChildrenByDateDescIfDated(children []SectionChild, pages map[string]*Page) []SectionChild {
+	if len(children) < 2 {
+		return children
+	}
+
+	type keyed struct {
+		child   SectionChild
+		date    time.Time
+		hasDate bool
+	}
+	keyedChildren := make([]keyed, len(children))
+	anyDated := false
+	for i, child := range children {
+		keyedChildren[i].child = child
+		page := lookupPageByURL(pages, child.URL)
+		if page != nil && page.Frontmatter != nil && !page.Frontmatter.Date.IsZero() {
+			keyedChildren[i].date = page.Frontmatter.Date
+			keyedChildren[i].hasDate = true
+			anyDated = true
+		}
+	}
+	if !anyDated {
+		return children
+	}
+
+	sort.SliceStable(keyedChildren, func(i, j int) bool {
+		a, b := keyedChildren[i], keyedChildren[j]
+		if a.hasDate != b.hasDate {
+			return a.hasDate
+		}
+		if a.hasDate && b.hasDate && !a.date.Equal(b.date) {
+			return a.date.After(b.date)
+		}
+		return false
+	})
+
+	out := make([]SectionChild, len(keyedChildren))
+	for i, item := range keyedChildren {
+		out[i] = item.child
+	}
+	return out
 }
 
 var (
