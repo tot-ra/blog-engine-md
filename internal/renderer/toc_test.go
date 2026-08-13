@@ -212,6 +212,47 @@ func TestRenderModeSidebar_FallsBackFromUnavailableDefaults(t *testing.T) {
 	}
 }
 
+func TestRenderModeSidebarOptions_TimeOnlyHidesModeSwitch(t *testing.T) {
+	root := &NavNode{
+		ID:   "events",
+		Type: "section",
+		Children: []*NavNode{
+			{ID: "meetup", Title: "Meetup", URL: "/events/meetup/", Type: "page"},
+		},
+	}
+	timeline := []TimelineYear{
+		{
+			Year: 2025,
+			Items: []TimelineItem{
+				{Title: "Meetup", URL: "/events/meetup/", Date: mustDate(t, "2025-04-28")},
+			},
+		},
+	}
+
+	result := string(RenderModeSidebarOptions(root, "/events/meetup/", 3, true, timeline, i18n.UI("en"), "", "time", false, false))
+
+	for _, want := range []string{
+		`data-sidebar-mode="time"`,
+		`data-sidebar-default-mode="time"`,
+		`data-sidebar-mode-pane="time"`,
+		`<h4>2025</h4>`,
+		`<li class="active"><a href="/events/meetup/" aria-current="page">Meetup</a></li>`,
+	} {
+		if !strings.Contains(result, want) {
+			t.Fatalf("expected time-only sidebar to contain %q, got:\n%s", want, result)
+		}
+	}
+	for _, ban := range []string{
+		`sidebar-mode-switch`,
+		`data-sidebar-mode-btn=`,
+		`data-sidebar-mode-pane="categories"`,
+	} {
+		if strings.Contains(result, ban) {
+			t.Fatalf("expected time-only sidebar to omit %q, got:\n%s", ban, result)
+		}
+	}
+}
+
 func TestRenderModeSidebar_DefaultGraphUsesEmbeddedGraphURL(t *testing.T) {
 	root := &NavNode{
 		ID:   "root",

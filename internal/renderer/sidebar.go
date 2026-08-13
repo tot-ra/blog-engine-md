@@ -64,15 +64,26 @@ func filterRegularSidebarNodes(nodes []*NavNode) []*NavNode {
 
 // RenderModeSidebar renders a navigation sidebar with optional categories/time/graph modes.
 func RenderModeSidebar(root *NavNode, currentPath string, maxDepth int, collapsed bool, timeline []TimelineYear, ui i18n.UIStrings, graphURL string, defaultMode string, showGraph bool) template.HTML {
-	return renderModeSidebar(root, currentPath, maxDepth, collapsed, timeline, ui, graphURL, defaultMode, showGraph, ui.Navigation, ui.ViewMode, ui.Graph)
+	return RenderModeSidebarOptions(root, currentPath, maxDepth, collapsed, timeline, ui, graphURL, defaultMode, showGraph, true)
 }
 
-func renderModeSidebar(root *NavNode, currentPath string, maxDepth int, collapsed bool, timeline []TimelineYear, ui i18n.UIStrings, graphURL, defaultMode string, showGraph bool, navigationLabel, viewModeLabel, graphTitle string) template.HTML {
+// RenderModeSidebarOptions is RenderModeSidebar with an explicit categories toggle.
+// WHY: chronological sections (events) want time-only nav without a Categories/Time switch.
+func RenderModeSidebarOptions(root *NavNode, currentPath string, maxDepth int, collapsed bool, timeline []TimelineYear, ui i18n.UIStrings, graphURL string, defaultMode string, showGraph bool, showCategories bool) template.HTML {
+	return renderModeSidebar(root, currentPath, maxDepth, collapsed, timeline, ui, graphURL, defaultMode, showGraph, showCategories, ui.Navigation, ui.ViewMode, ui.Graph)
+}
+
+func renderModeSidebar(root *NavNode, currentPath string, maxDepth int, collapsed bool, timeline []TimelineYear, ui i18n.UIStrings, graphURL, defaultMode string, showGraph, showCategories bool, navigationLabel, viewModeLabel, graphTitle string) template.HTML {
 	if root == nil || len(root.Children) == 0 {
 		return ""
 	}
 	if maxDepth <= 0 {
 		maxDepth = 3
+	}
+	hasTime := len(timeline) > 0
+	if !showCategories && !hasTime && !showGraph {
+		// No mode panes left; fall back to plain folder nav.
+		return RenderSidebar(root, currentPath, maxDepth, collapsed, ui)
 	}
 	if defaultMode == "" {
 		defaultMode = "categories"
@@ -80,14 +91,32 @@ func renderModeSidebar(root *NavNode, currentPath string, maxDepth int, collapse
 	if defaultMode != "categories" && defaultMode != "time" && defaultMode != "graph" {
 		defaultMode = "categories"
 	}
+	if defaultMode == "categories" && !showCategories {
+		if hasTime {
+			defaultMode = "time"
+		} else if showGraph {
+			defaultMode = "graph"
+		}
+	}
 	if defaultMode == "graph" && !showGraph {
-		defaultMode = "categories"
+		if showCategories {
+			defaultMode = "categories"
+		} else if hasTime {
+			defaultMode = "time"
+		}
 	}
-	if defaultMode == "time" && len(timeline) == 0 {
-		defaultMode = "categories"
+	if defaultMode == "time" && !hasTime {
+		if showCategories {
+			defaultMode = "categories"
+		} else if showGraph {
+			defaultMode = "graph"
+		}
 	}
-	modeCount := 1
-	if len(timeline) > 0 {
+	modeCount := 0
+	if showCategories {
+		modeCount++
+	}
+	if hasTime {
 		modeCount++
 	}
 	if showGraph {
@@ -98,8 +127,10 @@ func renderModeSidebar(root *NavNode, currentPath string, maxDepth int, collapse
 	sb.WriteString(fmt.Sprintf("<nav class=\"sidebar blog-sidebar\" aria-label=\"%s\" data-sidebar-mode=\"%s\" data-sidebar-default-mode=\"%s\">\n", template.HTMLEscapeString(navigationLabel), template.HTMLEscapeString(defaultMode), template.HTMLEscapeString(defaultMode)))
 	if modeCount > 1 {
 		sb.WriteString(fmt.Sprintf("  <div class=\"sidebar-mode-switch\" role=\"tablist\" aria-label=\"%s\">\n", template.HTMLEscapeString(viewModeLabel)))
-		sb.WriteString(fmt.Sprintf("    <button type=\"button\" class=\"sidebar-mode-btn%s\" role=\"tab\" aria-selected=\"%t\" data-sidebar-mode-btn=\"categories\">%s</button>\n", activeModeClass(defaultMode, "categories"), defaultMode == "categories", template.HTMLEscapeString(ui.Categories)))
-		if len(timeline) > 0 {
+		if showCategories {
+			sb.WriteString(fmt.Sprintf("    <button type=\"button\" class=\"sidebar-mode-btn%s\" role=\"tab\" aria-selected=\"%t\" data-sidebar-mode-btn=\"categories\">%s</button>\n", activeModeClass(defaultMode, "categories"), defaultMode == "categories", template.HTMLEscapeString(ui.Categories)))
+		}
+		if hasTime {
 			sb.WriteString(fmt.Sprintf("    <button type=\"button\" class=\"sidebar-mode-btn%s\" role=\"tab\" aria-selected=\"%t\" data-sidebar-mode-btn=\"time\">%s</button>\n", activeModeClass(defaultMode, "time"), defaultMode == "time", template.HTMLEscapeString(ui.Time)))
 		}
 		if showGraph {
@@ -108,11 +139,13 @@ func renderModeSidebar(root *NavNode, currentPath string, maxDepth int, collapse
 		sb.WriteString("  </div>\n")
 	}
 
-	sb.WriteString(fmt.Sprintf("  <div class=\"sidebar-mode-pane\" data-sidebar-mode-pane=\"categories\"%s>\n", hiddenAttr(defaultMode != "categories")))
-	renderSidebarList(&sb, root.Children, currentPath, 1, maxDepth, collapsed, ui)
-	sb.WriteString("  </div>\n")
+	if showCategories {
+		sb.WriteString(fmt.Sprintf("  <div class=\"sidebar-mode-pane\" data-sidebar-mode-pane=\"categories\"%s>\n", hiddenAttr(defaultMode != "categories")))
+		renderSidebarList(&sb, root.Children, currentPath, 1, maxDepth, collapsed, ui)
+		sb.WriteString("  </div>\n")
+	}
 
-	if len(timeline) > 0 {
+	if hasTime {
 		sb.WriteString(fmt.Sprintf("  <div class=\"sidebar-mode-pane\" data-sidebar-mode-pane=\"time\"%s>\n", hiddenAttr(defaultMode != "time")))
 		renderTimeline(&sb, timeline, currentPath)
 		sb.WriteString("  </div>\n")

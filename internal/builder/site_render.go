@@ -161,13 +161,14 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 		if strings.TrimSpace(defaultMode) == "" {
 			defaultMode = "categories"
 		}
-		data.Sidebar = renderer.RenderModeSidebar(sidebarRoot, page.URL, b.config.Navigation.Sidebar.MaxDepth, b.config.Navigation.Sidebar.Collapsed, timeline, ui, graphURL, defaultMode, sectionCfg.EnableGraph)
+		data.Sidebar = renderer.RenderModeSidebarOptions(sidebarRoot, page.URL, b.config.Navigation.Sidebar.MaxDepth, b.config.Navigation.Sidebar.Collapsed, timeline, ui, graphURL, defaultMode, sectionCfg.EnableGraph, categoriesEnabled(sectionCfg))
 	} else if sidebarSectionKey != "" {
 		sectionCfg := b.sidebarSectionConfig(sidebarSectionKey)
 		var timeline []renderer.TimelineYear
 		if sectionCfg.EnableTime {
 			timeline = b.buildSectionTimeline(sidebarRoot, page.Language, 20)
 		}
+		showCategories := categoriesEnabled(sectionCfg)
 		if len(timeline) == 0 {
 			// Category-only sections must avoid mode-sidebar markup so a persisted Blog
 			// time/graph choice cannot hide their only navigation pane.
@@ -177,7 +178,7 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 			if strings.TrimSpace(defaultMode) == "" {
 				defaultMode = "categories"
 			}
-			data.Sidebar = renderer.RenderModeSidebar(sidebarRoot, page.URL, b.config.Navigation.Sidebar.MaxDepth, b.config.Navigation.Sidebar.Collapsed, timeline, ui, "", defaultMode, false)
+			data.Sidebar = renderer.RenderModeSidebarOptions(sidebarRoot, page.URL, b.config.Navigation.Sidebar.MaxDepth, b.config.Navigation.Sidebar.Collapsed, timeline, ui, "", defaultMode, false, showCategories)
 		}
 	} else {
 		data.Sidebar = renderer.RenderSidebar(sidebarRoot, page.URL, b.config.Navigation.Sidebar.MaxDepth, b.config.Navigation.Sidebar.Collapsed, ui)

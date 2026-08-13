@@ -247,6 +247,7 @@ func (b *SiteBuilder) sidebarSectionConfig(section string) config.SidebarSection
 		}
 		cfg.EnableTime = custom.EnableTime
 		cfg.EnableGraph = custom.EnableGraph
+		cfg.EnableCategories = custom.EnableCategories
 		cfg.GraphPath = custom.GraphPath
 		cfg.SidebarRoot = custom.SidebarRoot
 		cfg.MatchPaths = custom.MatchPaths
@@ -255,6 +256,11 @@ func (b *SiteBuilder) sidebarSectionConfig(section string) config.SidebarSection
 		cfg.RecentEmbeds = custom.RecentEmbeds
 	}
 	return cfg
+}
+
+// categoriesEnabled keeps categories on unless a section explicitly sets enableCategories: false.
+func categoriesEnabled(cfg config.SidebarSectionConfig) bool {
+	return cfg.EnableCategories == nil || *cfg.EnableCategories
 }
 
 func (b *SiteBuilder) matchingSidebarSection(page *Page) (string, config.SidebarSectionConfig) {

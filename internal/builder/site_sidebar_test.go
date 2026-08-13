@@ -138,6 +138,69 @@ func TestRenderPage_DefaultLanguageDocsSidebarUsesUnprefixedLinks(t *testing.T) 
 	}
 }
 
+func TestRenderPage_TimeOnlySectionOmitsModeSwitch(t *testing.T) {
+	falseVal := false
+	cfg := sidebarRenderTestConfig(t)
+	cfg.Navigation.Sidebar.Sections = map[string]config.SidebarSectionConfig{
+		"events": {
+			DefaultMode:      "time",
+			EnableTime:       true,
+			EnableCategories: &falseVal,
+			EnableGraph:      false,
+			MatchPaths:       []string{"events"},
+			SidebarRoot:      "events",
+		},
+	}
+
+	date := time.Date(2025, time.April, 28, 12, 0, 0, 0, time.UTC)
+	index := &Page{
+		ID:          "events-index",
+		URL:         "/en/events/",
+		Language:    "en",
+		Title:       "Events",
+		Content:     "<p>Events</p>",
+		Type:        TypeDoc,
+		Frontmatter: &parser.Frontmatter{},
+	}
+	post := &Page{
+		ID:       "events-meetup",
+		URL:      "/en/events/meetup/",
+		Language: "en",
+		Title:    "Meetup",
+		Content:  "<p>Meetup</p>",
+		Type:     TypeDoc,
+		Frontmatter: &parser.Frontmatter{
+			Date: date,
+		},
+	}
+	b := sidebarRenderTestBuilder(t, cfg, index, post)
+
+	if err := b.renderPage(index); err != nil {
+		t.Fatalf("render page: %v", err)
+	}
+
+	html := readRenderedPage(t, cfg, "en/events/index.html")
+	sidebar := sidebarNavHTML(t, html)
+	for _, want := range []string{
+		`data-sidebar-mode="time"`,
+		`data-sidebar-mode-pane="time"`,
+		`href="/en/events/meetup/"`,
+	} {
+		if !strings.Contains(sidebar, want) {
+			t.Fatalf("expected time-only events sidebar to contain %q, got %q", want, sidebar)
+		}
+	}
+	for _, ban := range []string{
+		`sidebar-mode-switch`,
+		`data-sidebar-mode-btn=`,
+		`data-sidebar-mode-pane="categories"`,
+	} {
+		if strings.Contains(sidebar, ban) {
+			t.Fatalf("expected time-only events sidebar to omit %q, got %q", ban, sidebar)
+		}
+	}
+}
+
 func TestRenderPage_BlogSidebarStillUsesConfiguredModes(t *testing.T) {
 	cfg := sidebarRenderTestConfig(t)
 	cfg.Navigation.Sidebar.Sections = map[string]config.SidebarSectionConfig{

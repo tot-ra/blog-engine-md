@@ -243,9 +243,12 @@ type SidebarExcludeRule struct {
 
 // SidebarSectionConfig contains per-section sidebar behavior settings.
 type SidebarSectionConfig struct {
-	DefaultMode      string             `yaml:"defaultMode"`
-	EnableTime       bool               `yaml:"enableTime"`
-	EnableGraph      bool               `yaml:"enableGraph"`
+	DefaultMode string `yaml:"defaultMode"`
+	EnableTime  bool   `yaml:"enableTime"`
+	EnableGraph bool   `yaml:"enableGraph"`
+	// EnableCategories toggles the folder/categories sidebar pane. Nil means enabled
+	// (historical default). Set false for time-only sections such as events.
+	EnableCategories *bool              `yaml:"enableCategories"`
 	GraphPath        string             `yaml:"graphPath"`
 	MatchPaths       []string           `yaml:"matchPaths"`
 	SidebarRoot      string             `yaml:"sidebarRoot"`
