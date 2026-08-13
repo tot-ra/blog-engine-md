@@ -72,6 +72,58 @@ func TestSectionChildrenContent_RendersVideoPosterGrid(t *testing.T) {
 	if !strings.Contains(got, "Notes only") {
 		t.Fatalf("expected title-only child to remain in grid, got %q", got)
 	}
+	if !strings.Contains(got, `class="section-video-preview-play"`) {
+		t.Fatalf("expected play cue for YouTube/Vimeo posters, got %q", got)
+	}
+}
+
+func TestSectionChildrenContent_ImagePreviewGridOmitsPlayButton(t *testing.T) {
+	b := &SiteBuilder{
+		config: &config.SiteConfig{},
+		pagesByURL: map[string]*Page{
+			"/en/events/": {
+				URL:      "/en/events/",
+				Language: "en",
+				Title:    "Events",
+				Frontmatter: &parser.Frontmatter{
+					ShowChildren: true,
+				},
+			},
+			"/en/events/meetup/": {
+				URL:      "/en/events/meetup/",
+				Language: "en",
+				Title:    "Meetup notes",
+				Content:  `<p><img src="/en/events/img/photo.jpg" alt="Meetup"></p>`,
+			},
+			"/en/events/notes/": {
+				URL:      "/en/events/notes/",
+				Language: "en",
+				Title:    "Text only",
+			},
+		},
+		navTree: &NavTree{
+			ByPath: map[string]*NavNode{
+				"/en/events/": {
+					URL: "/en/events/",
+					Children: []*NavNode{
+						{Title: "Meetup notes", URL: "/en/events/meetup/"},
+						{Title: "Text only", URL: "/en/events/notes/"},
+					},
+				},
+			},
+		},
+	}
+
+	got := b.sectionChildrenContent(b.pagesByURL["/en/events/"])
+	if !strings.Contains(got, `class="section-video-preview-list"`) {
+		t.Fatalf("expected image poster grid, got %q", got)
+	}
+	if !strings.Contains(got, `/en/events/img/photo.jpg`) {
+		t.Fatalf("expected article preview image in grid, got %q", got)
+	}
+	if strings.Contains(got, `class="section-video-preview-play"`) {
+		t.Fatalf("did not expect play cue for non-video article images, got %q", got)
+	}
 }
 
 func TestSectionChildrenContent_UsesConfiguredRecentEmbeds(t *testing.T) {

@@ -156,6 +156,9 @@ func sectionChildrenHTML(children []SectionChild) string {
 // one child page has a YouTube/Vimeo embed (or a regular preview image). Each
 // poster links to the talk/page itself - never to an external player. Falls back
 // to the plain sectionChildrenHTML list when no media is available.
+//
+// WHY: events and similar note indexes reuse the same media grid, but their
+// thumbs are article photos, not videos. Play affordance is only for real embeds.
 func sectionChildrenWithMediaHTML(children []SectionChild, pages map[string]*Page) string {
 	if len(children) == 0 {
 		return ""
@@ -165,17 +168,20 @@ func sectionChildrenWithMediaHTML(children []SectionChild, pages map[string]*Pag
 	}
 
 	type mediaChild struct {
-		Title string
-		URL   string
-		Thumb string
+		Title   string
+		URL     string
+		Thumb   string
+		IsVideo bool
 	}
 	entries := make([]mediaChild, 0, len(children))
 	hasThumb := false
 	for _, child := range children {
 		page := lookupPageByURL(pages, child.URL)
 		thumb := ""
+		isVideo := false
 		if page != nil {
 			thumb = pageVideoThumbnailURL(page)
+			isVideo = thumb != ""
 			if thumb == "" {
 				if img := firstPreviewImageHTML(page); img != "" {
 					if match := firstImageSrcRe.FindStringSubmatch(img); len(match) >= 2 {
@@ -187,7 +193,7 @@ func sectionChildrenWithMediaHTML(children []SectionChild, pages map[string]*Pag
 		if thumb != "" {
 			hasThumb = true
 		}
-		entries = append(entries, mediaChild{Title: child.Title, URL: child.URL, Thumb: thumb})
+		entries = append(entries, mediaChild{Title: child.Title, URL: child.URL, Thumb: thumb, IsVideo: isVideo})
 	}
 	if !hasThumb {
 		return sectionChildrenHTML(children)
@@ -201,10 +207,15 @@ func sectionChildrenWithMediaHTML(children []SectionChild, pages map[string]*Pag
 			template.HTMLEscapeString(entry.URL),
 		))
 		if entry.Thumb != "" {
+			playMarkup := ""
+			if entry.IsVideo {
+				playMarkup = `<span class="section-video-preview-play" aria-hidden="true"></span>`
+			}
 			sb.WriteString(fmt.Sprintf(
-				"    <span class=\"section-video-preview-thumb\"><img src=\"%s\" alt=\"%s\" loading=\"lazy\" decoding=\"async\"><span class=\"section-video-preview-play\" aria-hidden=\"true\"></span></span>\n",
+				"    <span class=\"section-video-preview-thumb\"><img src=\"%s\" alt=\"%s\" loading=\"lazy\" decoding=\"async\">%s</span>\n",
 				template.HTMLEscapeString(entry.Thumb),
 				template.HTMLEscapeString(entry.Title),
+				playMarkup,
 			))
 		}
 		sb.WriteString(fmt.Sprintf(
