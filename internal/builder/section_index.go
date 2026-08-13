@@ -2,7 +2,9 @@ package builder
 
 import (
 	"fmt"
+	stdhtml "html"
 	"html/template"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -361,7 +363,7 @@ func sectionBlogPostsHTML(sectionURL string, pages map[string]*Page) string {
 			sb.WriteString(fmt.Sprintf("    <a class=\"section-article-image\" href=\"%s\">%s</a>\n", template.HTMLEscapeString(post.URL), imageHTML))
 		}
 		sb.WriteString(fmt.Sprintf("    <h2><a href=\"%s\">%s</a></h2>\n", template.HTMLEscapeString(post.URL), template.HTMLEscapeString(post.Title)))
-		excerpt := extractPreviewText(post.RawContent, 2, 320)
+		excerpt := extractArticlePreviewText(post)
 		if excerpt == "" {
 			excerpt = strings.TrimSpace(post.Description)
 		}
@@ -476,10 +478,36 @@ var (
 	markdownRefLinkRe = regexp.MustCompile(`\[[^\]]+\]:\s+\S+`)
 	firstImageAltRe   = regexp.MustCompile(`(?is)\balt\s*=\s*['"]([^'"]*)['"]`)
 	htmlTagRe         = regexp.MustCompile(`<[^>]+>`)
+	htmlCommentRe     = regexp.MustCompile(`(?is)<!--.*?-->`)
+	htmlHiddenBlockRe = regexp.MustCompile(`(?is)<style\b[^>]*>.*?</style\s*>|<script\b[^>]*>.*?</script\s*>|<template\b[^>]*>.*?</template\s*>|<svg\b[^>]*>.*?</svg\s*>|<canvas\b[^>]*>.*?</canvas\s*>`)
+	htmlBlockBreakRe  = regexp.MustCompile(`(?i)</?(?:address|article|aside|blockquote|br|dd|div|dl|dt|figcaption|figure|footer|form|h[1-6]|header|hr|li|main|nav|ol|p|pre|section|table|td|th|tr|ul)\b[^>]*>`)
 	spaceRe           = regexp.MustCompile(`\s+`)
 	tableDividerRe    = regexp.MustCompile(`^\s*\|?[\s:-]+\|[\s|:-]*$`)
 	numberedListRe    = regexp.MustCompile(`^\d+\.\s+`)
 )
+
+func extractArticlePreviewText(page *Page) string {
+	if page == nil {
+		return ""
+	}
+	if strings.EqualFold(filepath.Ext(page.SourcePath), ".html") {
+		return extractHTMLPreviewText(page.RawContent, 2, 320)
+	}
+	return extractPreviewText(page.RawContent, 2, 320)
+}
+
+func extractHTMLPreviewText(content string, maxSentences, maxChars int) string {
+	// WHY: author-controlled HTML articles can start with large inline style/script
+	// blocks. Strip non-visible content before turning the remaining markup into an
+	// excerpt, otherwise CSS or JavaScript leaks into article cards.
+	text := htmlCommentRe.ReplaceAllString(content, " ")
+	text = htmlHiddenBlockRe.ReplaceAllString(text, " ")
+	text = htmlBlockBreakRe.ReplaceAllString(text, "\n")
+	text = htmlTagRe.ReplaceAllString(text, " ")
+	text = stdhtml.UnescapeString(text)
+	text = strings.TrimSpace(spaceRe.ReplaceAllString(text, " "))
+	return firstSentences(text, maxSentences, maxChars)
+}
 
 func extractPreviewText(markdown string, maxSentences, maxChars int) string {
 	if maxSentences <= 0 {

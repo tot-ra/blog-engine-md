@@ -257,6 +257,37 @@ func TestSectionChildrenHTML_UsesMatrixForClassURLsWithoutSpacedTitles(t *testin
 	}
 }
 
+func TestSectionBlogPostsHTML_RendersHTMLArticlePreviewWithoutEmbeddedCode(t *testing.T) {
+	pages := map[string]*Page{
+		"html-post": {
+			ID:         "html-post",
+			URL:        "/en/blog/html-post/",
+			Title:      "HTML Post",
+			Type:       TypeBlog,
+			SourcePath: "/tmp/html-post.html",
+			RawContent: `<section class="demo">
+<style>.demo { color: red; } .demo::after { content: "CSS leak"; }</style>
+<p>Concurrency becomes easier when you can see it &amp; explore it.</p>
+<script>window.previewLeak = true;</script>
+<p>Second sentence explains the model.</p>
+</section>`,
+			Frontmatter: &parser.Frontmatter{
+				Date: time.Date(2026, time.January, 3, 0, 0, 0, 0, time.UTC),
+			},
+		},
+	}
+
+	content := sectionBlogPostsHTML("/en/blog/", pages)
+	if !strings.Contains(content, "Concurrency becomes easier when you can see it &amp; explore it. Second sentence explains the model.") {
+		t.Fatalf("expected visible HTML text in preview, got: %s", content)
+	}
+	for _, leaked := range []string{"color: red", "CSS leak", "previewLeak", "<style>", "<script>"} {
+		if strings.Contains(content, leaked) {
+			t.Fatalf("expected embedded HTML code %q to be excluded from preview, got: %s", leaked, content)
+		}
+	}
+}
+
 func TestSectionBlogPostsHTML_RendersArticlePreviews(t *testing.T) {
 	pages := map[string]*Page{
 		"post-1": {
