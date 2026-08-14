@@ -757,7 +757,10 @@
             max-height: 320px;
             object-fit: cover;
         }
-        .section-article-preview h2 {
+        /* WHY: article .content h2 uses margin-top: 2em and outranks a bare
+           .section-article-preview h2, so index titles float away from the cover
+           and look like they belong to the next card. Nest under .content to win. */
+        article .content .section-article-preview h2 {
             margin: 0 0 8px;
             font-size: clamp(1.45rem, 2.2vw, 2rem);
             line-height: 1.18;
@@ -771,7 +774,8 @@
             font-size: 0.83em;
             margin-bottom: 6px;
         }
-        .section-article-preview p {
+        /* Same specificity fight as h2 vs article .content p { margin-bottom: 1em }. */
+        article .content .section-article-preview p {
             margin: 0;
             color: var(--text-secondary);
         }
