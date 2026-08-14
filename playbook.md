@@ -1,4 +1,5 @@
 # Lessons learned
+- HTML article preview stripping (`extractHTMLPreviewText`) must be shared by every listing surface: blog index used `extractArticlePreviewText`, but homepage `buildHomepageShowcase` still called markdown-only `extractPreviewText`, so CSS from interactive `.html` posts leaked into homepage cards. Prefer one helper with maxChars for both paths.
 - Before delegating review, discover available agents instead of assuming a generic `code-reviewer` agent exists.
 - When inserting a helper near a function boundary, read exact numbered lines first and insert before the function declaration, not after a line inside its opening guard.
 - Registry discovery status can become stale before delegation; if an agent is reported inactive, do not retry it and complete review with local diff/build verification.

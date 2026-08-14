@@ -487,13 +487,20 @@ var (
 )
 
 func extractArticlePreviewText(page *Page) string {
+	return extractArticlePreviewTextWithLimits(page, 2, 320)
+}
+
+// extractArticlePreviewTextWithLimits picks the HTML-aware excerpt path for .html
+// posts (strip style/script) and the markdown path otherwise. Homepage cards use
+// a shorter maxChars than the blog index list.
+func extractArticlePreviewTextWithLimits(page *Page, maxSentences, maxChars int) string {
 	if page == nil {
 		return ""
 	}
 	if strings.EqualFold(filepath.Ext(page.SourcePath), ".html") {
-		return extractHTMLPreviewText(page.RawContent, 2, 320)
+		return extractHTMLPreviewText(page.RawContent, maxSentences, maxChars)
 	}
-	return extractPreviewText(page.RawContent, 2, 320)
+	return extractPreviewText(page.RawContent, maxSentences, maxChars)
 }
 
 func extractHTMLPreviewText(content string, maxSentences, maxChars int) string {

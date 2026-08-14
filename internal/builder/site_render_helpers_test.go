@@ -195,6 +195,41 @@ func TestHomepageBlogShowcaseSelectsLatestLocalizedPosts(t *testing.T) {
 	}
 }
 
+func TestHomepageBlogShowcaseStripsHTMLEmbeddedCodeFromPreview(t *testing.T) {
+	cfg := config.DefaultConfig()
+	b := NewSiteBuilder(cfg)
+	b.pages = map[string]*Page{
+		"html": {
+			Title:      "HTML Post",
+			URL:        "/ru/blog/html-post/",
+			Language:   "ru",
+			Type:       TypeBlog,
+			SourcePath: "/tmp/html-post.html",
+			RawContent: `<section class="demo">
+<style>.demo { color: red; } .demo::after { content: "CSS leak"; }</style>
+<p>Concurrency becomes easier when you can see it.</p>
+<script>window.previewLeak = true;</script>
+<p>Second sentence explains the model.</p>
+</section>`,
+			Frontmatter: &parser.Frontmatter{Date: time.Date(2026, time.January, 5, 0, 0, 0, 0, time.UTC)},
+		},
+	}
+
+	got := b.homepageBlogShowcase("ru", 1)
+	if len(got) != 1 {
+		t.Fatalf("expected one homepage card, got %#v", got)
+	}
+	want := "Concurrency becomes easier when you can see it. Second sentence explains the model."
+	if got[0].Description != want {
+		t.Fatalf("expected stripped HTML preview %q, got %q", want, got[0].Description)
+	}
+	for _, leaked := range []string{"color: red", "CSS leak", "previewLeak"} {
+		if strings.Contains(got[0].Description, leaked) {
+			t.Fatalf("expected embedded HTML code %q excluded from homepage preview, got %q", leaked, got[0].Description)
+		}
+	}
+}
+
 func TestHomepageEventsShowcaseSelectsLatestLocalizedEvents(t *testing.T) {
 	cfg := config.DefaultConfig()
 	b := NewSiteBuilder(cfg)

@@ -545,7 +545,10 @@ func (b *SiteBuilder) buildHomepageShowcase(posts []*Page, limit int) []renderer
 
 	showcase := make([]renderer.BlogShowcasePost, 0, len(posts))
 	for _, post := range posts {
-		description := extractPreviewText(post.RawContent, 2, 220)
+		// WHY: homepage blog/event cards used the markdown-only excerpt path, so
+		// interactive .html posts leaked CSS/JS into the preview (fixed for the
+		// blog index via extractArticlePreviewText, but not here).
+		description := extractArticlePreviewTextWithLimits(post, 2, 220)
 		if description == "" {
 			description = strings.TrimSpace(post.Description)
 		}
