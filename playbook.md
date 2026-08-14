@@ -3,6 +3,7 @@
 - When inserting a helper near a function boundary, read exact numbered lines first and insert before the function declaration, not after a line inside its opening guard.
 - Registry discovery status can become stale before delegation; if an agent is reported inactive, do not retry it and complete review with local diff/build verification.
 
+- Never run dependent Git operations such as `git add` and `git commit` in parallel; stage and verify the full index before committing.
 - Generated pages can repeat an article title in sidebar, timeline, and cards; integration assertions must locate the title inside `section-article-preview`, not from the first global occurrence.
 - HTML escaping assertions should compare against the actual serialization layer: after `html.UnescapeString` followed by `template.HTMLEscapeString`, `&amp;` remains singly escaped, not `&amp;amp;`.
 - When inserting a new script into an existing template block, inspect the surrounding closing tags first; line-based insertion can accidentally nest `<script>` elements while still passing `git diff --check`.

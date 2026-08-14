@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,7 +26,12 @@ func main() {
 			os.Exit(1)
 		}
 	case "serve":
-		if err := runServe(); err != nil {
+		serveConfig, err := parseServeConfig(os.Args[2:])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		if err := runServe(serveConfig); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
@@ -43,7 +49,7 @@ func printUsage() {
 	fmt.Println()
 	fmt.Println("Usage:")
 	fmt.Println("  blog-engine build    Build the site")
-	fmt.Println("  blog-engine serve    Run the dev server with live reload")
+	fmt.Println("  blog-engine serve [--port 3000]    Run the dev server with live reload")
 	fmt.Println("  blog-engine help     Show this help message")
 }
 
@@ -76,7 +82,27 @@ func runBuild() error {
 	return nil
 }
 
-func runServe() error {
+type serveConfig struct {
+	port int
+}
+
+func parseServeConfig(args []string) (serveConfig, error) {
+	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
+	flags.SetOutput(os.Stderr)
+	port := flags.Int("port", 3000, "port to serve on")
+	if err := flags.Parse(args); err != nil {
+		return serveConfig{}, err
+	}
+	if flags.NArg() != 0 {
+		return serveConfig{}, fmt.Errorf("unexpected serve arguments: %v", flags.Args())
+	}
+	if *port < 1 || *port > 65535 {
+		return serveConfig{}, fmt.Errorf("port must be between 1 and 65535")
+	}
+	return serveConfig{port: *port}, nil
+}
+
+func runServe(serveCfg serveConfig) error {
 	envFiles, err := loadEnvFiles()
 	if err != nil {
 		return err
@@ -109,7 +135,7 @@ func runServe() error {
 	// Configure server
 	srv := server.New(server.Config{
 		Host:       "127.0.0.1",
-		Port:       3000,
+		Port:       serveCfg.port,
 		OutputDir:  cfg.Build.OutputDir,
 		LiveReload: true,
 	})
