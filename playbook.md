@@ -19,3 +19,8 @@
 - In non-interactive shells, source `~/.nvm/nvm.sh` before `nvm use 24`; do not gate Go-only checks on Node setup.
 - Do not guess an embedded-template declaration filename from convention; locate `go:embed` with indexed search before reading it.
 - If A2 Registry discovery itself returns `agent is not active`, skip external delegation and perform review with local diff, tests, and generated-output inspection.
+- Embedding discovery and offline related-page discovery must apply the same exclusions. Redirect compatibility stubs can otherwise enter the cache as identical one-word documents and dominate related matches with cosine score 1.0.
+- Calibrate semantic matching by separating threshold coverage from diversity: raising `minScore` cannot fix identical low-information documents, while too-low MMR relevance weight can deliberately select unrelated candidates for variety.
+- In sibling engine/site repositories, build the Go binary from the engine module first, then run that binary with the site repository as the working directory; a combined command from the site has no `go.mod`.
+- The secure Python sandbox may reject standard-library imports such as `os`; use the shell (`stat`, `jq`) for trusted local file metadata instead of retrying the same sandbox approach.
+- A2gent homepage "align to the left" on Events/Blog titles: change `.content-section h2` from `text-align: center` to `left` in `homepage_styles.html`; also drop orphaned CSS after `.social-icon` if present (broken `color`/`}` fragment).

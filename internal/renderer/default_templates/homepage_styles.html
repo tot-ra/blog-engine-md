@@ -409,8 +409,9 @@
             margin: 0 auto;
             padding: 60px 20px;
         }
+        /* WHY: homepage Events/Blog/Projects titles should share the left edge of the card grid, not float center. */
         .content-section h2 {
-            text-align: center;
+            text-align: left;
             font-size: 2em;
             margin: 0 0 40px;
         }
@@ -529,8 +530,6 @@
             height: 18px;
             fill: currentColor;
             flex-shrink: 0;
-        }
-            color: var(--accent);
         }
         /* Latest events showcase: equal 3-column cards, heading then image */
         .events-showcase {
