@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 )
 
@@ -114,7 +113,10 @@ func BuildGraph(pages []PageInfo) *GraphData {
 			}
 		}
 
-		// Add tag edges
+		// Add tag edges (hub-and-spoke). Do not also draw pairwise
+		// article-to-article "related" edges for shared tags: broad tags
+		// like events/ai create a complete clique that overwhelms natural
+		// in-body links in graph view.
 		for _, tag := range p.Tags {
 			tagID := "tag-" + tag
 			tagSet[tag] = true
@@ -129,44 +131,6 @@ func BuildGraph(pages []PageInfo) *GraphData {
 			linkCount[p.ID]++
 			linkCount[tagID]++
 		}
-	}
-
-	// Add direct article-to-article edges for pages sharing tags.
-	// This creates denser clusters in graph view while preserving tag nodes.
-	idsByTag := make(map[string][]string)
-	for _, p := range pages {
-		for _, tag := range p.Tags {
-			idsByTag[tag] = append(idsByTag[tag], p.ID)
-		}
-	}
-
-	sharedTagCount := make(map[string]int)
-	for _, ids := range idsByTag {
-		sort.Strings(ids)
-		for i := 0; i < len(ids); i++ {
-			for j := i + 1; j < len(ids); j++ {
-				pair := canonicalPairKey(ids[i], ids[j])
-				sharedTagCount[pair]++
-			}
-		}
-	}
-
-	for pair, count := range sharedTagCount {
-		source, target := splitPairKey(pair)
-		weight := 0.35 + float64(count-1)*0.15
-		if weight > 1.0 {
-			weight = 1.0
-		}
-		if !addUniqueEdge(graph, edgeSet, GraphEdge{
-			Source: source,
-			Target: target,
-			Type:   "related",
-			Weight: weight,
-		}) {
-			continue
-		}
-		linkCount[source]++
-		linkCount[target]++
 	}
 
 	// Add tag nodes
@@ -210,21 +174,6 @@ func edgeKey(source, target, edgeType string) string {
 		}
 	}
 	return source + "|" + target + "|" + edgeType
-}
-
-func canonicalPairKey(a, b string) string {
-	if a > b {
-		a, b = b, a
-	}
-	return a + "|" + b
-}
-
-func splitPairKey(key string) (string, string) {
-	parts := strings.SplitN(key, "|", 2)
-	if len(parts) != 2 {
-		return key, key
-	}
-	return parts[0], parts[1]
 }
 
 // normalizeLinkURL resolves a relative link URL based on the source page URL

@@ -105,7 +105,7 @@ func TestBuildGraph_NodeSizes(t *testing.T) {
 	}
 }
 
-func TestBuildGraph_AddsRelatedEdgesForSharedTags(t *testing.T) {
+func TestBuildGraph_DoesNotAddPairwiseRelatedEdgesForSharedTags(t *testing.T) {
 	pages := []PageInfo{
 		{
 			ID:    "a",
@@ -133,26 +133,23 @@ func TestBuildGraph_AddsRelatedEdgesForSharedTags(t *testing.T) {
 	graph := BuildGraph(pages)
 
 	relatedEdges := 0
-	weightedAB := false
+	tagEdges := 0
 	for _, e := range graph.Edges {
-		if e.Type != "related" {
-			continue
-		}
-		relatedEdges++
-		if (e.Source == "a" && e.Target == "b") || (e.Source == "b" && e.Target == "a") {
-			// 2 shared tags => 0.35 + 0.15 = 0.5
-			if e.Weight == 0.5 {
-				weightedAB = true
-			}
+		switch e.Type {
+		case "related":
+			relatedEdges++
+		case "tag":
+			tagEdges++
 		}
 	}
 
-	// Pairs sharing at least one tag: a-b, a-c, b-c
-	if relatedEdges != 3 {
-		t.Fatalf("expected 3 related edges, got %d", relatedEdges)
+	// Shared tags should connect via tag hubs only, not article cliques.
+	if relatedEdges != 0 {
+		t.Fatalf("expected 0 related edges, got %d", relatedEdges)
 	}
-	if !weightedAB {
-		t.Fatal("expected a-b related edge with weight 0.5")
+	// a:{go,api} + b:{go,api} + c:{go} => 5 page→tag edges
+	if tagEdges != 5 {
+		t.Fatalf("expected 5 tag edges, got %d", tagEdges)
 	}
 }
 
