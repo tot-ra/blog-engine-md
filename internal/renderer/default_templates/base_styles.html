@@ -820,27 +820,32 @@
             margin: 0;
             color: var(--text-secondary);
         }
+        /* WHY: related block should stay secondary to the article body.
+           WHAT: compact cards - smaller image, type, padding, and excerpt clamp. */
         .related-articles {
-            margin-top: 40px;
+            margin-top: 28px;
         }
         .related-articles > h2 {
+            margin: 0 0 12px;
             color: var(--text-primary);
+            font-size: 1.25rem;
+            line-height: 1.25;
         }
         .related-articles-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 20px;
+            gap: 12px;
         }
         .related-articles .section-article-preview {
             min-width: 0;
-            padding: 14px;
+            padding: 10px;
             border: 1px solid var(--nav-border);
-            border-radius: 14px;
+            border-radius: 10px;
             background: var(--nav-bg);
         }
         .related-articles .section-article-image {
-            aspect-ratio: 16 / 9;
-            margin-bottom: 12px;
+            aspect-ratio: 2.4 / 1;
+            margin-bottom: 8px;
         }
         .related-articles .section-article-image img {
             width: 100%;
@@ -849,19 +854,28 @@
             object-fit: cover;
         }
         .related-articles .section-article-preview h3 {
-            margin: 0 0 8px;
-            font-size: 1.2rem;
-            line-height: 1.2;
+            margin: 0 0 4px;
+            font-size: 0.98rem;
+            line-height: 1.25;
         }
         .related-articles .section-article-preview h3 a {
             color: var(--text-primary);
+        }
+        .related-articles .section-article-preview time {
+            display: block;
+            margin: 0 0 4px;
+            font-size: 0.78rem;
+            line-height: 1.2;
+            color: var(--text-secondary);
         }
         .related-articles .section-article-preview p {
             margin: 0;
             display: -webkit-box;
             overflow: hidden;
+            font-size: 0.88rem;
+            line-height: 1.35;
             -webkit-box-orient: vertical;
-            -webkit-line-clamp: 3;
+            -webkit-line-clamp: 2;
         }
         @media (max-width: 720px) {
             .related-articles-grid {
