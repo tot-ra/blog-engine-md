@@ -104,8 +104,10 @@
     {{if .EventsShowcase}}
     <section class="events-showcase content-section" aria-labelledby="events-showcase-title">
         <div class="events-showcase-heading">
-            <h2 id="events-showcase-title">{{.Homepage.EventsShowcase.Title}}</h2>
-            <a href="{{.HomeURL}}events/">{{.UI.Events}} →</a>
+            {{/* WHY: one-line title+arrow link avoids repeating section name ("Events"/"Blog") and keeps mobile headings on a single row. */}}
+            <h2 id="events-showcase-title">
+                <a href="{{.HomeURL}}events/">{{.Homepage.EventsShowcase.Title}}&nbsp;→</a>
+            </h2>
         </div>
         <div class="events-showcase-grid">
             {{range $post := .EventsShowcase}}
@@ -127,8 +129,10 @@
     {{if .BlogShowcase}}
     <section class="blog-showcase content-section" aria-labelledby="blog-showcase-title">
         <div class="blog-showcase-heading">
-            <h2 id="blog-showcase-title">{{.Homepage.BlogShowcase.Title}}</h2>
-            <a href="{{.HomeURL}}blog/">{{.UI.Blog}} →</a>
+            {{/* WHY: one-line title+arrow link avoids repeating section name ("Events"/"Blog") and keeps mobile headings on a single row. */}}
+            <h2 id="blog-showcase-title">
+                <a href="{{.HomeURL}}blog/">{{.Homepage.BlogShowcase.Title}}&nbsp;→</a>
+            </h2>
         </div>
         <div class="blog-showcase-grid">
             {{range $index, $post := .BlogShowcase}}
