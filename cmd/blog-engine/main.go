@@ -1,13 +1,17 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/tot-ra/blog-engine/internal/builder"
 	"github.com/tot-ra/blog-engine/internal/config"
+	"github.com/tot-ra/blog-engine/internal/embeddings"
 	"github.com/tot-ra/blog-engine/internal/server"
 )
 
@@ -35,6 +39,16 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
+	case "embed":
+		embedConfig, err := parseEmbedConfig(os.Args[2:])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		if err := runEmbed(embedConfig); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 	case "help", "--help", "-h":
 		printUsage()
 	default:
@@ -50,6 +64,7 @@ func printUsage() {
 	fmt.Println("Usage:")
 	fmt.Println("  blog-engine build    Build the site")
 	fmt.Println("  blog-engine serve [--port 3000]    Run the dev server with live reload")
+	fmt.Println("  blog-engine embed [--check|--force|--dry-run]    Generate article embeddings cache")
 	fmt.Println("  blog-engine help     Show this help message")
 }
 
@@ -77,9 +92,61 @@ func runBuild() error {
 	if err := siteBuilder.Build(); err != nil {
 		return fmt.Errorf("build failed: %w", err)
 	}
-
 	fmt.Println("Build completed successfully!")
 	return nil
+}
+
+type embedConfig struct {
+	check  bool
+	force  bool
+	dryRun bool
+}
+
+func parseEmbedConfig(args []string) (embedConfig, error) {
+	flags := flag.NewFlagSet("embed", flag.ContinueOnError)
+	flags.SetOutput(os.Stderr)
+	check := flags.Bool("check", false, "verify cache without network access")
+	force := flags.Bool("force", false, "regenerate all embeddings")
+	dryRun := flags.Bool("dry-run", false, "show planned work and estimated cost")
+	if err := flags.Parse(args); err != nil {
+		return embedConfig{}, err
+	}
+	if flags.NArg() != 0 {
+		return embedConfig{}, fmt.Errorf("unexpected embed arguments: %v", flags.Args())
+	}
+	if *check && (*force || *dryRun) {
+		return embedConfig{}, fmt.Errorf("--check cannot be combined with --force or --dry-run")
+	}
+	return embedConfig{check: *check, force: *force, dryRun: *dryRun}, nil
+}
+
+func runEmbed(embedCfg embedConfig) error {
+	if _, err := loadEnvFiles(); err != nil {
+		return err
+	}
+	cfg, err := config.Load("config.yaml")
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	var client embeddings.Embedder
+	if !embedCfg.check && !embedCfg.dryRun {
+		apiKey := os.Getenv(cfg.Related.APIKeyEnv)
+		if apiKey == "" {
+			return fmt.Errorf("environment variable %s is required", cfg.Related.APIKeyEnv)
+		}
+		client = &embeddings.OpenAIClient{APIKey: apiKey}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+	defer cancel()
+	_, err = embeddings.Run(ctx, cfg, embeddings.RunOptions{
+		Check: embedCfg.check, Force: embedCfg.force, DryRun: embedCfg.dryRun,
+		Output: os.Stdout, Client: client,
+	})
+	if errors.Is(err, embeddings.ErrCacheStale) {
+		return embeddings.ErrCacheStale
+	}
+	return err
 }
 
 type serveConfig struct {

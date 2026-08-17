@@ -1,0 +1,23 @@
+{{define "related_articles"}}
+{{if .Related}}
+<section class="related-articles" aria-labelledby="related-articles-title">
+    <h2 id="related-articles-title">{{.UI.RelatedArticles}}</h2>
+    <div class="related-articles-grid">
+        {{range .Related}}
+        <article class="section-article-preview" data-related-score="{{printf "%.6f" .Score}}">
+            {{if .ImageURL}}
+            <a class="section-article-image" href="{{.URL}}">
+                <img src="{{.ImageURL}}" alt="{{.Title}}" loading="lazy">
+            </a>
+            {{end}}
+            <h3><a href="{{.URL}}">{{.Title}}</a></h3>
+            {{if hasDate .Date}}
+            <time datetime="{{.Date.Format "2006-01-02T15:04:05Z07:00"}}">{{formatDateLocalized .Date $.Page.Language}}</time>
+            {{end}}
+            {{if .Excerpt}}<p>{{.Excerpt}}</p>{{end}}
+        </article>
+        {{end}}
+    </div>
+</section>
+{{end}}
+{{end}}

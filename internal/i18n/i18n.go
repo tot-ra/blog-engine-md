@@ -22,6 +22,7 @@ type UIStrings struct {
 	OnThisPage      string
 	Breadcrumb      string
 	PageNavigation  string
+	RelatedArticles string
 	Previous        string
 	Next            string
 	Listen          string
@@ -141,6 +142,7 @@ func UI(lang string) UIStrings {
 			OnThisPage:      "На этой странице",
 			Breadcrumb:      "Хлебные крошки",
 			PageNavigation:  "Навигация по странице",
+			RelatedArticles: "Похожие статьи",
 			Previous:        "Предыдущая",
 			Next:            "Следующая",
 			Listen:          "Слушать",
@@ -174,6 +176,7 @@ func UI(lang string) UIStrings {
 			OnThisPage:      "Sellel lehel",
 			Breadcrumb:      "Leivapururada",
 			PageNavigation:  "Lehe navigeerimine",
+			RelatedArticles: "Seotud artiklid",
 			Previous:        "Eelmine",
 			Next:            "Järgmine",
 			Listen:          "Kuula",
@@ -207,6 +210,7 @@ func UI(lang string) UIStrings {
 			OnThisPage:      "On this page",
 			Breadcrumb:      "Breadcrumb",
 			PageNavigation:  "Page navigation",
+			RelatedArticles: "Related articles",
 			Previous:        "Previous",
 			Next:            "Next",
 			Listen:          "Listen",

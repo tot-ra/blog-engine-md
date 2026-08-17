@@ -79,6 +79,16 @@ type BlogShowcasePost struct {
 	Date        time.Time
 }
 
+// RelatedArticle contains display-ready metadata for one related article card.
+type RelatedArticle struct {
+	Title    string
+	URL      string
+	Date     time.Time
+	Excerpt  string
+	ImageURL string
+	Score    float64
+}
+
 // PageData holds data for template rendering
 type PageData struct {
 	Site            config.SiteConfig
@@ -106,6 +116,7 @@ type PageData struct {
 	Sidebar     template.HTML
 	TOC         template.HTML
 	Breadcrumbs []BreadcrumbItem
+	Related     []RelatedArticle
 	PrevNext    *PrevNextLinks
 }
 

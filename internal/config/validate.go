@@ -88,6 +88,46 @@ func Validate(cfg *SiteConfig) error {
 			"en": cfg.Audio.ElevenLabs.DefaultVoiceID,
 		}
 	}
+	if cfg.Related.Provider == "" {
+		cfg.Related.Provider = "openai"
+	}
+	if cfg.Related.Provider != "openai" {
+		return fmt.Errorf("related.provider must be openai")
+	}
+	if cfg.Related.Model == "" {
+		cfg.Related.Model = "text-embedding-3-small"
+	}
+	if cfg.Related.Dimensions == 0 {
+		cfg.Related.Dimensions = 512
+	}
+	if cfg.Related.Dimensions < 0 || cfg.Related.Dimensions > 3072 {
+		return fmt.Errorf("related.dimensions must be between 1 and 3072")
+	}
+	if cfg.Related.APIKeyEnv == "" {
+		cfg.Related.APIKeyEnv = "OPENAI_API_KEY"
+	}
+	if cfg.Related.CachePath == "" {
+		cfg.Related.CachePath = "content/embeddings.json"
+	}
+	if len(cfg.Related.Sections) == 0 {
+		cfg.Related.Sections = []string{"blog"}
+	}
+	for i, section := range cfg.Related.Sections {
+		section = strings.Trim(strings.TrimSpace(section), "/")
+		if section == "" || strings.Contains(section, "..") {
+			return fmt.Errorf("related.sections must contain safe non-empty section names")
+		}
+		cfg.Related.Sections[i] = section
+	}
+	if cfg.Related.Count <= 0 {
+		cfg.Related.Count = 4
+	}
+	if cfg.Related.MinScore < 0 || cfg.Related.MinScore > 1 {
+		return fmt.Errorf("related.minScore must be between 0 and 1")
+	}
+	if cfg.Related.Diversity < 0 || cfg.Related.Diversity > 1 {
+		return fmt.Errorf("related.diversity must be between 0 and 1")
+	}
 	if cfg.Site.Language == "" {
 		cfg.Site.Language = "en"
 	}

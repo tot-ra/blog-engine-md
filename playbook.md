@@ -13,3 +13,9 @@
 - `sectionChildrenWithMediaHTML` builds a poster grid for any child preview image, not only embeds. Keep the play cue (`section-video-preview-play`) only when the thumb came from YouTube/Vimeo; article photo indexes (e.g. events) should stay image cards without a play button.
 - Sidebar `enableCategories` is a `*bool`: omit or null keeps categories (historical default); set `false` for time-only sections. `defaultMode: time` alone still shows the Categories/Time switch whenever both panes exist.
 - `showChildren` media grids inherit nav A-Z order. When children have frontmatter/inferred dates (events), sort newest-first in `sectionChildrenWithMediaHTML` via `sortSectionChildrenByDateDescIfDated`; leave undated docs trees in nav order.
+- Do not delegate to a guessed generic agent ID. Run agent discovery first and route to an explicit available ID; otherwise continue locally without blocking implementation.
+- After line-based insertion near a function boundary, run gofmt immediately. A syntactically misplaced block can otherwise sit inside the preceding function and compound later edits.
+- Before delegating, discover configured agents instead of assuming a generic local agent ID exists.
+- In non-interactive shells, source `~/.nvm/nvm.sh` before `nvm use 24`; do not gate Go-only checks on Node setup.
+- Do not guess an embedded-template declaration filename from convention; locate `go:embed` with indexed search before reading it.
+- If A2 Registry discovery itself returns `agent is not active`, skip external delegation and perform review with local diff, tests, and generated-output inspection.

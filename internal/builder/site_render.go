@@ -210,6 +210,8 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 		}
 	}
 
+	data.Related = b.relatedArticlesForPage(page)
+
 	var html string
 	if page.Frontmatter != nil && strings.TrimSpace(page.Frontmatter.RedirectURL) != "" {
 		target := strings.TrimSpace(page.Frontmatter.RedirectURL)

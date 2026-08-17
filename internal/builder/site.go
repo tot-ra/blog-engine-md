@@ -11,6 +11,7 @@ import (
 	"github.com/tot-ra/blog-engine/internal/assets"
 	"github.com/tot-ra/blog-engine/internal/config"
 	"github.com/tot-ra/blog-engine/internal/parser"
+	"github.com/tot-ra/blog-engine/internal/related"
 	"github.com/tot-ra/blog-engine/internal/renderer"
 )
 
@@ -30,6 +31,8 @@ type SiteBuilder struct {
 	pagesByURL      map[string]*Page
 	navTree         *NavTree
 	blogTimeline    map[string][]renderer.TimelineYear
+	relatedByPageID map[string][]related.RelatedMatch
+	relatedEntries  []related.Entry
 	languages       map[string]struct{}
 	processedImages []*assets.ProcessedImage
 	cssBundle       *assets.CSSBundle
@@ -204,6 +207,9 @@ func (b *SiteBuilder) Build() error {
 	for lang, posts := range b.collectBlogPostsByLanguage() {
 		b.blogTimeline[lang] = buildBlogTimeline(posts, 20)
 	}
+
+	// Related articles are computed entirely from the local embeddings cache.
+	b.prepareRelatedArticles()
 
 	// Render pages (after CSS/JS processing so templates can reference bundles)
 	renderPages := make([]*Page, 0, len(b.pages))

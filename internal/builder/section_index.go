@@ -377,13 +377,11 @@ func sectionBlogPostsHTML(sectionURL string, pages map[string]*Page) string {
 }
 
 func firstPreviewImageHTML(post *Page) string {
-	if post == nil || strings.TrimSpace(post.Content) == "" {
+	imageURL := firstPreviewImageURL(post)
+	if imageURL == "" {
 		return ""
 	}
 	match := firstImageSrcRe.FindStringSubmatch(post.Content)
-	if len(match) < 2 || strings.TrimSpace(match[1]) == "" {
-		return ""
-	}
 
 	alt := ""
 	if altMatch := firstImageAltRe.FindStringSubmatch(match[0]); len(altMatch) >= 2 {
@@ -394,9 +392,20 @@ func firstPreviewImageHTML(post *Page) string {
 	}
 
 	return fmt.Sprintf("<img src=\"%s\" alt=\"%s\" loading=\"lazy\">",
-		template.HTMLEscapeString(match[1]),
+		template.HTMLEscapeString(imageURL),
 		template.HTMLEscapeString(alt),
 	)
+}
+
+func firstPreviewImageURL(post *Page) string {
+	if post == nil || strings.TrimSpace(post.Content) == "" {
+		return ""
+	}
+	match := firstImageSrcRe.FindStringSubmatch(post.Content)
+	if len(match) < 2 {
+		return ""
+	}
+	return strings.TrimSpace(stdhtml.UnescapeString(match[1]))
 }
 
 func shouldUseSectionMatrix(children []SectionChild) bool {

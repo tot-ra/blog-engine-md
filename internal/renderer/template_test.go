@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/tot-ra/blog-engine/internal/config"
+	"github.com/tot-ra/blog-engine/internal/i18n"
 )
 
 func TestTemplateEngine_RenderBeforeLoadReturnsError(t *testing.T) {
@@ -220,5 +221,70 @@ func TestTemplateEngine_RenderReturnsTemplateExecutionError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "failed to render template needs-field") {
 		t.Fatalf("expected render error context, got %v", err)
+	}
+}
+
+func TestTemplateEngine_DefaultTemplateRendersRelatedArticles(t *testing.T) {
+	engine := NewTemplateEngine()
+	if err := engine.LoadTemplates(filepath.Join(t.TempDir(), "missing")); err != nil {
+		t.Fatalf("LoadTemplates() returned error: %v", err)
+	}
+
+	html, err := engine.RenderPage(PageData{
+		Site:    config.SiteConfig{Site: config.Site{Title: "Example", Language: "en"}},
+		Page:    Page{Title: "Current article", Language: "en"},
+		UI:      i18n.UI("en"),
+		Content: template.HTML("<p>Article body</p>"),
+		Related: []RelatedArticle{{
+			Title: "Related title", URL: "/blog/related/", Date: time.Date(2026, time.August, 17, 0, 0, 0, 0, time.UTC),
+			Excerpt: "A short preview.", ImageURL: "/images/related.jpg", Score: 0.8123456,
+		}},
+		PrevNext: &PrevNextLinks{Next: &NavLink{Title: "Next article", URL: "/blog/next/"}},
+	})
+	if err != nil {
+		t.Fatalf("RenderPage() returned error: %v", err)
+	}
+
+	start := strings.Index(html, `<section class="related-articles"`)
+	if start < 0 {
+		t.Fatalf("related container not found in:\n%s", html)
+	}
+	end := strings.Index(html[start:], `</section>`)
+	if end < 0 {
+		t.Fatalf("related container is not closed in:\n%s", html)
+	}
+	container := html[start : start+end]
+	for _, want := range []string{
+		`<h2 id="related-articles-title">Related articles</h2>`,
+		`class="section-article-preview" data-related-score="0.812346"`,
+		`href="/blog/related/"`,
+		`src="/images/related.jpg"`,
+		`<h3><a href="/blog/related/">Related title</a></h3>`,
+		`A short preview.`,
+	} {
+		if !strings.Contains(container, want) {
+			t.Errorf("related container missing %q:\n%s", want, container)
+		}
+	}
+	if strings.Index(html, `class="related-articles"`) > strings.Index(html, `class="prev-next"`) {
+		t.Error("related articles must render before prev/next navigation")
+	}
+}
+
+func TestTemplateEngine_DefaultTemplateOmitsEmptyRelatedArticles(t *testing.T) {
+	engine := NewTemplateEngine()
+	if err := engine.LoadTemplates(filepath.Join(t.TempDir(), "missing")); err != nil {
+		t.Fatalf("LoadTemplates() returned error: %v", err)
+	}
+
+	html, err := engine.RenderPage(PageData{
+		Site: config.SiteConfig{Site: config.Site{Title: "Example", Language: "ru"}},
+		Page: Page{Title: "Статья", Language: "ru"}, UI: i18n.UI("ru"),
+	})
+	if err != nil {
+		t.Fatalf("RenderPage() returned error: %v", err)
+	}
+	if strings.Contains(html, `class="related-articles"`) || strings.Contains(html, "Похожие статьи") {
+		t.Fatalf("empty related block rendered:\n%s", html)
 	}
 }

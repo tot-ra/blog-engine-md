@@ -9,6 +9,7 @@ type SiteConfig struct {
 	Navigation   Navigation                `yaml:"navigation"`
 	Assets       AssetsConfig              `yaml:"assets"`
 	Audio        AudioConfig               `yaml:"audio"`
+	Related      RelatedConfig             `yaml:"related"`
 	Feeds        FeedsConfig               `yaml:"feeds"`
 	Sitemap      SitemapConfig             `yaml:"sitemap"`
 	Tags         TagsConfig                `yaml:"tags"`
@@ -202,6 +203,21 @@ type ElevenLabsConfig struct {
 	SpeakerBoost    bool    `yaml:"speakerBoost"`    // Enhance speaker similarity
 }
 
+// RelatedConfig controls offline generation and later use of related-article embeddings.
+type RelatedConfig struct {
+	Enabled       bool     `yaml:"enabled"`
+	Provider      string   `yaml:"provider"`
+	Model         string   `yaml:"model"`
+	Dimensions    int      `yaml:"dimensions"`
+	APIKeyEnv     string   `yaml:"apiKeyEnv"`
+	CachePath     string   `yaml:"cachePath"`
+	Sections      []string `yaml:"sections"`
+	Count         int      `yaml:"count"`
+	MinScore      float64  `yaml:"minScore"`
+	Diversity     float64  `yaml:"diversity"`
+	CrossLanguage bool     `yaml:"crossLanguage"`
+}
+
 // Navigation contains navigation settings
 type Navigation struct {
 	Header      HeaderConfig      `yaml:"header"`
@@ -250,10 +266,10 @@ type SidebarSectionConfig struct {
 	EnableGraph bool   `yaml:"enableGraph"`
 	// EnableCategories toggles the folder/categories sidebar pane. Nil means enabled
 	// (historical default). Set false for time-only sections such as events.
-	EnableCategories *bool              `yaml:"enableCategories"`
-	GraphPath        string             `yaml:"graphPath"`
-	MatchPaths       []string           `yaml:"matchPaths"`
-	SidebarRoot      string             `yaml:"sidebarRoot"`
+	EnableCategories *bool    `yaml:"enableCategories"`
+	GraphPath        string   `yaml:"graphPath"`
+	MatchPaths       []string `yaml:"matchPaths"`
+	SidebarRoot      string   `yaml:"sidebarRoot"`
 	// HideSidebar drops the left nav for matching pages when in-page links are enough
 	// (e.g. about career/education cards) or the section is listed only in the header.
 	HideSidebar      bool               `yaml:"hideSidebar"`

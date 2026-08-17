@@ -23,6 +23,8 @@ type Frontmatter struct {
 	HideNav      bool                   `yaml:"hideNav"`
 	ShowChildren bool                   `yaml:"showChildren"`
 	HideChildren bool                   `yaml:"hideChildren"`
+	Related      []string               `yaml:"related"`
+	HideRelated  bool                   `yaml:"hideRelated"`
 	Layout       string                 `yaml:"layout"` // Custom layout template name (e.g., "homepage")
 	RedirectURL  string                 `yaml:"redirectUrl"`
 	TemplateHero bool                   `yaml:"templateHero"`
@@ -63,13 +65,15 @@ func ParseFrontmatter(content string) (*Frontmatter, string, error) {
 		SidebarPosition int  `yaml:"sidebar_position"`
 		HideToc         bool `yaml:"hideToc"`
 		// hide_table_of_contents is the Docusaurus-compatible alias for hideToc.
-		HideTableOfContents bool   `yaml:"hide_table_of_contents"`
-		HideNav             bool   `yaml:"hideNav"`
-		ShowChildren        bool   `yaml:"showChildren"`
-		HideChildren        bool   `yaml:"hideChildren"`
-		Layout              string `yaml:"layout"`
-		RedirectURL         string `yaml:"redirectUrl"`
-		TemplateHero        bool   `yaml:"templateHero"`
+		HideTableOfContents bool     `yaml:"hide_table_of_contents"`
+		HideNav             bool     `yaml:"hideNav"`
+		ShowChildren        bool     `yaml:"showChildren"`
+		HideChildren        bool     `yaml:"hideChildren"`
+		Related             []string `yaml:"related"`
+		HideRelated         bool     `yaml:"hideRelated"`
+		Layout              string   `yaml:"layout"`
+		RedirectURL         string   `yaml:"redirectUrl"`
+		TemplateHero        bool     `yaml:"templateHero"`
 	}
 	params := map[string]interface{}{}
 	if err := yaml.Unmarshal([]byte(fmContent), &params); err != nil {
@@ -97,6 +101,8 @@ func ParseFrontmatter(content string) (*Frontmatter, string, error) {
 	fm.HideNav = raw.HideNav
 	fm.ShowChildren = raw.ShowChildren
 	fm.HideChildren = raw.HideChildren
+	fm.Related = raw.Related
+	fm.HideRelated = raw.HideRelated
 	fm.Layout = raw.Layout
 	fm.RedirectURL = raw.RedirectURL
 	fm.TemplateHero = raw.TemplateHero
