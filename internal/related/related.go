@@ -64,6 +64,23 @@ func LoadCache(path string) (*Cache, error) {
 	return &cache, nil
 }
 
+func (cache *Cache) Save(path string) error {
+	data, err := json.MarshalIndent(cache, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal embeddings cache: %w", err)
+	}
+	data = append(data, '\n')
+	if dir := filepath.Dir(path); dir != "." {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("create embeddings cache directory: %w", err)
+		}
+	}
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return fmt.Errorf("write embeddings cache: %w", err)
+	}
+	return nil
+}
+
 func DecodeVector(entry CacheEntry, dims int) ([]float32, error) {
 	data, err := base64.StdEncoding.DecodeString(entry.Vec)
 	if err != nil {

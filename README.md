@@ -414,6 +414,75 @@ rm -rf content/audio/posts
 blog-engine build
 ```
 
+
+## Related articles
+
+Blog Engine can generate semantic article embeddings once, store each compact vector in its Markdown article frontmatter, and use those vectors to rank related article cards during every build. Production builds are offline and never call OpenAI. Because path, URL, and language are derived at build time rather than stored in frontmatter, embedded articles can be moved or renamed without updating a separate index.
+
+### Configuration
+
+```yaml
+related:
+  enabled: true
+  provider: "openai"
+  model: "text-embedding-3-small"
+  dimensions: 512
+  apiKeyEnv: "OPENAI_API_KEY"
+  cachePath: "content/embeddings.json" # generated during build; do not commit
+  sections: ["blog"]
+  count: 4
+  minScore: 0.3
+  diversity: 0.7
+  crossLanguage: false
+```
+
+- `sections` limits embedding and matching to content sections such as `blog`.
+- `count` is the maximum number of cards per article.
+- `minScore` is the minimum cosine similarity accepted before tag bonuses and MMR re-ranking.
+- `diversity` is the MMR relevance weight from `0` to `1`: lower values favor variety, while `1` favors query similarity only.
+- `crossLanguage: false` keeps candidates in the article's language. Translation counterparts are excluded from one another.
+- Frontmatter `related` can explicitly select articles, while `hideRelated: true` suppresses the block.
+- Drafts, section index files, and `redirectUrl` compatibility stubs are not embedded.
+
+### Embedding workflow
+
+```bash
+# Show changed articles, estimated tokens, and estimated cost. No key or network is used.
+blog-engine embed --dry-run
+
+# Generate or incrementally update missing/stale article frontmatter. Reads OPENAI_API_KEY from the environment or .env.
+blog-engine embed
+
+# Verify frontmatter hashes and metadata without a key or network access.
+blog-engine embed --check
+
+# Re-embed every eligible article after intentionally changing model/input settings.
+blog-engine embed --force
+```
+
+Review the dry-run estimate before a paid run. The normal workflow is:
+
+1. Run `embed --dry-run` locally and review the estimate.
+2. Run `embed` locally with the API key available only in the environment or an untracked `.env` file. It only requests vectors for missing, stale, or forced articles.
+3. Review and commit the changed Markdown articles together with relevant `related` configuration changes. A pre-commit hook may run `blog-engine embed --check` to reject commits with missing or stale vectors; generating paid embeddings automatically in a hook is intentionally optional because it requires a local API key.
+4. Deploy and run `blog-engine build` without `OPENAI_API_KEY`. The build collects every valid frontmatter embedding into `cachePath`, then uses that generated JSON to precompute related cards before rendering HTML.
+5. Do not commit the generated `cachePath` JSON. Add it to the site repository's `.gitignore`; it is recreated on every build and contains path, URL, and language metadata derived from the current article location.
+
+The article frontmatter representation is:
+
+```yaml
+embedding:
+  version: 1
+  model: "text-embedding-3-small"
+  dimensions: 512
+  hash: "sha256:..."
+  vector: "..." # normalized signed-int8 vector encoded as Base64
+  scale: 0.001234
+```
+
+The hash includes the prepared article text, model, and dimensions, so editing meaningful content makes the vector stale. Moving or renaming the file does not. The generated central JSON retains the existing versioned `version`, `model`, `dims`, and path-keyed `entries` schema only as an ephemeral build-stage interchange format.
+
+Do not commit API keys, `.env` files, or the generated embeddings JSON.
 ## Technical Architecture
 
 ### Module Structure

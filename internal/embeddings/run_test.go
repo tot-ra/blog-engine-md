@@ -8,9 +8,10 @@ import (
 	"testing"
 
 	"github.com/tot-ra/blog-engine/internal/config"
+	"github.com/tot-ra/blog-engine/internal/parser"
 )
 
-func TestCheckDetectsStaleCacheWithoutCallingNetwork(t *testing.T) {
+func TestCheckDetectsMissingFrontmatterEmbeddingWithoutCallingNetwork(t *testing.T) {
 	dir := t.TempDir()
 	contentDir := filepath.Join(dir, "content")
 	if err := os.MkdirAll(filepath.Join(contentDir, "ru", "blog"), 0755); err != nil {
@@ -24,6 +25,7 @@ func TestCheckDetectsStaleCacheWithoutCallingNetwork(t *testing.T) {
 	}
 	writeArticle("post.md", "---\ntitle: Post\ndescription: Desc\ntags: [Go]\n---\nBody")
 	writeArticle("draft.md", "---\ntitle: Draft\ndraft: true\n---\nHidden")
+	writeArticle("redirect.md", "---\ntitle: Old URL\nredirectUrl: /ru/blog/post/\n---\nRedirect")
 	writeArticle("index.md", "---\ntitle: Blog\n---\nIndex")
 
 	cfg := testConfig(contentDir, filepath.Join(dir, "embeddings.json"))
@@ -36,39 +38,55 @@ func TestCheckDetectsStaleCacheWithoutCallingNetwork(t *testing.T) {
 	}
 }
 
-func TestRunRemovesDeletedEntries(t *testing.T) {
+func TestRunWritesEmbeddingToArticleFrontmatter(t *testing.T) {
 	dir := t.TempDir()
 	contentDir := filepath.Join(dir, "content")
-	if err := os.MkdirAll(contentDir, 0755); err != nil {
+	articlePath := filepath.Join(contentDir, "en", "blog", "post.md")
+	if err := os.MkdirAll(filepath.Dir(articlePath), 0755); err != nil {
 		t.Fatal(err)
 	}
-	cachePath := filepath.Join(dir, "embeddings.json")
-	cache := NewCache("text-embedding-3-small", 2)
-	cache.Entries["deleted.md"] = Entry{Hash: "sha256:x", Vec: "AAA=", Scale: 1, Lang: "en", URL: "/deleted/"}
-	if err := cache.Save(cachePath); err != nil {
+	if err := os.WriteFile(articlePath, []byte("---\ntitle: Post\ncustom: keep-me\n---\nBody"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	cfg := testConfig(contentDir, cachePath)
-	result, err := Run(context.Background(), cfg, RunOptions{Client: &fakeEmbedder{}})
+	cfg := testConfig(contentDir, filepath.Join(dir, "embeddings.json"))
+	cfg.I18n.Default = "en"
+	result, err := Run(context.Background(), cfg, RunOptions{Client: &fakeEmbedder{vectors: [][]float32{{1, 0}}}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Removed != 1 {
-		t.Fatalf("removed = %d", result.Removed)
+	if result.Sent != 1 {
+		t.Fatalf("result = %#v", result)
 	}
-	loaded, err := Load(cachePath, cfg.Related.Model, cfg.Related.Dimensions)
+	data, err := os.ReadFile(articlePath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(loaded.Entries) != 0 {
-		t.Fatalf("stale entries remain: %#v", loaded.Entries)
+	fm, body, err := parser.ParseFrontmatter(string(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fm.Embedding == nil || fm.Embedding.Model != cfg.Related.Model || fm.Embedding.Dimensions != 2 || fm.Embedding.Vector == "" || fm.Embedding.Hash == "" {
+		t.Fatalf("embedding = %#v\n%s", fm.Embedding, data)
+	}
+	if body != "Body" || fm.Params["custom"] != "keep-me" {
+		t.Fatalf("unrelated article data changed: body=%q params=%#v", body, fm.Params)
+	}
+	if _, err := os.Stat(cfg.Related.CachePath); !os.IsNotExist(err) {
+		t.Fatalf("embed unexpectedly wrote central cache: %v", err)
+	}
+
+	result, err = Run(context.Background(), cfg, RunOptions{Check: true})
+	if err != nil || result.Skipped != 1 || result.Sent != 0 {
+		t.Fatalf("second check = %#v, %v", result, err)
 	}
 }
 
-type fakeEmbedder struct{}
+type fakeEmbedder struct {
+	vectors [][]float32
+}
 
-func (*fakeEmbedder) Embed(context.Context, string, int, []string) ([][]float32, int, error) {
-	return nil, 0, nil
+func (f *fakeEmbedder) Embed(context.Context, string, int, []string) ([][]float32, int, error) {
+	return f.vectors, 2, nil
 }
 
 func testConfig(contentDir, cachePath string) *config.SiteConfig {

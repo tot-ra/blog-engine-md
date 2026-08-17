@@ -37,6 +37,59 @@ func TestPrepareRelatedArticlesMissingCacheIsFailSoft(t *testing.T) {
 	}
 }
 
+func TestPrepareRelatedArticlesExcludesRedirectPages(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Build.ContentDir = t.TempDir()
+	cfg.Related.CachePath = filepath.Join(t.TempDir(), "missing.json")
+	b := NewSiteBuilder(cfg)
+	page := &Page{
+		ID: "post", SourcePath: filepath.Join(cfg.Build.ContentDir, "en", "blog", "post.md"),
+		Frontmatter: &parser.Frontmatter{},
+	}
+	redirect := &Page{
+		ID: "redirect", SourcePath: filepath.Join(cfg.Build.ContentDir, "en", "blog", "old-post.md"),
+		Frontmatter: &parser.Frontmatter{RedirectURL: "/en/blog/post/"},
+	}
+	b.pages = map[string]*Page{page.ID: page, redirect.ID: redirect}
+	b.prepareRelatedArticles()
+	if len(b.relatedEntries) != 1 || b.relatedEntries[0].Path != "en/blog/post.md" {
+		t.Fatalf("related entries = %#v, want only non-redirect page", b.relatedEntries)
+	}
+}
+
+func TestPrepareRelatedArticlesBuildsCacheFromFrontmatter(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Build.ContentDir = t.TempDir()
+	cfg.Related.Dimensions = 2
+	cfg.Related.CachePath = filepath.Join(t.TempDir(), "embeddings.json")
+	b := NewSiteBuilder(cfg)
+	makePage := func(id, name, vector string) *Page {
+		path := filepath.Join(cfg.Build.ContentDir, "en", "blog", name+".md")
+		return &Page{
+			ID: id, URL: "/en/blog/" + name + "/", Language: "en", SourcePath: path, Title: name,
+			Frontmatter: &parser.Frontmatter{Embedding: &parser.FrontmatterEmbedding{
+				Version: 1, Model: cfg.Related.Model, Dimensions: 2, Hash: "sha256:" + name, Vector: vector, Scale: 1,
+			}},
+		}
+	}
+	first := makePage("first", "first", "fwA=")
+	second := makePage("second", "second", "fwA=")
+	b.pages = map[string]*Page{first.ID: first, second.ID: second}
+	b.pagesByURL = map[string]*Page{first.URL: first, second.URL: second}
+	b.prepareRelatedArticles()
+
+	cache, err := related.LoadCache(cfg.Related.CachePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cache.Entries) != 2 || cache.Entries["en/blog/first.md"].URL != first.URL {
+		t.Fatalf("generated cache = %#v", cache)
+	}
+	if len(b.relatedByPageID[first.ID]) != 1 || b.relatedByPageID[first.ID][0].URL != second.URL {
+		t.Fatalf("computed related = %#v", b.relatedByPageID)
+	}
+}
+
 func TestRelatedArticlesForPageUsesSharedCardHelpers(t *testing.T) {
 	date := time.Date(2026, time.August, 17, 0, 0, 0, 0, time.UTC)
 	target := &Page{

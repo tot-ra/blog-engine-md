@@ -40,12 +40,13 @@ type Result struct {
 }
 
 type article struct {
-	path   string
-	hash   string
-	lang   string
-	url    string
-	text   string
-	chunks []string
+	path      string
+	hash      string
+	lang      string
+	url       string
+	text      string
+	chunks    []string
+	embedding *parser.FrontmatterEmbedding
 }
 
 func Run(ctx context.Context, cfg *config.SiteConfig, opts RunOptions) (Result, error) {
@@ -61,18 +62,10 @@ func Run(ctx context.Context, cfg *config.SiteConfig, opts RunOptions) (Result, 
 	if err != nil {
 		return Result{}, err
 	}
-	cache, err := Load(cfg.Related.CachePath, cfg.Related.Model, cfg.Related.Dimensions)
-	if err != nil {
-		return Result{}, err
-	}
 	result := Result{Articles: len(articles)}
-	current := make(map[string]struct{}, len(articles))
-	metadataMismatch := cache.Version != CacheVersion || cache.Model != cfg.Related.Model || cache.Dims != cfg.Related.Dimensions
 	pending := make([]article, 0, len(articles))
 	for _, item := range articles {
-		current[item.path] = struct{}{}
-		entry, ok := cache.Entries[item.path]
-		if !opts.Force && !metadataMismatch && ok && entry.Hash == item.hash && entry.Lang == item.lang && entry.URL == item.url && validEntry(entry, cfg.Related.Dimensions) {
+		if !opts.Force && validFrontmatterEmbedding(item.embedding, item.hash, cfg.Related.Model, cfg.Related.Dimensions) {
 			result.Skipped++
 			continue
 		}
@@ -83,18 +76,10 @@ func Run(ctx context.Context, cfg *config.SiteConfig, opts RunOptions) (Result, 
 		result.Chunks += len(item.chunks)
 		pending = append(pending, item)
 	}
-	for path := range cache.Entries {
-		if _, ok := current[path]; !ok {
-			result.Removed++
-		}
-	}
 	result.Sent = len(pending)
 	result.EstimatedCost = float64(result.Tokens) / 1_000_000 * 0.02
 
-	fmt.Fprintf(out, "Articles: %d, skipped by hash: %d, to embed: %d, chunks: %d, estimated tokens: %d\n", result.Articles, result.Skipped, result.Sent, result.Chunks, result.Tokens)
-	if result.Removed > 0 {
-		fmt.Fprintf(out, "Stale cache entries to remove: %d\n", result.Removed)
-	}
+	fmt.Fprintf(out, "Articles: %d, embedded in frontmatter: %d, to embed: %d, chunks: %d, estimated tokens: %d\n", result.Articles, result.Skipped, result.Sent, result.Chunks, result.Tokens)
 	if opts.DryRun {
 		fmt.Fprintf(out, "Estimated OpenAI cost: $%.4f (text-embedding-3-small list price approximation)\n", result.EstimatedCost)
 		for _, item := range pending {
@@ -103,10 +88,14 @@ func Run(ctx context.Context, cfg *config.SiteConfig, opts RunOptions) (Result, 
 		return result, nil
 	}
 	if opts.Check {
-		if metadataMismatch || result.Sent > 0 || result.Removed > 0 {
+		if result.Sent > 0 {
 			return result, ErrCacheStale
 		}
-		fmt.Fprintln(out, "Embeddings cache is up to date.")
+		fmt.Fprintln(out, "Article frontmatter embeddings are up to date.")
+		return result, nil
+	}
+	if len(pending) == 0 {
+		fmt.Fprintln(out, "Article frontmatter embeddings are up to date.")
 		return result, nil
 	}
 	if opts.Client == nil {
@@ -128,12 +117,6 @@ func Run(ctx context.Context, cfg *config.SiteConfig, opts RunOptions) (Result, 
 		result.Tokens = actualTokens
 	}
 
-	newCache := NewCache(cfg.Related.Model, cfg.Related.Dimensions)
-	for path, entry := range cache.Entries {
-		if _, ok := current[path]; ok && !metadataMismatch {
-			newCache.Entries[path] = entry
-		}
-	}
 	vectorOffset := 0
 	for _, item := range pending {
 		count := len(item.chunks)
@@ -146,12 +129,15 @@ func Run(ctx context.Context, cfg *config.SiteConfig, opts RunOptions) (Result, 
 		if err != nil {
 			return result, fmt.Errorf("quantize %s: %w", item.path, err)
 		}
-		newCache.Entries[item.path] = Entry{Hash: item.hash, Vec: encoded, Scale: scale, Lang: item.lang, URL: item.url}
+		embedding := parser.FrontmatterEmbedding{
+			Version: CacheVersion, Model: cfg.Related.Model, Dimensions: cfg.Related.Dimensions,
+			Hash: item.hash, Vector: encoded, Scale: scale,
+		}
+		if err := WriteFrontmatterEmbedding(filepath.Join(cfg.Build.ContentDir, filepath.FromSlash(item.path)), embedding); err != nil {
+			return result, fmt.Errorf("write embedding for %s: %w", item.path, err)
+		}
 	}
-	if err := newCache.Save(cfg.Related.CachePath); err != nil {
-		return result, err
-	}
-	fmt.Fprintf(out, "Embedded %d articles, tokens: %d, cache: %s\n", result.Sent, result.Tokens, cfg.Related.CachePath)
+	fmt.Fprintf(out, "Embedded %d articles into Markdown frontmatter, tokens: %d\n", result.Sent, result.Tokens)
 	return result, nil
 }
 
@@ -200,7 +186,7 @@ func discoverArticles(cfg *config.SiteConfig) ([]article, error) {
 		if err != nil {
 			return nil, fmt.Errorf("parse frontmatter %s: %w", file.Path, err)
 		}
-		if fm.Draft || (strings.TrimSpace(fm.Slug) == "" && isSectionFile(contentPath, name)) {
+		if fm.Draft || strings.TrimSpace(fm.RedirectURL) != "" || (strings.TrimSpace(fm.Slug) == "" && isSectionFile(contentPath, name)) {
 			continue
 		}
 		title := fm.Title
@@ -212,11 +198,12 @@ func discoverArticles(cfg *config.SiteConfig) ([]article, error) {
 			continue
 		}
 		articles = append(articles, article{
-			path: rel,
-			hash: HashInput(text, cfg.Related.Model, cfg.Related.Dimensions),
-			lang: lang,
-			url:  urlGenerator.Generate(rel, fm),
-			text: text,
+			path:      rel,
+			hash:      HashInput(text, cfg.Related.Model, cfg.Related.Dimensions),
+			lang:      lang,
+			url:       urlGenerator.Generate(rel, fm),
+			text:      text,
+			embedding: fm.Embedding,
 		})
 	}
 	sort.Slice(articles, func(i, j int) bool { return articles[i].path < articles[j].path })
@@ -250,4 +237,11 @@ func validEntry(entry Entry, dims int) bool {
 	}
 	vec, err := Dequantize(entry.Vec, entry.Scale)
 	return err == nil && len(vec) == dims
+}
+
+func validFrontmatterEmbedding(embedding *parser.FrontmatterEmbedding, hash, model string, dims int) bool {
+	if embedding == nil || embedding.Version != CacheVersion || embedding.Model != model || embedding.Dimensions != dims || embedding.Hash != hash {
+		return false
+	}
+	return validEntry(Entry{Hash: embedding.Hash, Vec: embedding.Vector, Scale: embedding.Scale}, dims)
 }

@@ -22,5 +22,7 @@
 - Embedding discovery and offline related-page discovery must apply the same exclusions. Redirect compatibility stubs can otherwise enter the cache as identical one-word documents and dominate related matches with cosine score 1.0.
 - Calibrate semantic matching by separating threshold coverage from diversity: raising `minScore` cannot fix identical low-information documents, while too-low MMR relevance weight can deliberately select unrelated candidates for variety.
 - In sibling engine/site repositories, build the Go binary from the engine module first, then run that binary with the site repository as the working directory; a combined command from the site has no `go.mod`.
+- Do not run `go test ./...` in parallel with `go run` for an untracked temporary command. Package discovery can race with temporary-file handling; run the diagnostic, retain its output, remove it, and only then run the full suite.
 - The secure Python sandbox may reject standard-library imports such as `os`; use the shell (`stat`, `jq`) for trusted local file metadata instead of retrying the same sandbox approach.
 - A2gent homepage "align to the left" on Events/Blog titles: change `.content-section h2` from `text-align: center` to `left` in `homepage_styles.html`; also drop orphaned CSS after `.social-icon` if present (broken `color`/`}` fragment).
+- After replacing sidecar persistence, immediately compile the changed package to catch orphaned cache loads and stale variables before broader tests.

@@ -37,10 +37,32 @@ func (b *SiteBuilder) prepareRelatedArticles() {
 	}
 	related.SortedEntries(b.relatedEntries)
 
-	cache, err := related.LoadCache(b.config.Related.CachePath)
-	if err != nil {
-		return // Missing or malformed caches are intentionally silent during build.
+	cache := &related.Cache{
+		Version: 1,
+		Model:   b.config.Related.Model,
+		Dims:    b.config.Related.Dimensions,
+		Entries: make(map[string]related.CacheEntry),
 	}
+	for _, entry := range b.relatedEntries {
+		page := pageByPath[entry.Path]
+		if page == nil || page.Frontmatter == nil || page.Frontmatter.Embedding == nil {
+			continue
+		}
+		embedding := page.Frontmatter.Embedding
+		if embedding.Version != cache.Version || embedding.Model != cache.Model || embedding.Dimensions != cache.Dims {
+			continue
+		}
+		cache.Entries[entry.Path] = related.CacheEntry{
+			Hash: embedding.Hash, Vec: embedding.Vector, Scale: embedding.Scale,
+			Lang: entry.Language, URL: entry.URL,
+		}
+	}
+	// Keep the central cache as a build artifact for the existing ranking pipeline.
+	// It is regenerated from portable article frontmatter on every production build.
+	if err := cache.Save(b.config.Related.CachePath); err != nil {
+		fmt.Printf("Related articles: cannot write generated cache: %v\n", err)
+	}
+
 	vectorEntries := make([]related.Entry, 0, len(b.relatedEntries))
 	stale := 0
 	for _, entry := range b.relatedEntries {
@@ -75,7 +97,7 @@ func (b *SiteBuilder) prepareRelatedArticles() {
 }
 
 func (b *SiteBuilder) relatedPagePath(page *Page, sections map[string]struct{}) (string, bool) {
-	if page == nil || strings.TrimSpace(page.SourcePath) == "" {
+	if page == nil || strings.TrimSpace(page.SourcePath) == "" || (page.Frontmatter != nil && strings.TrimSpace(page.Frontmatter.RedirectURL) != "") {
 		return "", false
 	}
 	rel, err := filepath.Rel(b.config.Build.ContentDir, page.SourcePath)

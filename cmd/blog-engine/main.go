@@ -64,7 +64,7 @@ func printUsage() {
 	fmt.Println("Usage:")
 	fmt.Println("  blog-engine build    Build the site")
 	fmt.Println("  blog-engine serve [--port 3000]    Run the dev server with live reload")
-	fmt.Println("  blog-engine embed [--check|--force|--dry-run]    Generate article embeddings cache")
+	fmt.Println("  blog-engine embed [--check|--force|--dry-run]    Generate article frontmatter embeddings")
 	fmt.Println("  blog-engine help     Show this help message")
 }
 
@@ -105,7 +105,7 @@ type embedConfig struct {
 func parseEmbedConfig(args []string) (embedConfig, error) {
 	flags := flag.NewFlagSet("embed", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
-	check := flags.Bool("check", false, "verify cache without network access")
+	check := flags.Bool("check", false, "verify article frontmatter embeddings without network access")
 	force := flags.Bool("force", false, "regenerate all embeddings")
 	dryRun := flags.Bool("dry-run", false, "show planned work and estimated cost")
 	if err := flags.Parse(args); err != nil {

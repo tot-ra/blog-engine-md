@@ -9,6 +9,15 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type FrontmatterEmbedding struct {
+	Version    int     `yaml:"version"`
+	Model      string  `yaml:"model"`
+	Dimensions int     `yaml:"dimensions"`
+	Hash       string  `yaml:"hash"`
+	Vector     string  `yaml:"vector"`
+	Scale      float32 `yaml:"scale"`
+}
+
 // Frontmatter represents YAML frontmatter shared by Markdown and HTML content files
 type Frontmatter struct {
 	Title        string                 `yaml:"title"`
@@ -25,6 +34,7 @@ type Frontmatter struct {
 	HideChildren bool                   `yaml:"hideChildren"`
 	Related      []string               `yaml:"related"`
 	HideRelated  bool                   `yaml:"hideRelated"`
+	Embedding    *FrontmatterEmbedding  `yaml:"embedding"`
 	Layout       string                 `yaml:"layout"` // Custom layout template name (e.g., "homepage")
 	RedirectURL  string                 `yaml:"redirectUrl"`
 	TemplateHero bool                   `yaml:"templateHero"`
@@ -65,15 +75,16 @@ func ParseFrontmatter(content string) (*Frontmatter, string, error) {
 		SidebarPosition int  `yaml:"sidebar_position"`
 		HideToc         bool `yaml:"hideToc"`
 		// hide_table_of_contents is the Docusaurus-compatible alias for hideToc.
-		HideTableOfContents bool     `yaml:"hide_table_of_contents"`
-		HideNav             bool     `yaml:"hideNav"`
-		ShowChildren        bool     `yaml:"showChildren"`
-		HideChildren        bool     `yaml:"hideChildren"`
-		Related             []string `yaml:"related"`
-		HideRelated         bool     `yaml:"hideRelated"`
-		Layout              string   `yaml:"layout"`
-		RedirectURL         string   `yaml:"redirectUrl"`
-		TemplateHero        bool     `yaml:"templateHero"`
+		HideTableOfContents bool                  `yaml:"hide_table_of_contents"`
+		HideNav             bool                  `yaml:"hideNav"`
+		ShowChildren        bool                  `yaml:"showChildren"`
+		HideChildren        bool                  `yaml:"hideChildren"`
+		Related             []string              `yaml:"related"`
+		HideRelated         bool                  `yaml:"hideRelated"`
+		Embedding           *FrontmatterEmbedding `yaml:"embedding"`
+		Layout              string                `yaml:"layout"`
+		RedirectURL         string                `yaml:"redirectUrl"`
+		TemplateHero        bool                  `yaml:"templateHero"`
 	}
 	params := map[string]interface{}{}
 	if err := yaml.Unmarshal([]byte(fmContent), &params); err != nil {
@@ -103,6 +114,7 @@ func ParseFrontmatter(content string) (*Frontmatter, string, error) {
 	fm.HideChildren = raw.HideChildren
 	fm.Related = raw.Related
 	fm.HideRelated = raw.HideRelated
+	fm.Embedding = raw.Embedding
 	fm.Layout = raw.Layout
 	fm.RedirectURL = raw.RedirectURL
 	fm.TemplateHero = raw.TemplateHero
