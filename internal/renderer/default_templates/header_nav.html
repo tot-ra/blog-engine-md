@@ -6,11 +6,17 @@
     <details class="site-nav-dropdown">
         <summary class="site-nav-current">{{$currentTitle}}</summary>
         <div class="site-nav-menu">
-            {{range .HeaderNav}}<a href="{{.URL}}"{{if .Class}} class="{{.Class}}"{{end}}{{if .IsCurrent}} aria-current="page"{{end}}>{{.Title}}</a>{{end}}
+            {{range .HeaderNav}}{{template "header_nav_link" .}}{{end}}
         </div>
     </details>
     <div class="site-nav-links">
-        {{range .HeaderNav}}<a href="{{.URL}}"{{if .Class}} class="{{.Class}}"{{end}}{{if .IsCurrent}} aria-current="page"{{end}}>{{.Title}}</a>{{end}}
+        {{range .HeaderNav}}{{template "header_nav_link" .}}{{end}}
     </div>
 </nav>
+{{end}}
+
+{{define "header_nav_link"}}
+<span class="site-nav-item{{if .TrailingIconURL}} site-nav-item-with-icon{{end}}">
+    <a href="{{.URL}}"{{if .Class}} class="{{.Class}}"{{end}}{{if .IsCurrent}} aria-current="page"{{end}}>{{.Title}}</a>{{if .TrailingIconURL}}<a href="{{.TrailingIconURL}}" class="site-nav-icon{{if .TrailingIconCurrent}} is-active{{end}}" aria-label="{{.TrailingIconLabel}}" title="{{.TrailingIconLabel}}"{{if .TrailingIconCurrent}} aria-current="page"{{end}}>{{if eq .TrailingIconName "graph"}}<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="6.5" cy="7" r="2.2" fill="currentColor"/><circle cx="17.5" cy="6.5" r="2.2" fill="currentColor"/><circle cx="12" cy="17" r="2.4" fill="currentColor"/><path d="M8.3 8.3l2.7 6.2M15.7 8.1l-2.6 6.4M8.7 7.2h6.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>{{end}}</a>{{end}}
+</span>
 {{end}}

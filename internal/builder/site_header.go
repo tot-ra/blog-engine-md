@@ -52,12 +52,25 @@ func (b *SiteBuilder) buildHeaderNav(lang, currentURL string) []renderer.NavLink
 			continue
 		}
 
-		nav = append(nav, renderer.NavLink{
+		link := renderer.NavLink{
 			Title: title,
 			URL:   target,
 			Type:  "header",
 			Class: strings.TrimSpace(item.Class),
-		})
+		}
+		// WHY: graph analysis is a dedicated page, not a sidebar mode - expose it as
+		// an icon immediately after Blog so readers can open /graph/ without the left nav.
+		if b.shouldAttachHeaderGraphIcon(path, target) {
+			graphURL := b.headerGraphURL(lang)
+			if graphURL != "" {
+				ui := i18n.UI(lang)
+				link.TrailingIconURL = graphURL
+				link.TrailingIconLabel = ui.BlogGraphView
+				link.TrailingIconName = "graph"
+				link.TrailingIconCurrent = headerNavLinkIsCurrent(currentURL, graphURL)
+			}
+		}
+		nav = append(nav, link)
 
 		if headerNavLinkIsCurrent(currentURL, target) {
 			matchLength := len(normalizeHeaderNavPath(target))
@@ -72,6 +85,29 @@ func (b *SiteBuilder) buildHeaderNav(lang, currentURL string) []renderer.NavLink
 		nav[activeIndex].Class = strings.TrimSpace(nav[activeIndex].Class + " is-active")
 	}
 	return nav
+}
+
+func (b *SiteBuilder) shouldAttachHeaderGraphIcon(path, target string) bool {
+	if b == nil || b.config == nil || !b.config.Advanced.Graph.Enabled {
+		return false
+	}
+	if strings.EqualFold(strings.TrimSpace(path), "blog") {
+		return true
+	}
+	normalized := normalizeHeaderNavPath(target)
+	return strings.HasSuffix(strings.TrimSuffix(normalized, "/"), "/blog") || normalized == "/blog/"
+}
+
+func (b *SiteBuilder) headerGraphURL(lang string) string {
+	_ = lang
+	graphPath := strings.Trim(strings.TrimSpace(b.config.Advanced.Graph.Path), "/")
+	if graphPath == "" {
+		graphPath = "graph"
+	}
+	// WHY: the analysis graph is a single site-wide page at /graph/. Default-language
+	// content under an explicit /<lang>/ prefix would otherwise be rewritten to a
+	// missing /<lang>/graph/ mirror by localizeInternalLinks.
+	return "/" + graphPath + "/"
 }
 
 func (b *SiteBuilder) headerNavItemsForLanguage(lang string) []config.HeaderItem {

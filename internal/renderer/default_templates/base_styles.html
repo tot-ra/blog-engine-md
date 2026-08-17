@@ -65,6 +65,47 @@
             gap: 12px;
             flex-wrap: wrap;
         }
+        .site-nav-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .site-nav-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            margin: 0;
+            padding: 0;
+            border-bottom: 0;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            text-decoration: none;
+        }
+        .site-nav-icon:hover,
+        .site-nav-icon.is-active,
+        .site-nav-icon[aria-current='page'] {
+            color: var(--nav-active);
+            background: var(--nav-bg);
+        }
+        .site-nav-icon svg {
+            width: 16px;
+            height: 16px;
+            display: block;
+        }
+        .site-nav-menu .site-nav-item {
+            display: flex;
+            width: 100%;
+        }
+        .site-nav-menu .site-nav-item > a:first-child {
+            flex: 1;
+        }
+        .site-nav-menu .site-nav-icon {
+            width: 36px;
+            height: 36px;
+            flex-shrink: 0;
+        }
         .site-nav-current {
             display: inline-flex;
             align-items: center;

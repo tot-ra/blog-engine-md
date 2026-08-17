@@ -56,8 +56,11 @@ func TestLocalizeInternalLinksPrefixesNonDefaultLanguage(t *testing.T) {
 	html := `<a href="/blog/post/">Post</a><img src="/graph/data.json">`
 
 	got := b.localizeInternalLinks(html, "ru", "/ru/blog/post/")
-	if !strings.Contains(got, `href="/ru/blog/post/"`) || !strings.Contains(got, `src="/ru/graph/data.json"`) {
-		t.Fatalf("expected non-default language links to be prefixed, got %q", got)
+	if !strings.Contains(got, `href="/ru/blog/post/"`) {
+		t.Fatalf("expected non-default language blog links to be prefixed, got %q", got)
+	}
+	if !strings.Contains(got, `src="/graph/data.json"`) || strings.Contains(got, `src="/ru/graph/data.json"`) {
+		t.Fatalf("expected graph assets to stay on canonical /graph/, got %q", got)
 	}
 }
 

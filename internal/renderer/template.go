@@ -50,6 +50,11 @@ type NavLink struct {
 	Type      string
 	Class     string
 	IsCurrent bool
+	// Trailing icon link rendered immediately after the title (e.g. blog graph analysis).
+	TrailingIconURL     string
+	TrailingIconLabel   string
+	TrailingIconName    string
+	TrailingIconCurrent bool
 }
 
 // HeaderSocialLink is an icon link rendered in the site header.

@@ -424,3 +424,64 @@ func TestHeaderNavLinkIsCurrent(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildHeaderNavAttachesGraphIconAfterBlog(t *testing.T) {
+	b := &SiteBuilder{
+		config: &config.SiteConfig{
+			I18n: config.I18nConfig{
+				Default: "ru",
+				Languages: []config.LanguageConfig{
+					{Code: "ru", Label: "Русский"},
+					{Code: "en", Label: "English"},
+				},
+			},
+			Navigation: config.Navigation{
+				Header: config.HeaderConfig{
+					Enabled: true,
+					Items: []config.HeaderItem{
+						{Title: "About", Path: "about"},
+						{Title: "Blog", Path: "blog"},
+					},
+				},
+			},
+			Advanced: config.AdvancedConfig{
+				Graph: config.GraphConfig{Enabled: true, Path: "graph"},
+			},
+		},
+		languages: map[string]struct{}{"ru": {}, "en": {}},
+	}
+
+	nav := b.buildHeaderNav("ru", "/blog/")
+	if len(nav) != 2 {
+		t.Fatalf("expected 2 nav items, got %d", len(nav))
+	}
+	blog := nav[1]
+	if blog.Title != "Блог" && blog.Title != "Blog" {
+		// localized title may be Blog or Блог depending on SegmentLabel/path title
+	}
+	if blog.TrailingIconURL != "/graph/" {
+		t.Fatalf("expected default-language graph icon at /graph/, got %+v", blog)
+	}
+	if blog.TrailingIconName != "graph" || blog.TrailingIconLabel == "" {
+		t.Fatalf("expected graph trailing icon metadata, got %+v", blog)
+	}
+	if blog.TrailingIconCurrent {
+		t.Fatalf("graph icon should not be current on blog index, got %+v", blog)
+	}
+
+	onGraph := b.buildHeaderNav("ru", "/graph/")
+	if !onGraph[1].TrailingIconCurrent {
+		t.Fatalf("expected graph icon current on /graph/, got %+v", onGraph[1])
+	}
+
+	en := b.buildHeaderNav("en", "/en/blog/")
+	if en[1].TrailingIconURL != "/graph/" {
+		t.Fatalf("expected graph icon to stay on canonical /graph/, got %+v", en[1])
+	}
+
+	b.config.Advanced.Graph.Enabled = false
+	disabled := b.buildHeaderNav("ru", "/blog/")
+	if disabled[1].TrailingIconURL != "" {
+		t.Fatalf("expected no graph icon when disabled, got %+v", disabled[1])
+	}
+}

@@ -710,7 +710,10 @@ func (b *SiteBuilder) localizeInternalLinks(html, lang, currentURL string) strin
 	// languageURLPrefix returns an empty prefix for the default language, keeping
 	// canonical default-language links at root while prefixing translated pages.
 	prefix := languageURLPrefix(lang, b.config.I18n.Default, currentURL)
-	for _, seg := range []string{"blog", "docs", "tags", "archive", "graph"} {
+	// Keep /graph/ canonical: it is a site-wide analysis page, not per-language content.
+	// Prefixing it breaks default-language trees that live under an explicit /<lang>/ path
+	// because generateGraph skips the default-language mirror.
+	for _, seg := range []string{"blog", "docs", "tags", "archive"} {
 		html = strings.ReplaceAll(html, "href=\"/"+seg+"/", "href=\""+prefix+"/"+seg+"/")
 		html = strings.ReplaceAll(html, "src=\"/"+seg+"/", "src=\""+prefix+"/"+seg+"/")
 	}
