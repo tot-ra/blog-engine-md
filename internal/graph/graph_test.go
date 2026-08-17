@@ -255,6 +255,15 @@ func TestWriteGraphPageWritesEscapedHTML(t *testing.T) {
 	if !strings.Contains(html, `postMessage({ type: 'blog-graph-navigate'`) {
 		t.Fatal("expected embedded graph navigation support")
 	}
+	if !strings.Contains(html, `three@0.170.0`) {
+		t.Fatal("expected Three.js CDN import for 3D graph view")
+	}
+	if !strings.Contains(html, `OrbitControls`) {
+		t.Fatal("expected OrbitControls for 3D camera navigation")
+	}
+	if strings.Contains(html, `d3.forceSimulation`) {
+		t.Fatal("force-directed D3 layout should be removed from graph page")
+	}
 }
 
 func TestWriteGraphPageReturnsDirectoryError(t *testing.T) {

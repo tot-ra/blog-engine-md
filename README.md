@@ -8,7 +8,7 @@ A high-performance static site generator written in Go, designed as a memory-eff
 
 - **[Related articles via vector search](#related-articles-vector-search)** - OpenAI embeddings are generated once and stored in article frontmatter; every build ranks related cards offline with cosine similarity, tag bonuses, and MMR diversity re-ranking. No API key or network access at build time.
 - **[Obsidian-style markdown](#markdown-processing)** - CommonMark/GFM, `[[wiki links]]`, task lists, tables, strikethrough, autolinks, YAML frontmatter, `<!--truncate-->` previews.
-- **[Graph view](#graph-view)** - force-directed graph of links and backlinks between articles, generated as static JSON plus an interactive page.
+- **[Graph view](#graph-view)** - 3D embedding-space graph of articles (PCA layout from frontmatter vectors), with link/tag edges as visual connections.
 - **[Multi-language sites](#internationalization)** - built-in UI strings for `en`/`ru`/`et`, per-language navigation, localized dates, optional browser-language redirect.
 - **[Audio narration (TTS)](#audio-narration-tts)** - generate and cache MP3 narration per post via `edge-tts` or ElevenLabs, with an inline waveform player.
 - **[Image pipeline](#image-processing)** - WebP conversion, responsive size variants, lazy loading, mtime/hash-based caching, parallel workers.
@@ -244,13 +244,13 @@ Do not commit API keys, `.env` files, or the generated embeddings JSON.
 
 ## Graph View
 
-An Obsidian-style force-directed graph of article connections is generated from resolved internal links, wiki links, and backlinks:
+An interactive 3D graph of articles placed by semantic embeddings (PCA of frontmatter vectors into x/y/z), with link and tag edges drawn only as visual connections:
 
-- `graph.json` with nodes and deduplicated edges
-- an interactive `/graph/` page for browsing connections
+- `graph.json` with nodes (including precomputed `x`,`y`,`z`), and deduplicated edges
+- an interactive `/graph/` page (Three.js + orbit controls) for browsing the embedding space
 - node relationships usable as a secondary sidebar mode (`navigation.sidebar.sections.*.enableGraph`)
 
-Enabled via `advanced.graph.enabled`.
+Enabled via `advanced.graph.enabled`. Articles without embeddings fall back to neighbor centroids; tag hubs sit at the centroid of connected articles.
 
 ---
 

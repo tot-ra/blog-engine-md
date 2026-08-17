@@ -9,6 +9,7 @@ import (
 
 	"github.com/tot-ra/blog-engine/internal/feed"
 	"github.com/tot-ra/blog-engine/internal/graph"
+	"github.com/tot-ra/blog-engine/internal/related"
 	"github.com/tot-ra/blog-engine/internal/sitemap"
 )
 
@@ -171,13 +172,19 @@ func (b *SiteBuilder) generateGraph() error {
 		if pageType == "" {
 			pageType = "page"
 		}
+		var tags []string
+		if page.Frontmatter != nil {
+			tags = page.Frontmatter.Tags
+		}
 		pageInfos = append(pageInfos, graph.PageInfo{
 			ID:         page.ID,
 			Title:      page.Title,
 			URL:        page.URL,
 			Type:       pageType,
-			Tags:       page.Frontmatter.Tags,
+			Tags:       tags,
 			RawContent: page.RawContent,
+			// WHY: 3D graph places articles by embedding PCA, not link forces.
+			Vector: b.pageEmbeddingVector(page),
 		})
 	}
 
@@ -229,3 +236,27 @@ func (b *SiteBuilder) generateGraph() error {
 	fmt.Printf("Generated graph view (%d nodes, %d edges)\n", len(graphData.Nodes), len(graphData.Edges))
 	return nil
 }
+
+// pageEmbeddingVector returns a decoded frontmatter embedding for graph layout.
+func (b *SiteBuilder) pageEmbeddingVector(page *Page) []float32 {
+	if page == nil || page.Frontmatter == nil || page.Frontmatter.Embedding == nil {
+		return nil
+	}
+	embedding := page.Frontmatter.Embedding
+	if embedding.Version != 1 || embedding.Model != b.config.Related.Model || embedding.Dimensions != b.config.Related.Dimensions {
+		return nil
+	}
+	if embedding.Vector == "" || embedding.Scale <= 0 {
+		return nil
+	}
+	vec, err := related.DecodeVector(related.CacheEntry{
+		Hash:  embedding.Hash,
+		Vec:   embedding.Vector,
+		Scale: embedding.Scale,
+	}, embedding.Dimensions)
+	if err != nil {
+		return nil
+	}
+	return vec
+}
+
