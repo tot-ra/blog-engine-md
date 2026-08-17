@@ -1,32 +1,60 @@
 # Blog Engine MD
 
-A high-performance static site generator written in Go, designed as a memory-efficient alternative to [Docusaurus](https://docusaurus.io/) or [Hugo](https://gohugo.io/) for markdown-based blogs and documentation in [Obsidian](https://obsidian.md/) style
+A high-performance static site generator written in Go, designed as a memory-efficient alternative to [Docusaurus](https://docusaurus.io/) or [Hugo](https://gohugo.io/) for markdown-based blogs and documentation in [Obsidian](https://obsidian.md/) style.
 
 <img width="1200" height="800" alt="blog-engine-rewrite-preview-full" src="https://github.com/user-attachments/assets/e153d483-68aa-4cb4-8e35-79b6409d52fa" />
 
+## Features
 
-## Overview
+- **[Related articles via vector search](#related-articles-vector-search)** - OpenAI embeddings are generated once and stored in article frontmatter; every build ranks related cards offline with cosine similarity, tag bonuses, and MMR diversity re-ranking. No API key or network access at build time.
+- **[Obsidian-style markdown](#markdown-processing)** - CommonMark/GFM, `[[wiki links]]`, task lists, tables, strikethrough, autolinks, YAML frontmatter, `<!--truncate-->` previews.
+- **[Graph view](#graph-view)** - force-directed graph of links and backlinks between articles, generated as static JSON plus an interactive page.
+- **[Multi-language sites](#internationalization)** - built-in UI strings for `en`/`ru`/`et`, per-language navigation, localized dates, optional browser-language redirect.
+- **[Audio narration (TTS)](#audio-narration-tts)** - generate and cache MP3 narration per post via `edge-tts` or ElevenLabs, with an inline waveform player.
+- **[Image pipeline](#image-processing)** - WebP conversion, responsive size variants, lazy loading, mtime/hash-based caching, parallel workers.
+- **[Rich content blocks](#extended-syntax)** - Mermaid diagrams (lazy-loaded), admonitions (`:::info`, `:::warning`, `:::tip`), YouTube/Vimeo embeds, syntax highlighting with copy buttons.
+- **[Auto navigation](#navigation--layout)** - sidebar tree derived from folders, breadcrumbs, sticky table of contents with scrollspy, prev/next links.
+- **[Interactive HTML articles](#interactive-html-partials)** - drop in a `.html` file with its own `<style>`/`<script>` and it becomes a first-class article.
+- **[SEO & syndication](#seo--syndication)** - meta/OpenGraph/Twitter tags, JSON-LD, canonical URLs, `sitemap.xml`, RSS and Atom feeds.
+- **[Agent-friendly output](#markdown-publishing)** - optionally publish `index.md` next to `index.html` so LLMs and agents can read source markdown directly.
+- **[Theming](#theming)** - light/dark with auto-detection and manual toggle, driven by CSS custom properties.
+- **[Tags, archive, pagination](#special-pages)** - tag index and per-tag pages, chronological archive by year/month, paginated listings.
+- **[Dev server with live reload](#cli-commands)** - `blog-engine serve` rebuilds and refreshes the browser on content, template, or config changes.
 
-This project converts a nested folder structure of Markdown files into a static website, similar to Docusaurus but with significantly lower memory footprint and faster build times.
+Everything ships as a single Go binary. No Node.js toolchain, no runtime dependencies.
 
-## Core Requirements
+## Quick Start
 
-### Content Structure
+```bash
+# build the binary
+go build -o bin/blog-engine ./cmd/blog-engine
+
+# build the site into dist/
+blog-engine build
+
+# or run the dev server with live reload
+blog-engine serve --port 3000
+```
+
+A [`just`](https://github.com/casey/just) recipe file is included: `just build`, `just generate`, `just serve`, `just test`, `just clean`.
+
+## CLI Commands
+
+```bash
+blog-engine build                  # build the site from ./config.yaml
+blog-engine serve [--port 3000]    # dev server with file watching and live reload
+blog-engine embed [--dry-run|--check|--force]  # manage article embeddings, see Related articles
+blog-engine help
+```
+
+The CLI loads `.env` from the working directory (and from the binary's directory) before reading `config.yaml`.
+
+## Content Structure
 
 The engine supports two primary content types:
 
-1. **Blog Posts** (`blog/`)
-   - Date-dependent entries organized by category/subfolder
-   - Support for `<!--truncate-->` tag for article previews
-   - Previous/next post navigation within categories
-   - Archive pages by date
-
-2. **Documentation/Pages** (`docs/`)
-   - Permanent content (about, projects, etc.)
-   - Hierarchical navigation menu based on folder structure
-   - No date dependency
-
-### File Organization
+1. **Blog posts** (`blog/`) - date-dependent entries organized by category/subfolder, with `<!--truncate-->` previews, prev/next navigation, and archive pages.
+2. **Documentation/pages** (`docs/`) - permanent content with a hierarchical menu derived from the folder structure and no date dependency.
 
 ```
 content/
@@ -50,195 +78,19 @@ content/
 └── config.yaml                    # Site configuration
 ```
 
-## Features Specification
+### URL patterns
 
-### 1. Markdown Processing
-
-#### Supported Syntax
-- Standard CommonMark/GFM
-- Tables (GFM style)
-- Task lists
-- Strikethrough
-- Autolinks
-- Footnotes
-
-#### Extended Features
-- **YAML Frontmatter**: Metadata support (title, date, tags, description, draft, `order` / Docusaurus `sidebar_position`)
-- **Interactive HTML partials**: `.html` content files are embedded without Markdown conversion, including per-article inline `<style>` and `<script>`. Put the same YAML frontmatter inside a leading HTML comment:
-  ```html
-  <!--
-  ---
-  title: Interactive article
-  date: 2026-08-13
-  tags: [demo]
-  ---
-  -->
-  <section>...</section>
-  ```
-- **Custom Directives**:
-  - `<!--truncate-->`: Article preview cutoff point
-  - Mermaid diagrams (```mermaid blocks)
-  - Custom blocks (:::info, :::warning, :::tip)
-
-#### Cross-Reference Resolution
-- Internal markdown links `[text](./other-file.md)` → converted to HTML paths
-- Automatic validation of internal links
-- Support for relative path resolution across folder boundaries
-
-### 2. Image Processing
-
-#### Optimization Pipeline
-- Source formats: JPG, PNG, GIF, SVG
-- Target format: WebP (with fallback)
-- Responsive images: Generate multiple sizes (thumbnail, preview, full)
-- Lazy loading attributes
-- Alt text extraction from markdown
-
-#### Processing Strategy
-- Parallel processing with worker pool
-- Skip unchanged files (mtime comparison)
-- Configurable quality settings
-- AVIF support (optional, future)
-
-### 3. URL Structure & SEO
-
-#### URL Patterns
 ```
 /blog/<category>/<slug>/              # Blog posts
 /docs/<path>/<slug>/                  # Documentation
 /tags/<tag>/                          # Tag pages
 /archive/<year>/<month>/              # Archive pages
 /page/<n>/                            # Pagination
+/graph/                               # Graph view
 ```
 
-#### SEO Features
-- Semantic HTML5 structure
-- Meta tags (description, keywords, og:*)
-- Structured data (JSON-LD)
-- Canonical URLs
-- XML Sitemap generation
-- RSS/Atom feeds
-- robots.txt
+### Output structure
 
-### 4. Navigation & Layout
-
-#### Page Structure
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Logo    [Home] [Blog] [Docs] [Tags]    [Search]  [Theme]   │  Header
-├──────────┬──────────────────────────────────────────────────┤
-│          │  Breadcrumbs: Home > Blog > Tech > Backend       │
-│  Sidebar │                                                  │
-│  Menu    │  ┌────────────────────────────────────────────┐  │
-│  (Tree)  │  │                                            │  │
-│          │  │           Article Content                  │  │
-│          │  │                                            │  │
-│          │  └────────────────────────────────────────────┘  │
-│          │              ┌───────────────────┐               │
-│          │              │   Table of        │               │
-│          │              │   Contents        │               │
-│          │              │   (Sticky)        │               │
-│          │              └───────────────────┘               │
-│          │  ┌────────────────────────────────────────────┐  │
-│          │  │  Previous Post    |    Next Post           │  │
-│          │  └────────────────────────────────────────────┘  │
-├──────────┴──────────────────────────────────────────────────┤
-│                        Footer                               │
-└─────────────────────────────────────────────────────────────┘
-```
-
-#### Navigation Components
-- **Top Navigation**: Main sections, search, theme toggle
-- **Left Sidebar**: Hierarchical menu (auto-generated from folder structure)
-- **Right Sidebar**: Table of contents (extracted from H2-H4 headings)
-- **Breadcrumbs**: Full path navigation
-- **Footer**: Custom content via template
-
-#### Localized navigation labels
-
-The engine only hardcodes labels for engine-owned UI and route segments such as `blog`, `docs`, `tags`, `archive`, and `graph`. Website/domain-specific labels should live with content, not in `config.yaml` or `internal/i18n`.
-
-Use localized page frontmatter for generated sidebar section titles, breadcrumbs, and header labels:
-
-```yaml
----
-title: "Hinnaplaanid"
-navTitle: "Hinnad"
----
-```
-
-When a section has no `index.md`, a self-named page such as `content/et/docs/beehive-sensors/beehive-sensors.md` can provide the parent section label. `navTitle` is optional and is intended for shorter menu labels when the visible page title should stay longer.
-
-Header navigation supports a hybrid configuration. Use `navigation.header.languages` when most items belong to exactly one locale, and keep `navigation.header.items` for shared or multilingual links that should remain visible for several languages:
-
-```yaml
-navigation:
-  header:
-    enabled: true
-    items:
-      - title: "Status"
-        url: "https://status.example.com/"
-        languages: ["en", "et"]
-    languages:
-      en:
-        - title: "About"
-          url: "/about/"
-      et:
-        - title: "Meist"
-          url: "/et/about/"
-```
-
-### 5. Theming
-
-#### Color Schemes
-- Light mode (default)
-- Dark mode (auto-detected + manual toggle)
-- CSS custom properties for easy customization
-
-#### Typography
-- System font stack for UI elements
-- Configurable content font (serif/sans-serif)
-- Code blocks: JetBrains Mono or Fira Code
-
-### 6. Special Pages
-
-#### Homepage
-- Customizable layout via template/config
-- Featured projects section
-- Recent blog posts
-- Hero section with background image
-
-#### Tag Pages
-- Cloud visualization
-- List of posts per tag
-- Tag index page
-
-#### Archive
-- Chronological listing
-- Grouped by year/month
-- Pagination support
-
-#### Graph View (Obsidian-style)
-- Force-directed graph of article connections
-- Node size based on link count
-- Clustering by tags/categories
-- Interactive navigation
-
-### 7. Build System
-
-#### Performance Goals
-- Incremental builds (only changed files)
-- Parallel processing (CPU-bound tasks)
-- Streaming writes (minimize memory usage)
-- Target: <5s for 1000+ articles on modest hardware
-
-#### Caching Strategy
-- File hash-based caching
-- Separate cache directory (.cache/)
-- Skip unchanged content
-- Image optimization cache
-
-#### Output Structure
 ```
 dist/
 ├── index.html
@@ -250,7 +102,7 @@ dist/
 │       └── backend/
 │           └── shpargalka-po-golang/
 │               ├── index.html
-│               └── index.md # when build.publishMarkdown is enabled
+│               └── index.md          # when build.publishMarkdown is enabled
 ├── docs/
 │   └── ob-avtore/index.html
 ├── tags/
@@ -262,162 +114,66 @@ dist/
 │   ├── css/
 │   ├── js/
 │   └── img/
+├── graph.json
 ├── sitemap.xml
 ├── rss.xml
 └── atom.xml
 ```
 
-## Configuration
+---
 
-### config.yaml
+## Markdown Processing
 
-```yaml
-site:
-  title: "Артём Курапов"
-  tagline: "Наблюдения и размышления..."
-  url: "https://kurapov.ee"
-  baseUrl: "/"
-  language: "ru"
-  favicon: "static/img/favicon.ico"
+### Supported syntax
 
-author:
-  name: "Артём Курапов"
-  email: "..."
-  social:
-    github: "tot-ra"
-    linkedin: "..."
+Standard CommonMark plus the GFM extension set: tables, task lists, strikethrough, and autolinks. Code blocks are highlighted server-side with [chroma](https://github.com/alecthomas/chroma) and get a copy button.
 
-build:
-  contentDir: "content"
-  outputDir: "dist"
-  cacheDir: ".cache"
-  parallelWorkers: 4
-  publishMarkdown: true # optional: expose source-backed routes as discoverable index.md alternatives
-  
-features:
-  search: true
-  darkMode: true
-  rss: true
-  graphView: true
-  comments: false
-  
-assets:
-  images:
-    formats: ["webp"]
-    sizes:
-      thumbnail: 150
-      preview: 400
-      full: 1200
-    quality: 85
-    parallelWorkers: 2   # optional image-only worker cap; 0 inherits build.parallelWorkers
-    maxSourcePixels: 0   # optional guardrail; 0 disables source-image pixel limit
-    maxVariantPixels: 0  # optional guardrail; 0 disables per-variant pixel limit
+### Extended syntax
 
-menu:
-  - label: "Блог"
-    href: "/blog/"
-  - label: "Об авторе"
-    href: "/docs/ob-avtore/"
-  - label: "Проекты"
-    href: "/#projects"
+- **YAML frontmatter**: `title`, `date`, `tags`, `description`, `draft`, `order` (Docusaurus `sidebar_position` is accepted as an alias), `navTitle`, `redirectUrl`, `related`, `hideRelated`.
+- **Wiki links**: `[[Page Title]]` and `[[Page Title|Display Text]]` are resolved against the content tree and feed the [graph view](#graph-view).
+- **`<!--truncate-->`**: cutoff point for article previews in listings and feeds.
+- **Mermaid diagrams**: ` ```mermaid ` fences render client-side; the Mermaid ESM bundle is loaded lazily only on pages that contain a diagram.
+- **Admonitions**: `:::info`, `:::warning`, `:::tip`.
+- **Embeds**: `::youtube[ID]`, `::vimeo[ID]`, or a bare YouTube/Vimeo link on its own line.
 
-homepage:
-  layout: "custom"  # or "blog", "docs"
-  hero:
-    title: "Artjom Kurapov"
-    subtitle: "Full-Stack Product Engineer"
-    background: "static/img/bg.webp"
-  projects:
-    - title: "Gratheon"
-      link: "https://gratheon.com"
-      description: "..."
-      image: "/img/projects/gratheon.png"
+### Cross-reference resolution
+
+Internal markdown links `[text](./other-file.md)` are converted to HTML paths, with relative path resolution across folder boundaries.
+
+### Interactive HTML partials
+
+`.html` content files are embedded without Markdown conversion, including per-article inline `<style>` and `<script>`. Put the same YAML frontmatter inside a leading HTML comment:
+
+```html
+<!--
+---
+title: Interactive article
+date: 2026-08-13
+tags: [demo]
+---
+-->
+<section>...</section>
 ```
 
-## Audio Narration (TTS)
+### Markdown publishing
 
-Blog Engine can generate and cache narration audio for blog posts and show a built-in player in article pages.
+With `build.publishMarkdown: true`, every markdown-backed page also emits `index.md` next to `index.html`. This makes source content directly readable by LLMs, agents, and scripts without HTML parsing. Redirect stubs (`redirectUrl`) are excluded.
 
-### What it does
+---
 
-- Generates audio for latest `N` blog posts during build
-- Stores generated files under `content/audio/posts` (or custom `audio.outputDir`)
-- Reuses cached files (no re-generation if MP3 already exists)
-- Renders a play/stop + waveform player near article date when `AudioURL` exists
+## Related Articles (Vector Search)
 
-### Audio configuration
+Blog Engine generates semantic article embeddings once, stores each compact vector in the article's Markdown frontmatter, and uses those vectors to rank related article cards during every build. **Production builds are offline and never call OpenAI.**
 
-```yaml
-audio:
-  enabled: true
-  provider: "edge" # "edge" or "elevenlabs"
-  outputDir: "content/audio/posts"
-  recentPosts: 10      # latest N posts, <=0 means all
-  maxChars: 12000      # input text cap before synthesis
+Because path, URL, and language are derived at build time rather than stored in frontmatter, embedded articles can be moved or renamed without updating a separate index.
 
-  edge:
-    binary: "edge-tts"
-    rate: "+0%"
-    pitch: "+0Hz"
-    voice: "ru-RU-SvetlanaNeural"
+### How ranking works
 
-  elevenlabs:
-    apiKeyEnv: "ELEVENLABS_API_KEY"
-    baseUrl: "https://api.elevenlabs.io"
-    modelId: "eleven_multilingual_v2"
-    outputFormat: "mp3_44100_128"
-    defaultVoiceId: "EXAVITQu4vr4xnSDxMaL"
-    stability: 0.45
-    similarityBoost: 0.75
-    style: 0.2
-    speakerBoost: true
-
-  voices:
-    ru: "ru-RU-SvetlanaNeural"
-    en: "en-US-EmmaMultilingualNeural"
-```
-
-### Provider setup
-
-`edge`:
-- Install `edge-tts` (for example via `pipx install edge-tts`)
-- Ensure `edge-tts` is in `PATH`
-
-`elevenlabs`:
-- Set API key in environment or `.env`
-- Example `.env`:
-
-```env
-ELEVENLABS_API_KEY=your_api_key_here
-```
-
-### Speech text normalization
-
-Before synthesis, blog markdown is normalized:
-- strips emoji/symbol-like runes
-- strips markdown tables
-- strips code blocks/inline code
-- converts URLs to domain speech (`link to example.com`)
-- adds extra pauses around headings
-
-### Regeneration behavior
-
-Audio generation is cache-based. Existing MP3 files are reused.
-
-To regenerate:
-
-```bash
-# remove cached audio
-rm -rf content/audio/posts
-
-# build again
-blog-engine build
-```
-
-
-## Related articles
-
-Blog Engine can generate semantic article embeddings once, store each compact vector in its Markdown article frontmatter, and use those vectors to rank related article cards during every build. Production builds are offline and never call OpenAI. Because path, URL, and language are derived at build time rather than stored in frontmatter, embedded articles can be moved or renamed without updating a separate index.
+1. `blog-engine embed` requests vectors from OpenAI only for articles whose content hash is missing, stale, or forced.
+2. `blog-engine build` collects every valid frontmatter embedding into an ephemeral JSON at `related.cachePath`.
+3. Candidates are scored by cosine similarity, boosted by shared tags, filtered by `minScore`, then re-ranked with MMR so the resulting cards are relevant *and* varied.
+4. Rendered cards are precomputed before HTML generation, so the ranking cost is paid once per build.
 
 ### Configuration
 
@@ -465,7 +221,7 @@ Review the dry-run estimate before a paid run. The normal workflow is:
 1. Run `embed --dry-run` locally and review the estimate.
 2. Run `embed` locally with the API key available only in the environment or an untracked `.env` file. It only requests vectors for missing, stale, or forced articles.
 3. Review and commit the changed Markdown articles together with relevant `related` configuration changes. A pre-commit hook may run `blog-engine embed --check` to reject commits with missing or stale vectors; generating paid embeddings automatically in a hook is intentionally optional because it requires a local API key.
-4. Deploy and run `blog-engine build` without `OPENAI_API_KEY`. The build collects every valid frontmatter embedding into `cachePath`, then uses that generated JSON to precompute related cards before rendering HTML.
+4. Deploy and run `blog-engine build` without `OPENAI_API_KEY`.
 5. Do not commit the generated `cachePath` JSON. Add it to the site repository's `.gitignore`; it is recreated on every build and contains path, URL, and language metadata derived from the current article location.
 
 The article frontmatter representation is:
@@ -480,67 +236,406 @@ embedding:
   scale: 0.001234
 ```
 
-The hash includes the prepared article text, model, and dimensions, so editing meaningful content makes the vector stale. Moving or renaming the file does not. The generated central JSON retains the existing versioned `version`, `model`, `dims`, and path-keyed `entries` schema only as an ephemeral build-stage interchange format.
+The hash includes the prepared article text, model, and dimensions, so editing meaningful content makes the vector stale. Moving or renaming the file does not. The generated central JSON retains the versioned `version`, `model`, `dims`, and path-keyed `entries` schema only as an ephemeral build-stage interchange format.
 
 Do not commit API keys, `.env` files, or the generated embeddings JSON.
+
+---
+
+## Graph View
+
+An Obsidian-style force-directed graph of article connections is generated from resolved internal links, wiki links, and backlinks:
+
+- `graph.json` with nodes and deduplicated edges
+- an interactive `/graph/` page for browsing connections
+- node relationships usable as a secondary sidebar mode (`navigation.sidebar.sections.*.enableGraph`)
+
+Enabled via `advanced.graph.enabled`.
+
+---
+
+## Image Processing
+
+- Source formats: JPG, PNG, GIF, SVG
+- Target format: WebP via the `cwebp` binary, with automatic JPEG fallback when `cwebp` is unavailable
+- Responsive variants generated per configured size (for example `small`, `medium`, `large`)
+- Lazy loading attributes and alt text extracted from markdown
+- Parallel worker pool with a dedicated `parallelWorkers` cap
+- Unchanged files are skipped via the asset cache
+- Optional `maxSourcePixels` / `maxVariantPixels` guardrails against decompression bombs
+
+```yaml
+assets:
+  images:
+    enabled: true
+    quality: 85
+    sizes:
+      small: 400
+      medium: 800
+      large: 1200
+    lazyLoading: true
+    parallelWorkers: 2   # 0 inherits build.parallelWorkers
+    maxSourcePixels: 0   # 0 disables the source-image pixel limit
+    maxVariantPixels: 0  # 0 disables the per-variant pixel limit
+  css:
+    enabled: true
+    minify: true
+  js:
+    enabled: true
+    minify: true
+```
+
+---
+
+## Navigation & Layout
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Logo    [Home] [Blog] [Docs] [Tags]              [Theme]   │  Header
+├──────────┬──────────────────────────────────────────────────┤
+│          │  Breadcrumbs: Home > Blog > Tech > Backend       │
+│  Sidebar │                                                  │
+│  Menu    │  ┌────────────────────────────────────────────┐  │
+│  (Tree)  │  │                                            │  │
+│          │  │           Article Content                  │  │
+│          │  │                                            │  │
+│          │  └────────────────────────────────────────────┘  │
+│          │              ┌───────────────────┐               │
+│          │              │   Table of        │               │
+│          │              │   Contents        │               │
+│          │              │   (Sticky)        │               │
+│          │              └───────────────────┘               │
+│          │  ┌────────────────────────────────────────────┐  │
+│          │  │  Related articles                          │  │
+│          │  ├────────────────────────────────────────────┤  │
+│          │  │  Previous Post    |    Next Post           │  │
+│          │  └────────────────────────────────────────────┘  │
+├──────────┴──────────────────────────────────────────────────┤
+│                        Footer                               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+- **Top navigation**: main sections, theme toggle, per-language header items
+- **Left sidebar**: hierarchical menu auto-generated from the folder structure, with per-section category/time/graph modes and exclude rules
+- **Right sidebar**: table of contents extracted from H2-H4 headings, with scrollspy highlighting
+- **Breadcrumbs**: full path navigation
+- **Prev/next**: within the same category or across a whole section
+
+```yaml
+navigation:
+  sidebar:
+    enabled: true
+    maxDepth: 3
+  breadcrumbs:
+    enabled: true
+    homeLabel: "Home"
+  prevNext:
+    enabled: true
+    sameCategoryOnly: false
+```
+
+---
+
+## Internationalization
+
+The engine hardcodes labels only for engine-owned UI and route segments such as `blog`, `docs`, `tags`, `archive`, and `graph` (built-in strings for `en`, `ru`, `et`, including localized month names and date formats). Website- and domain-specific labels should live with content, not in `config.yaml` or `internal/i18n`.
+
+```yaml
+i18n:
+  default: "en"
+  browserRedirect:
+    enabled: false
+  languages:
+    - code: "en"
+      label: "English"
+      aliases: ["en", "en-us", "en-gb"]
+    - code: "ru"
+      label: "Русский"
+      aliases: ["ru", "ru-ru"]
+```
+
+### Localized navigation labels
+
+Use localized page frontmatter for generated sidebar section titles, breadcrumbs, and header labels:
+
+```yaml
+---
+title: "Hinnaplaanid"
+navTitle: "Hinnad"
+---
+```
+
+When a section has no `index.md`, a self-named page such as `content/et/docs/beehive-sensors/beehive-sensors.md` can provide the parent section label. `navTitle` is optional and is intended for shorter menu labels when the visible page title should stay longer.
+
+Header navigation supports a hybrid configuration. Use `navigation.header.languages` when most items belong to exactly one locale, and keep `navigation.header.items` for shared or multilingual links that should remain visible for several languages:
+
+```yaml
+navigation:
+  header:
+    enabled: true
+    items:
+      - title: "Status"
+        url: "https://status.example.com/"
+        languages: ["en", "et"]
+    languages:
+      en:
+        - title: "About"
+          url: "/about/"
+      et:
+        - title: "Meist"
+          url: "/et/about/"
+```
+
+---
+
+## Audio Narration (TTS)
+
+Blog Engine can generate and cache narration audio for blog posts and show a built-in player in article pages.
+
+- Generates audio for the latest `N` blog posts during build
+- Stores generated files under `content/audio/posts` (or a custom `audio.outputDir`)
+- Reuses cached files - no re-generation if the MP3 already exists
+- Renders a play/stop + waveform player near the article date when `AudioURL` exists
+
+```yaml
+audio:
+  enabled: true
+  provider: "edge" # "edge" or "elevenlabs"
+  outputDir: "content/audio/posts"
+  recentPosts: 10      # latest N posts, <=0 means all
+  maxChars: 12000      # input text cap before synthesis
+
+  edge:
+    binary: "edge-tts"
+    rate: "+0%"
+    pitch: "+0Hz"
+    voice: "ru-RU-SvetlanaNeural"
+
+  elevenlabs:
+    apiKeyEnv: "ELEVENLABS_API_KEY"
+    baseUrl: "https://api.elevenlabs.io"
+    modelId: "eleven_multilingual_v2"
+    outputFormat: "mp3_44100_128"
+    defaultVoiceId: "EXAVITQu4vr4xnSDxMaL"
+    stability: 0.45
+    similarityBoost: 0.75
+    style: 0.2
+    speakerBoost: true
+
+  voices:
+    ru: "ru-RU-SvetlanaNeural"
+    en: "en-US-EmmaMultilingualNeural"
+```
+
+### Provider setup
+
+`edge`:
+- Install `edge-tts` (for example via `pipx install edge-tts`)
+- Ensure `edge-tts` is in `PATH`
+
+`elevenlabs`:
+- Set the API key in the environment or `.env`:
+
+```env
+ELEVENLABS_API_KEY=your_api_key_here
+```
+
+### Speech text normalization
+
+Before synthesis, blog markdown is normalized: emoji/symbol-like runes, markdown tables, code blocks, and inline code are stripped; URLs become domain speech (`link to example.com`); headings get extra pauses.
+
+### Regeneration
+
+Audio generation is cache-based, so existing MP3 files are reused:
+
+```bash
+rm -rf content/audio/posts
+blog-engine build
+```
+
+---
+
+## SEO & Syndication
+
+- Semantic HTML5 structure
+- Meta tags (description, keywords, `og:*`, Twitter cards)
+- Structured data (JSON-LD)
+- Canonical URLs
+- `sitemap.xml`
+- RSS and Atom feeds
+- Automatic descriptions derived from content when frontmatter has none
+
+```yaml
+seo:
+  enabled: true
+  defaultDescription: "A high-performance static site generator"
+  defaultImage: "/assets/images/sample.svg"
+  twitter:
+    site: ""
+    creator: ""
+
+feeds:
+  rss:
+    enabled: true
+    path: "rss.xml"
+    items: 20
+    fullContent: false
+  atom:
+    enabled: true
+    path: "atom.xml"
+    items: 20
+
+sitemap:
+  enabled: true
+```
+
+---
+
+## Theming
+
+- Light mode (default), dark mode (auto-detected plus manual toggle)
+- CSS custom properties for easy customization
+- System font stack for UI, configurable content font
+- Monospaced code blocks with chroma-based highlighting
+
+```yaml
+advanced:
+  theme:
+    default: "auto"   # light, dark, auto
+    allowToggle: true
+  mermaid:
+    enabled: true
+    theme: "default"
+  graph:
+    enabled: true
+    path: "graph"
+```
+
+---
+
+## Special Pages
+
+### Homepage
+
+Configurable hero (title, subtitle, description, background image, optional video embed, CTA buttons), project cards, blog and events showcases, social link groups, and custom HTML. Per-language overrides live under `homepageI18n`.
+
+### Tag pages
+
+Tag index with cloud visualization plus a page per tag.
+
+### Archive
+
+Chronological listing grouped by year and month, with pagination.
+
+---
+
+## Configuration
+
+Full `config.yaml` example:
+
+```yaml
+site:
+  title: "Артём Курапов"
+  tagline: "Наблюдения и размышления..."
+  url: "https://kurapov.ee"
+  baseUrl: "/"
+  language: "ru"
+  favicon: "static/img/favicon.ico"
+
+author:
+  name: "Артём Курапов"
+  email: "..."
+  social:
+    github: "tot-ra"
+    linkedin: "..."
+
+build:
+  contentDir: "content"
+  outputDir: "dist"
+  cacheDir: ".cache"
+  parallelWorkers: 4
+  publishMarkdown: true   # expose source markdown as index.md alternatives
+  profile: false          # print build stage timings
+
+tags:
+  enabled: true
+
+archive:
+  enabled: true
+
+pagination:
+  enabled: true
+  pageSize: 10
+
+homepage:
+  enabled: true
+  hero:
+    title: "Artjom Kurapov"
+    subtitle: "Full-Stack Product Engineer"
+    background: "static/img/bg.webp"
+  projects:
+    - title: "Gratheon"
+      url: "https://gratheon.com"
+      description: "..."
+      image: "/img/projects/gratheon.png"
+```
+
+See the sections above for `assets`, `audio`, `related`, `navigation`, `i18n`, `seo`, `feeds`, and `advanced`.
+
+---
+
 ## Technical Architecture
 
-### Module Structure
+### Module structure
 
 ```
 cmd/
-└── blog-engine/           # Main CLI entry point
-    └── main.go
+└── blog-engine/           # CLI entry point (build, serve, embed)
 
 internal/
-├── config/                # Configuration parsing
-├── parser/                # Markdown parsing
-│   ├── frontmatter.go     # YAML frontmatter extraction
-│   ├── markdown.go        # Markdown → AST
-│   └── links.go           # Link resolution
-├── renderer/              # HTML generation
-│   ├── html.go            # Markdown → HTML
-│   ├── templates.go       # Template engine
-│   └── components.go      # UI components
-├── builder/               # Site building
-│   ├── site.go            # Site structure
-│   ├── page.go            # Page generation
-│   └── navigation.go      # Menu/TOC generation
-├── assets/                # Asset processing
-│   ├── images.go          # Image optimization
-│   ├── css.go             # CSS bundling
-│   └── js.go              # JS bundling
-├── search/                # Search index
-│   └── index.go           # Full-text search
-├── graph/                 # Graph visualization
-│   └── graph.go           # Link graph generation
-└── server/                # Dev server
-    └── server.go          # Hot reload server
+├── config/                # Configuration parsing and defaults
+├── parser/                # Frontmatter, markdown, wiki links, admonitions, embeds, mermaid
+├── renderer/              # Templates, sidebar, TOC
+├── builder/               # Site assembly: pages, navigation, sections, assets, audio, related
+├── embeddings/            # OpenAI embedding generation and frontmatter persistence
+├── related/               # Offline cosine similarity + MMR ranking
+├── assets/                # Image/CSS/JS processing and cache
+├── graph/                 # Link graph data and page
+├── i18n/                  # Built-in UI strings and date formatting
+├── seo/                   # Meta tags and JSON-LD
+├── feed/                  # RSS and Atom
+├── sitemap/               # sitemap.xml
+├── tags/                  # Tag taxonomy
+├── archive/               # Date archives
+├── pagination/            # Paginated listings
+├── validator/             # Internal link validation
+├── profiler/              # Build stage timings
+├── errors/                # Shared error types
+└── server/                # Dev server with live reload and file watching
 ```
 
-### Key Dependencies
+### Key dependencies
 
-- `github.com/yuin/goldmark` - Markdown parser (extensible, GFM support)
+- `github.com/yuin/goldmark` - markdown parser (extensible, GFM support)
 - `github.com/yuin/goldmark-meta` - YAML frontmatter
-- `github.com/chromedp/chromedp` - Mermaid diagram rendering (optional)
-- `github.com/disintegration/imaging` - Image processing
-- `github.com/tdewolff/minify` - HTML/CSS/JS minification
-- `github.com/blevesearch/bleve` - Full-text search index
-- `github.com/fsnotify/fsnotify` - File watching (dev mode)
-- `github.com/spf13/cobra` - CLI framework
+- `github.com/yuin/goldmark-highlighting/v2` + `github.com/alecthomas/chroma/v2` - syntax highlighting
+- `github.com/disintegration/imaging` + `golang.org/x/image` - image processing and WebP output
+- `github.com/tdewolff/minify/v2` - HTML/CSS/JS minification
+- `gopkg.in/yaml.v3` - configuration
 
-### Data Flow
+The dev server, file watching, and CLI parsing use the standard library only.
+
+### Data flow
 
 ```
 1. Discovery
-   └── Walk content/ directory
-       └── Collect .md files
+   └── Walk content/ and collect .md / .html files
 
 2. Parsing
    └── For each file:
-       ├── Extract frontmatter
+       ├── Extract frontmatter (including embedding vectors)
        ├── Parse markdown → AST
-       ├── Extract links
+       ├── Resolve links and wiki links
        └── Build content graph
 
 3. Processing
@@ -549,45 +644,25 @@ internal/
        ├── Process images
        └── Generate TOC
 
-4. Generation
-   └── For each page:
-       ├── Apply template
-       ├── Inject navigation
-       ├── Write HTML
-       └── Update search index
+4. Relations
+   ├── Collect embeddings into the build-stage cache
+   └── Precompute related cards (cosine + tag bonus + MMR)
 
-5. Post-processing
-   ├── Generate sitemap
-   ├── Generate RSS
-   ├── Generate graph data
+5. Generation
+   └── For each page: apply template, inject navigation, write HTML (+ index.md)
+
+6. Post-processing
+   ├── sitemap.xml
+   ├── RSS / Atom
+   ├── graph.json and /graph/ page
    └── Copy static assets
 ```
 
-## CLI Commands
-
-```bash
-# Build site
-blog-engine build
-
-# Build with specific config
-blog-engine build --config ./custom-config.yaml
-
-# Development server with hot reload
-blog-engine serve --port 3000
-
-# Clean build (ignore cache)
-blog-engine build --clean
-
-# Validate links
-blog-engine validate
-
-# Generate graph data only
-blog-engine graph
-```
+---
 
 ## Deployment
 
-### GitHub Actions Workflow
+### GitHub Actions
 
 ```yaml
 name: Deploy
@@ -601,10 +676,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: '1.24'
       - name: Build
         run: |
-          go install github.com/tot-ra/blog-engine@latest
+          go install github.com/tot-ra/blog-engine/cmd/blog-engine@latest
           blog-engine build
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
@@ -612,6 +687,8 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
 ```
+
+`OPENAI_API_KEY` is intentionally not needed in CI: embeddings are committed with the articles.
 
 ## Migration from Docusaurus
 
