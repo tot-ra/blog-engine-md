@@ -2,6 +2,7 @@ package graph
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,13 +45,25 @@ func TestBuildGraph_BasicPages(t *testing.T) {
 	for _, n := range graph.Nodes {
 		if n.ID == "tag-go" {
 			tagNodeFound = true
-			if n.Color != "#FF9800" {
-				t.Errorf("expected tag color #FF9800, got %s", n.Color)
+			if n.Color != "#F97316" {
+				t.Errorf("expected tag color #F97316, got %s", n.Color)
 			}
 		}
 	}
 	if !tagNodeFound {
 		t.Error("expected tag node 'tag-go' to exist")
+	}
+}
+
+func TestBuildGraphUsesDocsColorForGenericPages(t *testing.T) {
+	graph := BuildGraph([]PageInfo{{
+		ID:   "about",
+		URL:  "/about/",
+		Type: "page",
+	}})
+
+	if len(graph.Nodes) != 1 || graph.Nodes[0].Color != "#3B82F6" {
+		t.Fatalf("expected generic content page to use docs blue, got %#v", graph.Nodes)
 	}
 }
 
@@ -89,7 +102,7 @@ func TestBuildGraph_NodeSizes(t *testing.T) {
 
 	graph := BuildGraph(pages)
 
-	// Hub has 3 tag edges, so linkCount = 3, size = 3 + 3*2 = 9
+	// Hub has 3 tag edges, so linkCount = 3 and size = 3 + 3 = 6.
 	var hubNode *GraphNode
 	for _, n := range graph.Nodes {
 		if n.ID == "hub" {
@@ -100,8 +113,8 @@ func TestBuildGraph_NodeSizes(t *testing.T) {
 	if hubNode == nil {
 		t.Fatal("hub node not found")
 	}
-	if hubNode.Size != 9 {
-		t.Errorf("expected hub size 9, got %d", hubNode.Size)
+	if hubNode.Size != 6 {
+		t.Errorf("expected hub size 6, got %d", hubNode.Size)
 	}
 }
 
@@ -264,6 +277,15 @@ func TestWriteGraphPageWritesEscapedHTML(t *testing.T) {
 	if strings.Contains(html, `d3.forceSimulation`) {
 		t.Fatal("force-directed D3 layout should be removed from graph page")
 	}
+	if !strings.Contains(html, `background:#22C55E`) || !strings.Contains(html, `background:#3B82F6`) || !strings.Contains(html, `background:#F97316`) {
+		t.Fatal("expected bright graph palette in legend")
+	}
+	if !strings.Contains(html, `const radius = Math.max(0.55, (n.size || 3) * 0.22)`) {
+		t.Fatal("expected reduced Three.js node radius")
+	}
+	if !strings.Contains(html, `emissiveIntensity: dark ? 0.2 : 0.12`) {
+		t.Fatal("expected graph colors to remain vivid under scene lighting")
+	}
 }
 
 func TestWriteGraphPageReturnsDirectoryError(t *testing.T) {
@@ -304,7 +326,30 @@ func TestBuildGraphCapsNodeSize(t *testing.T) {
 	if hubNode == nil {
 		t.Fatal("hub node not found")
 	}
-	if hubNode.Size != 20 {
-		t.Fatalf("expected capped hub size 20, got %d", hubNode.Size)
+	if hubNode.Size != 12 {
+		t.Fatalf("expected capped hub size 12, got %d", hubNode.Size)
 	}
+}
+
+func TestBuildGraphCapsTagNodeSizeBelowPageHubs(t *testing.T) {
+	pages := make([]PageInfo, 20)
+	for i := range pages {
+		pages[i] = PageInfo{
+			ID:   fmt.Sprintf("page-%d", i),
+			URL:  fmt.Sprintf("/page-%d/", i),
+			Type: "blog",
+			Tags: []string{"shared"},
+		}
+	}
+
+	graph := BuildGraph(pages)
+	for _, node := range graph.Nodes {
+		if node.ID == "tag-shared" {
+			if node.Size != 9 {
+				t.Fatalf("expected capped tag size 9, got %d", node.Size)
+			}
+			return
+		}
+	}
+	t.Fatal("shared tag node not found")
 }

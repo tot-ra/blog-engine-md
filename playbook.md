@@ -3,6 +3,9 @@
 - Before delegating review, discover available agents instead of assuming a generic `code-reviewer` agent exists.
 - When inserting a helper near a function boundary, read exact numbered lines first and insert before the function declaration, not after a line inside its opening guard.
 - Registry discovery status can become stale before delegation; if an agent is reported inactive, do not retry it and complete review with local diff/build verification.
+- When a project root is a workspace of sibling repositories, locate the component's own `.git` directory before running Git commands; the workspace root itself may not be a repository.
+- If project content indexing is disabled, switch directly to scoped `grep` instead of retrying `content_search`.
+- After replacing a multi-line conditional assertion, immediately read the surrounding block and run `gofmt`; a omitted closing brace can make later test declarations appear syntactically invalid.
 
 - Never run dependent Git operations such as `git add` and `git commit` in parallel; stage and verify the full index before committing.
 - Generated pages can repeat an article title in sidebar, timeline, and cards; integration assertions must locate the title inside `section-article-preview`, not from the first global occurrence.

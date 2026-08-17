@@ -51,12 +51,12 @@ type PageInfo struct {
 // internal link pattern: [text](./path) or [text](/path) or [text](../path)
 var internalLinkRegex = regexp.MustCompile(`\[([^\]]+)\]\((/[^)]+|\.\.?/[^)]+)\)`)
 
-// nodeColors maps page types to colors
+// nodeColors maps page types to a bright, distinguishable graph palette.
 var nodeColors = map[string]string{
-	"blog": "#4CAF50",
-	"doc":  "#2196F3",
-	"page": "#607D8B",
-	"tag":  "#FF9800",
+	"blog": "#22C55E",
+	"doc":  "#3B82F6",
+	"page": "#3B82F6",
+	"tag":  "#F97316",
 }
 
 // BuildGraph creates graph data from a list of pages
@@ -148,12 +148,16 @@ func BuildGraph(pages []PageInfo) *GraphData {
 		})
 	}
 
-	// Set node sizes based on link count
+	// Keep highly connected hubs useful without letting them hide nearby articles.
 	for i := range graph.Nodes {
 		count := linkCount[graph.Nodes[i].ID]
-		graph.Nodes[i].Size = 3 + count*2
-		if graph.Nodes[i].Size > 20 {
-			graph.Nodes[i].Size = 20
+		graph.Nodes[i].Size = 3 + count
+		maxSize := 12
+		if graph.Nodes[i].Type == "tag" {
+			maxSize = 9
+		}
+		if graph.Nodes[i].Size > maxSize {
+			graph.Nodes[i].Size = maxSize
 		}
 	}
 
@@ -237,4 +241,3 @@ func WriteGraphPage(outputDir, siteTitle string) error {
 
 	return nil
 }
-

@@ -93,9 +93,9 @@ func generateGraphHTML(siteTitle string) string {
 <body>
     <div class="hint">Drag to orbit · scroll to zoom · click a node to open</div>
     <div class="legend">
-        <div class="legend-item"><div class="legend-dot" style="background:#4CAF50"></div> Blog</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#2196F3"></div> Docs</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#FF9800"></div> Tags</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#22C55E"></div> Blog</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#3B82F6"></div> Docs</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#F97316"></div> Tags</div>
     </div>
     <a href="/" class="back-link">← Back to site</a>
     <div id="tooltip" class="tooltip"></div>
@@ -188,11 +188,15 @@ func generateGraphHTML(siteTitle string) string {
             }
 
             data.nodes.forEach(n => {
-                const radius = Math.max(0.6, (n.size || 3) * 0.28);
+                const radius = Math.max(0.55, (n.size || 3) * 0.22);
+                const color = new THREE.Color(n.color || '#888888');
                 const mat = new THREE.MeshStandardMaterial({
-                    color: new THREE.Color(n.color || '#888888'),
-                    roughness: 0.45,
-                    metalness: 0.05
+                    color,
+                    // Preserve semantic hues under Three.js lighting while retaining depth.
+                    emissive: color,
+                    emissiveIntensity: dark ? 0.2 : 0.12,
+                    roughness: 0.55,
+                    metalness: 0
                 });
                 const mesh = new THREE.Mesh(sphereGeo(radius), mat);
                 mesh.position.set(n.x || 0, n.y || 0, n.z || 0);
