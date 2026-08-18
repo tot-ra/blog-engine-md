@@ -11,7 +11,7 @@ A high-performance static site generator written in Go, designed as a memory-eff
 - **[Graph view](#graph-view)** - 3D embedding-space graph of articles (PCA layout from frontmatter vectors), with link/tag edges as visual connections.
 - **[Multi-language sites](#internationalization)** - built-in UI strings for `en`/`ru`/`et`, per-language navigation, localized dates, optional browser-language redirect.
 - **[Audio narration (TTS)](#audio-narration-tts)** - generate and cache MP3 narration per post via `edge-tts` or ElevenLabs, with an inline waveform player.
-- **[Image pipeline](#image-processing)** - WebP conversion, responsive size variants, lazy loading, mtime/hash-based caching, parallel workers.
+- **[Image pipeline](#image-processing)** - WebP conversion, responsive size variants, automatic HDR gain-map preservation, lazy loading, mtime/hash-based caching, parallel workers.
 - **[Rich content blocks](#extended-syntax)** - Mermaid diagrams (lazy-loaded), admonitions (`:::info`, `:::warning`, `:::tip`), YouTube/Vimeo embeds, syntax highlighting with copy buttons.
 - **[Auto navigation](#navigation--layout)** - sidebar tree derived from folders, breadcrumbs, sticky table of contents with scrollspy, prev/next links.
 - **[Interactive HTML articles](#interactive-html-partials)** - drop in a `.html` file with its own `<style>`/`<script>` and it becomes a first-class article.
@@ -258,7 +258,8 @@ Enabled via `advanced.graph.enabled`. Articles without embeddings fall back to n
 
 - Source formats: JPG, PNG, GIF, SVG
 - Target format: WebP via the `cwebp` binary, with automatic JPEG fallback when `cwebp` is unavailable
-- Responsive variants generated per configured size (for example `small`, `medium`, `large`)
+- HDR JPEG preservation: JPEGs carrying an Adobe/Google/Apple XMP gain map or ISO 21496-1 gain-map metadata bypass resizing and WebP conversion. The original file is copied byte-for-byte so its SDR rendition, embedded gain map, and HDR rendering intent remain intact.
+- Responsive variants generated per configured size (for example `small`, `medium`, `large`) for non-HDR raster images
 - Lazy loading attributes and alt text extracted from markdown
 - Parallel worker pool with a dedicated `parallelWorkers` cap
 - Unchanged files are skipped via the asset cache

@@ -94,6 +94,20 @@ func NewImageProcessor(config ImageConfig, outputDir string, cache *ImageCache) 
 // If WebP encoding is unavailable, it falls back to JPEG.
 func (p *ImageProcessor) ProcessFile(srcPath, relativePath string, modTime int64, size int64) (*ProcessedImage, error) {
 	normalizedRelPath := normalizeImageRelativePath(relativePath)
+	ext := strings.ToLower(filepath.Ext(srcPath))
+
+	// JPEG gain maps are stored alongside the SDR rendition and are discarded by
+	// ordinary decode/resize/encode pipelines. Detect them before consulting the
+	// variant cache so a stale WebP cache entry cannot bypass HDR preservation.
+	if ext == ".jpg" || ext == ".jpeg" {
+		hasGainMap, err := hasHDRGainMap(srcPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to inspect JPEG metadata %s: %w", srcPath, err)
+		}
+		if hasGainMap {
+			return p.copyOriginalAsset(srcPath, normalizedRelPath, modTime, size, "failed to preserve HDR JPEG")
+		}
+	}
 
 	// Check cache before doing expensive decode/resize/encode work. The cache
 	// stores generated files outside dist, so clean builds can restore variants.
@@ -108,8 +122,6 @@ func (p *ImageProcessor) ProcessFile(srcPath, relativePath string, modTime int64
 			}
 		}
 	}
-
-	ext := strings.ToLower(filepath.Ext(srcPath))
 
 	// SVG pass-through: just copy.
 	if ext == ".svg" {

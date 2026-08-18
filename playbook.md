@@ -29,3 +29,4 @@
 - The secure Python sandbox may reject standard-library imports such as `os`; use the shell (`stat`, `jq`) for trusted local file metadata instead of retrying the same sandbox approach.
 - A2gent homepage "align to the left" on Events/Blog titles: change `.content-section h2` from `text-align: center` to `left` in `homepage_styles.html`; also drop orphaned CSS after `.social-icon` if present (broken `color`/`}` fragment).
 - After replacing sidecar persistence, immediately compile the changed package to catch orphaned cache loads and stale variables before broader tests.
+- When an external researcher times out and direct documentation fetches redirect or 404, verify format signatures against the reference implementation source instead of blocking the task; for Ultra HDR, `google/libultrahdr` defines the Adobe XMP and ISO 21496-1 APP marker namespaces.
