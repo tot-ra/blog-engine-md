@@ -19,35 +19,86 @@ A high-performance static site generator written in Go, designed as a memory-eff
 - **[Agent-friendly output](#markdown-publishing)** - optionally publish `index.md` next to `index.html` so LLMs and agents can read source markdown directly.
 - **[Theming](#theming)** - light/dark with auto-detection and manual toggle, driven by CSS custom properties.
 - **[Tags, archive, pagination](#special-pages)** - tag index and per-tag pages, chronological archive by year/month, paginated listings.
-- **[Dev server with live reload](#cli-commands)** - `blog-engine serve` rebuilds and refreshes the browser on content, template, or config changes.
+- **[Dev server with live reload](#main-workflows)** - `just serve` rebuilds and refreshes the browser on content, template, or config changes.
 
 Everything ships as a single Go binary. No Node.js toolchain, no runtime dependencies.
 
 ## Quick Start
 
+Requirements:
+
+- Go 1.24 or newer
+- [`just`](https://github.com/casey/just) for the project recipes
+
+The repository includes a `justfile` so the main development flows do not depend on a globally installed `blog-engine` binary:
+
 ```bash
-# build the binary
-go build -o bin/blog-engine ./cmd/blog-engine
+# compile bin/blog-engine
+just build
 
-# build the site into dist/
-blog-engine build
+# build the static site into dist/
+just generate
 
-# or run the dev server with live reload
-blog-engine serve --port 3000
+# start the dev server with live reload at http://127.0.0.1:3000
+just serve
+
+# use another port when needed
+just serve 8080
 ```
 
-A [`just`](https://github.com/casey/just) recipe file is included: `just build`, `just generate`, `just serve`, `just test`, `just clean`.
+The direct CLI equivalent is also available after `just build`:
+
+```bash
+./bin/blog-engine build
+./bin/blog-engine serve --port 3000
+```
+
+Run `just` or `just --list` to see all available recipes. The CLI loads `.env` from the working directory (and from the binary's directory) before reading `config.yaml`.
+
+## Main Workflows
+
+### Build and preview the site
+
+Use `just generate` for a one-off production-style build. It compiles the binary first and writes the generated site to `build.outputDir`, which is `dist/` in the example configuration.
+
+Use `just serve` during authoring. It performs an initial build, serves the generated output at `http://127.0.0.1:3000`, and rebuilds the site when content, templates, assets, configuration, or `.env` files change. Stop it with `Ctrl-C`.
+
+```bash
+just generate
+just serve              # default port 3000
+just serve 8080         # custom port
+```
+
+### Generate and verify embeddings
+
+Embeddings are stored in article frontmatter and are used by related-article cards and the graph view. Generate them before committing content changes that should participate in semantic search:
+
+```bash
+just embed-dry-run      # offline estimate; no API key or network access
+just embed              # generate missing or stale vectors; requires OPENAI_API_KEY
+just embed-check        # offline CI/pre-commit check; fails when vectors are stale
+just embed-force        # regenerate every eligible article; requires OPENAI_API_KEY
+```
+
+`just embed` and `just embed-force` load `OPENAI_API_KEY` from the environment or an untracked `.env` file. Review `just embed-dry-run` before a paid run. Production builds only read the committed frontmatter vectors, so `just generate` does not need an OpenAI key.
+
+### Test and clean local artifacts
+
+```bash
+just test               # run go test -v ./...
+just clean              # remove bin/, dist/, and .cache/
+```
 
 ## CLI Commands
 
 ```bash
-blog-engine build                  # build the site from ./config.yaml
-blog-engine serve [--port 3000]    # dev server with file watching and live reload
-blog-engine embed [--dry-run|--check|--force]  # manage article embeddings, see Related articles
-blog-engine help
+./bin/blog-engine build                         # build the site from ./config.yaml
+./bin/blog-engine serve [--port 3000]           # dev server with file watching and live reload
+./bin/blog-engine embed [--dry-run|--check|--force] # manage article embeddings
+./bin/blog-engine help                           # show CLI help
 ```
 
-The CLI loads `.env` from the working directory (and from the binary's directory) before reading `config.yaml`.
+The corresponding just recipes are `build`, `generate`, `serve`, `embed-dry-run`, `embed`, `embed-check`, `embed-force`, `test`, and `clean`.
 
 ## Content Structure
 
@@ -170,8 +221,8 @@ Because path, URL, and language are derived at build time rather than stored in 
 
 ### How ranking works
 
-1. `blog-engine embed` requests vectors from OpenAI only for articles whose content hash is missing, stale, or forced.
-2. `blog-engine build` collects every valid frontmatter embedding into an ephemeral JSON at `related.cachePath`.
+1. `just embed` requests vectors from OpenAI only for articles whose content hash is missing, stale, or forced.
+2. `just generate` collects every valid frontmatter embedding into an ephemeral JSON at `related.cachePath`.
 3. Candidates are scored by cosine similarity, boosted by shared tags, filtered by `minScore`, then re-ranked with MMR so the resulting cards are relevant *and* varied.
 4. Rendered cards are precomputed before HTML generation, so the ranking cost is paid once per build.
 
@@ -204,24 +255,24 @@ related:
 
 ```bash
 # Show changed articles, estimated tokens, and estimated cost. No key or network is used.
-blog-engine embed --dry-run
+just embed-dry-run
 
 # Generate or incrementally update missing/stale article frontmatter. Reads OPENAI_API_KEY from the environment or .env.
-blog-engine embed
+just embed
 
 # Verify frontmatter hashes and metadata without a key or network access.
-blog-engine embed --check
+just embed-check
 
 # Re-embed every eligible article after intentionally changing model/input settings.
-blog-engine embed --force
+just embed-force
 ```
 
 Review the dry-run estimate before a paid run. The normal workflow is:
 
-1. Run `embed --dry-run` locally and review the estimate.
-2. Run `embed` locally with the API key available only in the environment or an untracked `.env` file. It only requests vectors for missing, stale, or forced articles.
-3. Review and commit the changed Markdown articles together with relevant `related` configuration changes. A pre-commit hook may run `blog-engine embed --check` to reject commits with missing or stale vectors; generating paid embeddings automatically in a hook is intentionally optional because it requires a local API key.
-4. Deploy and run `blog-engine build` without `OPENAI_API_KEY`.
+1. Run `just embed-dry-run` locally and review the estimate.
+2. Run `just embed` locally with the API key available only in the environment or an untracked `.env` file. It only requests vectors for missing, stale, or forced articles.
+3. Review and commit the changed Markdown articles together with relevant `related` configuration changes. A pre-commit hook may run `just embed-check` to reject commits with missing or stale vectors; generating paid embeddings automatically in a hook is intentionally optional because it requires a local API key.
+4. Deploy and run `just generate` without `OPENAI_API_KEY`.
 5. Do not commit the generated `cachePath` JSON. Add it to the site repository's `.gitignore`; it is recreated on every build and contains path, URL, and language metadata derived from the current article location.
 
 The article frontmatter representation is:
@@ -450,8 +501,7 @@ Before synthesis, blog markdown is normalized: emoji/symbol-like runes, markdown
 Audio generation is cache-based, so existing MP3 files are reused:
 
 ```bash
-rm -rf content/audio/posts
-blog-engine build
+just generate
 ```
 
 ---

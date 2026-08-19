@@ -1,6 +1,7 @@
 dist/
 blog-engine
 .cache/
+content/embeddings.json
 
 # IDE
 .idea/
