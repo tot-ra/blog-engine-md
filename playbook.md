@@ -13,6 +13,7 @@
 - Generated pages can repeat an article title in sidebar, timeline, and cards; integration assertions must locate the title inside `section-article-preview`, not from the first global occurrence.
 - HTML escaping assertions should compare against the actual serialization layer: after `html.UnescapeString` followed by `template.HTMLEscapeString`, `&amp;` remains singly escaped, not `&amp;amp;`.
 - If an external reviewer times out, do not block delivery or retry the same endpoint; use another available reviewer and complete local diff, test, generated-output, and browser checks.
+- Long deployment polling should run as a top-level shell call rather than inside `parallel`, whose wrapper can enforce a shorter timeout than the nested command requests.
 - When inserting a new script into an existing template block, inspect the surrounding closing tags first; line-based insertion can accidentally nest `<script>` elements while still passing `git diff --check`.
 - If an external reviewer times out after the full deadline, continue with a different available reviewer and local generated-output checks instead of retrying the same agent.
 - When a chained `commit && push` exits 128 without output, inspect `HEAD`, branch divergence, and `.git/index.lock` before retrying; the commit may already have succeeded and only the push failed.
