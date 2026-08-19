@@ -38,6 +38,12 @@ func newDefaultRootI18nBuilder(t *testing.T) *SiteBuilder {
 	return b
 }
 
+func TestGraphTagURLUsesCanonicalGraphAndEscapesTag(t *testing.T) {
+	got := graphTagURL(" C++ и Go ")
+	if got != "/graph/?tag=C%2B%2B+%D0%B8+Go" {
+		t.Fatalf("graphTagURL() = %q", got)
+	}
+}
 func TestLocalizeInternalLinksKeepsDefaultLanguageAtRoot(t *testing.T) {
 	b := newDefaultRootI18nBuilder(t)
 	html := `<a href="/blog/post/">Post</a><img src="/graph/data.json"><a href="/docs/">Docs</a>`

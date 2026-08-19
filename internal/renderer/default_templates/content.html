@@ -71,7 +71,7 @@
     {{if .Frontmatter.Tags}}
     <div class="tags">
         {{range .Frontmatter.Tags}}
-        <a class="tag" href="{{call $.TagURL .}}">#{{.}}</a>
+        <a class="tag" href="{{call $.GraphTagURL .}}">#{{.}}</a>
         {{end}}
     </div>
     {{end}}

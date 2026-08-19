@@ -45,6 +45,27 @@ func generateGraphHTML(siteTitle string) string {
             color: #555;
             max-width: 280px;
         }
+        .selection {
+            position: fixed;
+            top: 16px;
+            left: 50%%;
+            transform: translateX(-50%%);
+            z-index: 10;
+            display: none;
+            max-width: min(520px, calc(100vw - 260px));
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            background: rgba(255,255,255,0.95);
+            color: #9A3412;
+            padding: 8px 12px;
+            border: 1px solid rgba(249,115,22,0.35);
+            border-radius: 999px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .selection.is-visible { display: block; }
         .tooltip {
             position: fixed; padding: 6px 10px; background: rgba(0,0,0,0.85);
             color: white; border-radius: 4px; font-size: 13px;
@@ -71,12 +92,14 @@ func generateGraphHTML(siteTitle string) string {
         }
         body.dark .legend,
         body.dark .back-link,
-        body.dark .hint {
+        body.dark .hint,
+        body.dark .selection {
             background: rgba(33, 37, 45, 0.94);
             color: #e8edf6;
             border: 1px solid rgba(255,255,255,0.08);
         }
         body.dark .hint { color: #c5ccd8; }
+        body.dark .selection { color: #FDBA74; border-color: rgba(251,146,60,0.5); }
         body.dark .back-link:hover {
             background: rgba(45, 50, 60, 0.98);
         }
@@ -98,6 +121,7 @@ func generateGraphHTML(siteTitle string) string {
         <div class="legend-item"><div class="legend-dot" style="background:#F97316"></div> Tags</div>
     </div>
     <a href="/" class="back-link">← Back to site</a>
+    <div id="selection" class="selection" aria-live="polite"></div>
     <div id="tooltip" class="tooltip"></div>
     <canvas id="graph-container"></canvas>
 
@@ -113,7 +137,9 @@ func generateGraphHTML(siteTitle string) string {
             document.body.classList.add('dark');
         }
 
-        const embed = new URLSearchParams(window.location.search).get('embed') === '1';
+        const params = new URLSearchParams(window.location.search);
+        const embed = params.get('embed') === '1';
+        const selectedTag = (params.get('tag') || '').trim().toLocaleLowerCase();
         if (embed) {
             document.body.classList.add('embed');
         }
@@ -133,6 +159,7 @@ func generateGraphHTML(siteTitle string) string {
         function initGraph(data) {
             const canvas = document.getElementById('graph-container');
             const tooltip = document.getElementById('tooltip');
+            const selection = document.getElementById('selection');
             const dark = document.body.classList.contains('dark');
 
             const scene = new THREE.Scene();
@@ -159,23 +186,45 @@ func generateGraphHTML(siteTitle string) string {
 
             const nodeById = new Map();
             data.nodes.forEach(n => nodeById.set(n.id, n));
+            const selectedNode = selectedTag
+                ? data.nodes.find(n => n.type === 'tag' && String(n.label || '').replace(/^#/, '').toLocaleLowerCase() === selectedTag)
+                : null;
+            const selectedIDs = new Set();
+            if (selectedNode) {
+                selectedIDs.add(selectedNode.id);
+                data.edges.forEach(e => {
+                    const sourceID = typeof e.source === 'object' ? e.source.id : e.source;
+                    const targetID = typeof e.target === 'object' ? e.target.id : e.target;
+                    if (sourceID === selectedNode.id) selectedIDs.add(targetID);
+                    if (targetID === selectedNode.id) selectedIDs.add(sourceID);
+                });
+                selection.textContent = selectedNode.label;
+                selection.classList.add('is-visible');
+            }
 
             const edgeColor = dark ? 0x6b7585 : 0xb0b7c3;
             const edgePositions = [];
+            const fadedEdgePositions = [];
             data.edges.forEach(e => {
                 const s = typeof e.source === 'object' ? e.source : nodeById.get(e.source);
                 const t = typeof e.target === 'object' ? e.target : nodeById.get(e.target);
                 if (!s || !t) return;
-                edgePositions.push(s.x || 0, s.y || 0, s.z || 0, t.x || 0, t.y || 0, t.z || 0);
+                const positions = selectedNode && !(selectedIDs.has(s.id) && selectedIDs.has(t.id))
+                    ? fadedEdgePositions
+                    : edgePositions;
+                positions.push(s.x || 0, s.y || 0, s.z || 0, t.x || 0, t.y || 0, t.z || 0);
             });
-            if (edgePositions.length) {
+            function addEdges(positions, color, opacity) {
+                if (!positions.length) return;
                 const edgeGeo = new THREE.BufferGeometry();
-                edgeGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgePositions, 3));
+                edgeGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
                 scene.add(new THREE.LineSegments(
                     edgeGeo,
-                    new THREE.LineBasicMaterial({ color: edgeColor, transparent: true, opacity: dark ? 0.28 : 0.22 })
+                    new THREE.LineBasicMaterial({ color, transparent: true, opacity })
                 ));
             }
+            addEdges(fadedEdgePositions, edgeColor, dark ? 0.045 : 0.035);
+            addEdges(edgePositions, selectedNode ? 0xF97316 : edgeColor, selectedNode ? 0.72 : (dark ? 0.28 : 0.22));
 
             const meshes = [];
             const sphereGeoCache = new Map();
@@ -190,20 +239,42 @@ func generateGraphHTML(siteTitle string) string {
             data.nodes.forEach(n => {
                 const radius = Math.max(0.55, (n.size || 3) * 0.22);
                 const color = new THREE.Color(n.color || '#888888');
+                const isSelected = selectedNode && n.id === selectedNode.id;
+                const isRelated = selectedNode && selectedIDs.has(n.id);
+                const isFaded = selectedNode && !isRelated;
                 const mat = new THREE.MeshStandardMaterial({
                     color,
                     // Preserve semantic hues under Three.js lighting while retaining depth.
-                    emissive: color,
-                    emissiveIntensity: dark ? 0.2 : 0.12,
+                    emissive: isSelected ? new THREE.Color('#FFF7ED') : color,
+                    emissiveIntensity: isSelected ? 0.75 : (dark ? 0.2 : 0.12),
                     roughness: 0.55,
-                    metalness: 0
+                    metalness: 0,
+                    transparent: isFaded,
+                    opacity: isFaded ? (dark ? 0.12 : 0.09) : 1,
+                    depthWrite: !isFaded
                 });
                 const mesh = new THREE.Mesh(sphereGeo(radius), mat);
                 mesh.position.set(n.x || 0, n.y || 0, n.z || 0);
-                mesh.userData = n;
+                const baseScale = isSelected ? 2.2 : (isRelated ? 1.3 : 1);
+                mesh.scale.set(baseScale, baseScale, baseScale);
+                mesh.userData = Object.assign({}, n, { baseScale });
                 scene.add(mesh);
                 meshes.push(mesh);
             });
+
+            if (selectedNode) {
+                const relatedNodes = data.nodes.filter(n => selectedIDs.has(n.id));
+                const center = relatedNodes.reduce((sum, n) => {
+                    sum.x += n.x || 0;
+                    sum.y += n.y || 0;
+                    sum.z += n.z || 0;
+                    return sum;
+                }, { x: 0, y: 0, z: 0 });
+                const count = Math.max(1, relatedNodes.length);
+                controls.target.set(center.x / count, center.y / count, center.z / count);
+                camera.position.set(controls.target.x + 28, controls.target.y + 22, controls.target.z + 55);
+                controls.update();
+            }
 
             const raycaster = new THREE.Raycaster();
             const pointer = new THREE.Vector2();
@@ -251,9 +322,15 @@ func generateGraphHTML(siteTitle string) string {
                 setPointer(e);
                 const hit = pick();
                 if (hit !== hovered) {
-                    if (hovered) hovered.scale.set(1, 1, 1);
+                    if (hovered) {
+                        const baseScale = hovered.userData.baseScale || 1;
+                        hovered.scale.set(baseScale, baseScale, baseScale);
+                    }
                     hovered = hit;
-                    if (hovered) hovered.scale.set(1.35, 1.35, 1.35);
+                    if (hovered) {
+                        const hoverScale = (hovered.userData.baseScale || 1) * 1.35;
+                        hovered.scale.set(hoverScale, hoverScale, hoverScale);
+                    }
                 }
                 showTooltip(hovered, e);
             });
@@ -273,7 +350,10 @@ func generateGraphHTML(siteTitle string) string {
                 window.location.href = url;
             });
             canvas.addEventListener('pointerleave', () => {
-                if (hovered) hovered.scale.set(1, 1, 1);
+                if (hovered) {
+                    const baseScale = hovered.userData.baseScale || 1;
+                    hovered.scale.set(baseScale, baseScale, baseScale);
+                }
                 hovered = null;
                 tooltip.style.display = 'none';
                 canvas.style.cursor = 'default';

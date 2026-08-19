@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html"
 	"html/template"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -17,6 +18,11 @@ import (
 	"github.com/tot-ra/blog-engine/internal/renderer"
 )
 
+// graphTagURL points every locale at the canonical site-wide graph and selects
+// the matching tag node. QueryEscape keeps spaces, Unicode, and punctuation safe.
+func graphTagURL(tag string) string {
+	return "/graph/?tag=" + url.QueryEscape(strings.TrimSpace(tag))
+}
 func findSidebarNodeByURL(root *renderer.NavNode, targetURL string) *renderer.NavNode {
 	if root == nil {
 		return nil
@@ -106,6 +112,7 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 	data.TagURL = func(tag string) string {
 		return b.buildLanguageScopedURL(page.Language, "tags/"+parser.GenerateSlug(tag))
 	}
+	data.GraphTagURL = graphTagURL
 	data.Site.Site.Language = page.Language
 	data.Homepage = b.homepageForLanguage(page.Language)
 	data.HomeURL, _ = b.existingLanguageScopedURL(page.Language, "")

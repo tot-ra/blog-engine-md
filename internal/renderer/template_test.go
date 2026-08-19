@@ -98,14 +98,14 @@ func TestTemplateEngine_DefaultTemplateRendersTagLinks(t *testing.T) {
 		Site:        config.SiteConfig{Site: config.Site{Title: "Example", Language: "en"}},
 		Page:        Page{Title: "Tagged"},
 		Frontmatter: Frontmatter{Tags: []string{"Hello World"}},
-		TagURL: func(tag string) string {
-			return "/tags/hello-world/"
+		GraphTagURL: func(tag string) string {
+			return "/graph/?tag=Hello+World"
 		},
 	})
 	if err != nil {
 		t.Fatalf("RenderPage() with default template tags returned error: %v", err)
 	}
-	if !strings.Contains(html, `<a class="tag" href="/tags/hello-world/">#Hello World</a>`) {
+	if !strings.Contains(html, `<a class="tag" href="/graph/?tag=Hello&#43;World">#Hello World</a>`) {
 		t.Fatalf("expected rendered tag link, got:\n%s", html)
 	}
 }

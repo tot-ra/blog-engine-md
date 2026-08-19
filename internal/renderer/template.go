@@ -91,13 +91,15 @@ type RelatedArticle struct {
 
 // PageData holds data for template rendering
 type PageData struct {
-	Site            config.SiteConfig
-	Homepage        config.HomepageConfig
-	BlogShowcase    []BlogShowcasePost
-	EventsShowcase  []BlogShowcasePost
-	Page            Page
-	HomeURL         string
-	TagURL          func(string) string
+	Site           config.SiteConfig
+	Homepage       config.HomepageConfig
+	BlogShowcase   []BlogShowcasePost
+	EventsShowcase []BlogShowcasePost
+	Page           Page
+	HomeURL        string
+	TagURL         func(string) string
+	// GraphTagURL links an article tag to its focused node in the site-wide graph.
+	GraphTagURL     func(string) string
 	CanonicalURL    string
 	SocialImageURL  string
 	OpenGraphType   string

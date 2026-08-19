@@ -268,6 +268,15 @@ func TestWriteGraphPageWritesEscapedHTML(t *testing.T) {
 	if !strings.Contains(html, `postMessage({ type: 'blog-graph-navigate'`) {
 		t.Fatal("expected embedded graph navigation support")
 	}
+	if !strings.Contains(html, `const selectedTag = (params.get('tag') || '').trim().toLocaleLowerCase()`) {
+		t.Fatal("expected graph page to read a selected tag from the URL")
+	}
+	if !strings.Contains(html, `selectedIDs.add(selectedNode.id)`) || !strings.Contains(html, `selection.classList.add('is-visible')`) {
+		t.Fatal("expected selected tag and its connected nodes to be highlighted")
+	}
+	if !strings.Contains(html, `controls.target.set(center.x / count, center.y / count, center.z / count)`) {
+		t.Fatal("expected camera to focus the selected tag neighborhood")
+	}
 	if !strings.Contains(html, `three@0.170.0`) {
 		t.Fatal("expected Three.js CDN import for 3D graph view")
 	}
@@ -283,7 +292,7 @@ func TestWriteGraphPageWritesEscapedHTML(t *testing.T) {
 	if !strings.Contains(html, `const radius = Math.max(0.55, (n.size || 3) * 0.22)`) {
 		t.Fatal("expected reduced Three.js node radius")
 	}
-	if !strings.Contains(html, `emissiveIntensity: dark ? 0.2 : 0.12`) {
+	if !strings.Contains(html, `emissiveIntensity: isSelected ? 0.75 : (dark ? 0.2 : 0.12)`) {
 		t.Fatal("expected graph colors to remain vivid under scene lighting")
 	}
 }
