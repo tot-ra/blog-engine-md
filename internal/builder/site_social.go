@@ -11,7 +11,9 @@ import (
 )
 
 func (b *SiteBuilder) resolveSocialImageURL(page *Page) string {
-	if page != nil && page.Type == TypeBlog {
+	// Event notes are pages rather than blog posts, but they are chronological
+	// articles with the same need for a content-specific social card.
+	if page != nil && (page.Type == TypeBlog || isLanguageSectionPost(page.URL, "events")) {
 		if src := extractFirstImageSrc(page.Content); src != "" {
 			if resolved := b.resolveAssetURL(src, page.URL); resolved != "" {
 				if optimized := b.resolveProcessedSocialImageURL(src); optimized != "" {

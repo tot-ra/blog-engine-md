@@ -31,7 +31,7 @@ func TestResolveAssetURL_Relative(t *testing.T) {
 	}
 }
 
-func TestResolveSocialImageURL_UsesBlogFirstImageFallbackDefault(t *testing.T) {
+func TestResolveSocialImageURL_UsesBlogAndEventFirstImageFallbackDefault(t *testing.T) {
 	b := &SiteBuilder{
 		config: &config.SiteConfig{
 			Site: config.Site{
@@ -50,6 +50,15 @@ func TestResolveSocialImageURL_UsesBlogFirstImageFallbackDefault(t *testing.T) {
 	}
 	if got := b.resolveSocialImageURL(post); got != "https://kurapov.ee/ru/blog/post/img/cover.webp" {
 		t.Fatalf("expected blog first image, got %q", got)
+	}
+
+	event := &Page{
+		Type:    TypePage,
+		URL:     "/ru/events/campervan-festival/",
+		Content: `<p>x</p><img src="/ru/events/img/campervan/festival-sign.jpg">`,
+	}
+	if got := b.resolveSocialImageURL(event); got != "https://kurapov.ee/ru/events/img/campervan/festival-sign.jpg" {
+		t.Fatalf("expected event first image, got %q", got)
 	}
 
 	doc := &Page{
