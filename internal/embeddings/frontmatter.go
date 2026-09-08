@@ -6,12 +6,13 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/tot-ra/blog-engine/internal/builder"
 	"github.com/tot-ra/blog-engine/internal/parser"
 )
 
 // WriteFrontmatterEmbedding keeps the article itself as the portable source of
 // truth. Path, URL, and language are deliberately derived during each build.
-func WriteFrontmatterEmbedding(path string, embedding parser.FrontmatterEmbedding) error {
+func WriteFrontmatterEmbedding(path string, contentType builder.ContentType, embedding parser.FrontmatterEmbedding) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("read article frontmatter: %w", err)
@@ -20,18 +21,13 @@ func WriteFrontmatterEmbedding(path string, embedding parser.FrontmatterEmbeddin
 	block := formatEmbeddingBlock(embedding)
 
 	var updated string
-	if strings.HasPrefix(content, "---") {
-		end := strings.Index(content[3:], "---")
-		if end < 0 {
-			return fmt.Errorf("article has unterminated frontmatter")
-		}
-		end += 3
-		frontmatter := content[3:end]
-		frontmatter = removeEmbeddingBlock(frontmatter)
-		frontmatter = strings.TrimRight(frontmatter, " \t\r\n") + "\n" + block
-		updated = "---" + frontmatter + "---" + content[end+3:]
+	if contentType == builder.TypeHTML {
+		updated, err = writeHTMLFrontmatterEmbedding(content, block)
 	} else {
-		updated = "---\n" + block + "---\n" + content
+		updated, err = writeYAMLFrontmatterEmbedding(content, block)
+	}
+	if err != nil {
+		return err
 	}
 
 	info, err := os.Stat(path)
@@ -47,6 +43,48 @@ func WriteFrontmatterEmbedding(path string, embedding parser.FrontmatterEmbeddin
 		return fmt.Errorf("replace article embedding: %w", err)
 	}
 	return nil
+}
+
+func writeYAMLFrontmatterEmbedding(content, block string) (string, error) {
+	if !strings.HasPrefix(content, "---") {
+		return "---\n" + block + "---\n" + content, nil
+	}
+	end := strings.Index(content[3:], "---")
+	if end < 0 {
+		return "", fmt.Errorf("article has unterminated frontmatter")
+	}
+	end += 3
+	frontmatter := removeEmbeddingBlock(content[3:end])
+	frontmatter = strings.TrimRight(frontmatter, " \t\r\n") + "\n" + block
+	return "---" + frontmatter + "---" + content[end+3:], nil
+}
+
+func writeHTMLFrontmatterEmbedding(content, block string) (string, error) {
+	bom := ""
+	trimmed := content
+	if strings.HasPrefix(trimmed, "\ufeff") {
+		bom = "\ufeff"
+		trimmed = strings.TrimPrefix(trimmed, bom)
+	}
+
+	if strings.HasPrefix(trimmed, "<!--") {
+		commentEnd := strings.Index(trimmed[4:], "-->")
+		if commentEnd < 0 {
+			return "", fmt.Errorf("article has unterminated HTML frontmatter comment")
+		}
+		commentEnd += 4
+		comment := strings.TrimSpace(trimmed[4:commentEnd])
+		if strings.HasPrefix(comment, "---") {
+			updatedComment, err := writeYAMLFrontmatterEmbedding(comment, block)
+			if err != nil {
+				return "", err
+			}
+			// Keep metadata valid HTML while leaving the authored article body untouched.
+			return bom + "<!--\n" + updatedComment + "\n-->" + trimmed[commentEnd+3:], nil
+		}
+	}
+
+	return bom + "<!--\n---\n" + block + "---\n-->\n" + trimmed, nil
 }
 
 func formatEmbeddingBlock(embedding parser.FrontmatterEmbedding) string {

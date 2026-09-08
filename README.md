@@ -215,7 +215,7 @@ With `build.publishMarkdown: true`, every markdown-backed page also emits `index
 
 ## Related Articles (Vector Search)
 
-Blog Engine generates semantic article embeddings once, stores each compact vector in the article's Markdown frontmatter, and uses those vectors to rank related article cards during every build. **Production builds are offline and never call OpenAI.**
+Blog Engine generates semantic article embeddings once, stores each compact vector in the article's frontmatter (YAML for Markdown or the leading metadata comment for HTML), and uses those vectors to rank related article cards during every build. **Production builds are offline and never call OpenAI.**
 
 Because path, URL, and language are derived at build time rather than stored in frontmatter, embedded articles can be moved or renamed without updating a separate index.
 

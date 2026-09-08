@@ -1,6 +1,7 @@
 package builder
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -111,5 +112,29 @@ func TestRelatedArticlesForPageUsesSharedCardHelpers(t *testing.T) {
 	}
 	if article.Excerpt != "Visible preview text." || strings.Contains(article.Excerpt, ".leak") {
 		t.Fatalf("related excerpt must use shared HTML preview helper, got %q", article.Excerpt)
+	}
+}
+
+func TestRelatedPageHashParsesHTMLFrontmatterComment(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Build.ContentDir = t.TempDir()
+	cfg.Related.Dimensions = 2
+	path := filepath.Join(cfg.Build.ContentDir, "ru", "blog", "interactive.html")
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatal(err)
+	}
+	body := `<style>.ignore { color: red; }</style><p>Visible article text.</p>`
+	if err := os.WriteFile(path, []byte("<!--\n---\ntitle: HTML article\ndescription: Summary\ntags: [UX]\n---\n-->\n"+body), 0644); err != nil {
+		t.Fatal(err)
+	}
+	page := &Page{
+		SourcePath: path, Title: "HTML article", Description: "Summary",
+		Frontmatter: &parser.Frontmatter{Tags: []string{"ux"}},
+	}
+	b := NewSiteBuilder(cfg)
+	text := related.PrepareInput(page.Title, page.Description, page.Frontmatter.Tags, body)
+	want := related.HashInput(text, cfg.Related.Model, cfg.Related.Dimensions)
+	if got := b.relatedPageHash(page); got != want {
+		t.Fatalf("relatedPageHash() = %q, want %q", got, want)
 	}
 }

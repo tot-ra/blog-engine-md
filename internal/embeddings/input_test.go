@@ -28,6 +28,19 @@ Before ![useful diagram](diagram.png) and [read this](https://example.com).
 	}
 }
 
+func TestPrepareInputRemovesHTMLStyleAndScriptContent(t *testing.T) {
+	body := `<style>.article { color: red; }</style><p>Visible text</p><script>window.secret = true;</script>`
+	got := PrepareInput("Title", "", nil, body)
+	if !strings.Contains(got, "Visible text") {
+		t.Fatalf("PrepareInput() = %q, missing visible text", got)
+	}
+	for _, unwanted := range []string{"article {", "color: red", "window.secret"} {
+		if strings.Contains(got, unwanted) {
+			t.Fatalf("PrepareInput() retained raw HTML implementation detail %q in %q", unwanted, got)
+		}
+	}
+}
+
 func TestHashInputIgnoresFormattingOnlyChanges(t *testing.T) {
 	a := PrepareInput("Title", "Desc", []string{"tag"}, "Hello   [world](one)\n")
 	b := PrepareInput("Title", "Desc", []string{"tag"}, "Hello world")

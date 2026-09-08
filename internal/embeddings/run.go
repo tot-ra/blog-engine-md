@@ -40,13 +40,14 @@ type Result struct {
 }
 
 type article struct {
-	path      string
-	hash      string
-	lang      string
-	url       string
-	text      string
-	chunks    []string
-	embedding *parser.FrontmatterEmbedding
+	path        string
+	hash        string
+	lang        string
+	url         string
+	text        string
+	chunks      []string
+	embedding   *parser.FrontmatterEmbedding
+	contentType builder.ContentType
 }
 
 func Run(ctx context.Context, cfg *config.SiteConfig, opts RunOptions) (Result, error) {
@@ -133,11 +134,11 @@ func Run(ctx context.Context, cfg *config.SiteConfig, opts RunOptions) (Result, 
 			Version: CacheVersion, Model: cfg.Related.Model, Dimensions: cfg.Related.Dimensions,
 			Hash: item.hash, Vector: encoded, Scale: scale,
 		}
-		if err := WriteFrontmatterEmbedding(filepath.Join(cfg.Build.ContentDir, filepath.FromSlash(item.path)), embedding); err != nil {
+		if err := WriteFrontmatterEmbedding(filepath.Join(cfg.Build.ContentDir, filepath.FromSlash(item.path)), item.contentType, embedding); err != nil {
 			return result, fmt.Errorf("write embedding for %s: %w", item.path, err)
 		}
 	}
-	fmt.Fprintf(out, "Embedded %d articles into Markdown frontmatter, tokens: %d\n", result.Sent, result.Tokens)
+	fmt.Fprintf(out, "Embedded %d articles into content frontmatter, tokens: %d\n", result.Sent, result.Tokens)
 	return result, nil
 }
 
@@ -156,7 +157,9 @@ func discoverArticles(cfg *config.SiteConfig) ([]article, error) {
 	}
 	urlGenerator := builder.NewURLGenerator(cfg.Site.URL)
 	explicitIndexDirs := make(map[string]struct{})
-	for _, file := range index.MarkdownFiles {
+	contentFiles := append([]builder.ContentFile{}, index.MarkdownFiles...)
+	contentFiles = append(contentFiles, index.HTMLFiles...)
+	for _, file := range contentFiles {
 		name := strings.TrimSuffix(filepath.Base(file.RelativePath), filepath.Ext(file.RelativePath))
 		if strings.EqualFold(name, "index") || strings.EqualFold(name, "README") {
 			explicitIndexDirs[filepath.ToSlash(filepath.Dir(file.RelativePath))] = struct{}{}
@@ -164,7 +167,7 @@ func discoverArticles(cfg *config.SiteConfig) ([]article, error) {
 	}
 	urlGenerator.SetExplicitIndexDirs(explicitIndexDirs)
 	articles := make([]article, 0)
-	for _, file := range index.MarkdownFiles {
+	for _, file := range contentFiles {
 		rel := filepath.ToSlash(file.RelativePath)
 		lang, contentPath := detectLanguage(rel, cfg.I18n.Default, languages)
 		parts := strings.Split(strings.Trim(contentPath, "/"), "/")
@@ -182,7 +185,7 @@ func discoverArticles(cfg *config.SiteConfig) ([]article, error) {
 		if err != nil {
 			return nil, fmt.Errorf("read %s: %w", file.Path, err)
 		}
-		fm, body, err := parser.ParseFrontmatter(string(data))
+		fm, body, err := parseArticleFrontmatter(file, string(data))
 		if err != nil {
 			return nil, fmt.Errorf("parse frontmatter %s: %w", file.Path, err)
 		}
@@ -198,18 +201,25 @@ func discoverArticles(cfg *config.SiteConfig) ([]article, error) {
 			continue
 		}
 		articles = append(articles, article{
-			path:      rel,
-			hash:      HashInput(text, cfg.Related.Model, cfg.Related.Dimensions),
-			lang:      lang,
-			url:       urlGenerator.Generate(rel, fm),
-			text:      text,
-			embedding: fm.Embedding,
+			path:        rel,
+			hash:        HashInput(text, cfg.Related.Model, cfg.Related.Dimensions),
+			lang:        lang,
+			url:         urlGenerator.Generate(rel, fm),
+			text:        text,
+			embedding:   fm.Embedding,
+			contentType: file.ContentType,
 		})
 	}
 	sort.Slice(articles, func(i, j int) bool { return articles[i].path < articles[j].path })
 	return articles, nil
 }
 
+func parseArticleFrontmatter(file builder.ContentFile, content string) (*parser.Frontmatter, string, error) {
+	if file.ContentType == builder.TypeHTML {
+		return parser.ParseHTMLFrontmatter(content)
+	}
+	return parser.ParseFrontmatter(content)
+}
 func detectLanguage(relPath, defaultLang string, languages map[string]struct{}) (string, string) {
 	clean := strings.Trim(filepath.ToSlash(relPath), "/")
 	parts := strings.Split(clean, "/")

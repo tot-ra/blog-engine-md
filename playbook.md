@@ -1,4 +1,6 @@
 # Lessons learned
+- If no configured review agent is listed, do not guess a generic agent ID; continue with local review or discover an active registry agent first.
+- Do not run parallel exact-string edits against the same file: earlier edits change the context and make later replacements fail. Parallelize across files, but edit each individual file sequentially.
 - HTML article preview stripping (`extractHTMLPreviewText`) must be shared by every listing surface: blog index used `extractArticlePreviewText`, but homepage `buildHomepageShowcase` still called markdown-only `extractPreviewText`, so CSS from interactive `.html` posts leaked into homepage cards. Prefer one helper with maxChars for both paths.
 - Before delegating review, discover available agents instead of assuming a generic `code-reviewer` agent exists.
 - When inserting a helper near a function boundary, read exact numbered lines first and insert before the function declaration, not after a line inside its opening guard.

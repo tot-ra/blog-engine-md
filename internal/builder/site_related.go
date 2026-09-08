@@ -125,7 +125,11 @@ func (b *SiteBuilder) relatedPageHash(page *Page) string {
 	if err != nil {
 		return ""
 	}
-	_, body, err := parseContentFrontmatter(ContentFile{ContentType: TypeMarkdown}, string(data))
+	contentType := TypeMarkdown
+	if strings.EqualFold(filepath.Ext(page.SourcePath), ".html") {
+		contentType = TypeHTML
+	}
+	_, body, err := parseContentFrontmatter(ContentFile{ContentType: contentType}, string(data))
 	if err != nil {
 		return ""
 	}

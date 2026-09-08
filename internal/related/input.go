@@ -14,6 +14,7 @@ var (
 	inlineCodeRE  = regexp.MustCompile("`([^`]*)`")
 	imageRE       = regexp.MustCompile(`!\[([^\]]*)\]\([^)]*\)`)
 	linkRE        = regexp.MustCompile(`\[([^\]]+)\]\([^)]*\)`)
+	htmlRawTextRE = regexp.MustCompile(`(?is)<script\b[^>]*>.*?</script\s*>|<style\b[^>]*>.*?</style\s*>`)
 	htmlTagRE     = regexp.MustCompile(`(?s)<[^>]*>`)
 )
 
@@ -31,6 +32,9 @@ func PrepareInput(title, description string, tags []string, body string) string 
 	body = imageRE.ReplaceAllString(body, "$1")
 	body = linkRE.ReplaceAllString(body, "$1")
 	body = inlineCodeRE.ReplaceAllString(body, "$1")
+	// CSS and JavaScript are raw-text HTML content, so stripping tags alone would
+	// pollute semantic vectors with implementation details from interactive posts.
+	body = htmlRawTextRE.ReplaceAllString(body, " ")
 	body = htmlTagRE.ReplaceAllString(body, " ")
 	body = html.UnescapeString(body)
 	parts := []string{title, description}
