@@ -273,8 +273,7 @@
             overflow: hidden;
         }
         .sidebar-mode-switch {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            display: flex;
             gap: 4px;
             border: 1px solid var(--nav-border);
             background: var(--bg-primary);
@@ -282,13 +281,16 @@
             padding: 4px;
         }
         .sidebar-mode-btn {
+            flex: 1;
+            min-width: 0;
             border: 0;
             background: transparent;
             color: var(--text-secondary);
             border-radius: 999px;
             font-size: 0.78em;
             font-weight: 600;
-            padding: 7px 6px;
+            padding: 7px 10px;
+            white-space: nowrap;
             cursor: pointer;
         }
         .sidebar-mode-btn.is-active {
