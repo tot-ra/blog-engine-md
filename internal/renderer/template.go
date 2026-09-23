@@ -106,6 +106,8 @@ type PageData struct {
 	SocialCard      string
 	MetaDescription string
 	MarkdownURL     string
+	RSSFeedURL      string
+	ShowBlogRSSIcon bool
 	UI              i18n.UIStrings
 	Frontmatter     Frontmatter
 	Content         template.HTML

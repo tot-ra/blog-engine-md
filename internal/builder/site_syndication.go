@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/tot-ra/blog-engine/internal/feed"
 	"github.com/tot-ra/blog-engine/internal/graph"
@@ -23,7 +24,6 @@ func (b *SiteBuilder) generateFeeds(blogPosts []*Page) error {
 		b.config.Author.Email,
 	)
 
-	// Build feed items from blog posts
 	maxItems := b.config.Feeds.RSS.Items
 	if b.config.Feeds.Atom.Items > maxItems {
 		maxItems = b.config.Feeds.Atom.Items
@@ -32,30 +32,7 @@ func (b *SiteBuilder) generateFeeds(blogPosts []*Page) error {
 		maxItems = 20
 	}
 
-	var items []feed.FeedItem
-	for i, p := range blogPosts {
-		if i >= maxItems {
-			break
-		}
-		desc := p.Description
-		if b.config.Feeds.RSS.FullContent {
-			desc = p.Content
-		}
-		if desc == "" {
-			desc = p.Title
-		}
-
-		absURL := strings.TrimSuffix(b.config.Site.URL, "/") + p.URL
-
-		items = append(items, feed.FeedItem{
-			Title:       p.Title,
-			URL:         absURL,
-			Date:        p.Frontmatter.Date,
-			Description: desc,
-			Categories:  p.Frontmatter.Tags,
-			GUID:        absURL,
-		})
-	}
+	items := b.feedItemsFromPosts(blogPosts, maxItems, false)
 
 	// Generate RSS
 	if b.config.Feeds.RSS.Enabled {
@@ -75,6 +52,10 @@ func (b *SiteBuilder) generateFeeds(blogPosts []*Page) error {
 			return fmt.Errorf("failed to write RSS: %w", err)
 		}
 		fmt.Printf("Generated RSS feed: %s (%d items)\n", rssPath, len(items))
+
+		if err := b.generateBlogSectionFeeds(gen); err != nil {
+			return err
+		}
 	}
 
 	// Generate Atom
@@ -98,6 +79,111 @@ func (b *SiteBuilder) generateFeeds(blogPosts []*Page) error {
 	}
 
 	return nil
+}
+
+func (b *SiteBuilder) feedItemsFromPosts(posts []*Page, maxItems int, sectionListing bool) []feed.FeedItem {
+	if maxItems <= 0 {
+		maxItems = 20
+	}
+
+	var items []feed.FeedItem
+	for i, p := range posts {
+		if i >= maxItems {
+			break
+		}
+		desc := p.Description
+		if sectionListing {
+			desc = extractArticlePreviewText(p)
+			if desc == "" {
+				desc = strings.TrimSpace(p.Description)
+			}
+		}
+		if b.config.Feeds.RSS.FullContent {
+			desc = p.Content
+		}
+		if desc == "" {
+			desc = p.Title
+		}
+
+		var itemDate time.Time
+		var tags []string
+		if p.Frontmatter != nil {
+			itemDate = p.Frontmatter.Date
+			tags = p.Frontmatter.Tags
+		}
+
+		absURL := strings.TrimSuffix(b.config.Site.URL, "/") + p.URL
+
+		items = append(items, feed.FeedItem{
+			Title:       p.Title,
+			URL:         absURL,
+			Date:        itemDate,
+			Description: desc,
+			Categories:  tags,
+			GUID:        absURL,
+		})
+	}
+	return items
+}
+
+func (b *SiteBuilder) generateBlogSectionFeeds(gen *feed.FeedGenerator) error {
+	maxItems := b.config.Feeds.RSS.Items
+	if maxItems <= 0 {
+		maxItems = maxSectionBlogPosts
+	}
+
+	siteURL := strings.TrimSuffix(b.config.Site.URL, "/")
+	seen := make(map[string]struct{})
+
+	for _, page := range b.pages {
+		if !IsBlogSectionIndexPage(page) {
+			continue
+		}
+		if _, exists := seen[page.URL]; exists {
+			continue
+		}
+		seen[page.URL] = struct{}{}
+
+		posts := collectBlogPostsForSection(page.URL, b.pages)
+		items := b.feedItemsFromPosts(posts, maxItems, true)
+		feedPath := BlogSectionFeedRelativePath(page.URL)
+		channel := feed.FeedChannel{
+			Title:       page.Title + " | " + b.config.Site.Title,
+			Link:        siteURL + page.URL,
+			Description: b.metaDescriptionForPage(page),
+			Language:    page.Language,
+		}
+		if strings.TrimSpace(channel.Description) == "" {
+			channel.Description = page.Title
+		}
+
+		rssContent, err := gen.GenerateRSSWithChannel(items, feedPath, channel)
+		if err != nil {
+			return fmt.Errorf("failed to generate blog RSS for %s: %w", page.URL, err)
+		}
+
+		outputPath := filepath.Join(b.config.Build.OutputDir, strings.TrimPrefix(feedPath, "/"))
+		if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(outputPath, []byte(rssContent), 0644); err != nil {
+			return fmt.Errorf("failed to write blog RSS for %s: %w", page.URL, err)
+		}
+		fmt.Printf("Generated blog RSS feed: %s (%d items)\n", feedPath, len(items))
+	}
+
+	return nil
+}
+
+func (b *SiteBuilder) blogRSSFeedURLForPage(page *Page) string {
+	if page == nil || !b.config.Feeds.RSS.Enabled || page.Type != TypeBlog {
+		return ""
+	}
+	sectionURL := BlogSectionURLFromPageURL(page.URL)
+	if sectionURL == "" {
+		return ""
+	}
+	return b.absolutePageURL(BlogSectionFeedRelativePath(sectionURL))
 }
 
 // generateSitemap creates a sitemap.xml from all pages

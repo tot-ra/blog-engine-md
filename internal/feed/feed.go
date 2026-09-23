@@ -17,6 +17,14 @@ type FeedItem struct {
 	GUID        string    // permalink
 }
 
+// FeedChannel overrides default site-wide channel metadata for section feeds.
+type FeedChannel struct {
+	Title       string
+	Link        string
+	Description string
+	Language    string
+}
+
 // FeedGenerator generates RSS and Atom feeds
 type FeedGenerator struct {
 	siteTitle   string
@@ -80,9 +88,30 @@ type rssCDATA struct {
 	Value string `xml:",cdata"`
 }
 
-// GenerateRSS generates an RSS 2.0 feed
+// GenerateRSS generates an RSS 2.0 feed using site-wide channel metadata.
 func (g *FeedGenerator) GenerateRSS(items []FeedItem, feedPath string) (string, error) {
+	return g.GenerateRSSWithChannel(items, feedPath, FeedChannel{})
+}
+
+// GenerateRSSWithChannel generates an RSS 2.0 feed with optional channel overrides.
+func (g *FeedGenerator) GenerateRSSWithChannel(items []FeedItem, feedPath string, channel FeedChannel) (string, error) {
 	feedURL := g.siteURL + "/" + strings.TrimPrefix(feedPath, "/")
+	channelTitle := channel.Title
+	if channelTitle == "" {
+		channelTitle = g.siteTitle
+	}
+	channelLink := channel.Link
+	if channelLink == "" {
+		channelLink = g.siteURL
+	}
+	channelDescription := channel.Description
+	if channelDescription == "" {
+		channelDescription = g.siteTitle
+	}
+	channelLanguage := channel.Language
+	if channelLanguage == "" {
+		channelLanguage = g.siteLang
+	}
 
 	var rssItems []rssItem
 	for _, item := range items {
@@ -109,10 +138,10 @@ func (g *FeedGenerator) GenerateRSS(items []FeedItem, feedPath string) (string, 
 		Version: "2.0",
 		AtomNS:  "http://www.w3.org/2005/Atom",
 		Channel: rssChannel{
-			Title:         g.siteTitle,
-			Link:          g.siteURL,
-			Description:   g.siteTitle,
-			Language:      g.siteLang,
+			Title:         channelTitle,
+			Link:          channelLink,
+			Description:   channelDescription,
+			Language:      channelLanguage,
 			LastBuildDate: now,
 			AtomLink: rssAtomLink{
 				Href: feedURL,

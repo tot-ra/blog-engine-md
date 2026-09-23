@@ -37,6 +37,7 @@ type UIStrings struct {
 	BlogNavigation  string
 	BlogViewMode    string
 	BlogGraphView   string
+	BlogRSSFeed     string
 	ToggleSectionOf string
 	LogIn           string
 }
@@ -157,6 +158,7 @@ func UI(lang string) UIStrings {
 			BlogNavigation:  "Навигация по блогу",
 			BlogViewMode:    "Режим просмотра блога",
 			BlogGraphView:   "Граф блога",
+			BlogRSSFeed:     "RSS-лента блога",
 			ToggleSectionOf: "Переключить раздел",
 			LogIn:           "Войти",
 		}
@@ -191,6 +193,7 @@ func UI(lang string) UIStrings {
 			BlogNavigation:  "Blogi navigeerimine",
 			BlogViewMode:    "Blogi vaade",
 			BlogGraphView:   "Blogi graaf",
+			BlogRSSFeed:     "Blogi RSS voog",
 			ToggleSectionOf: "Lülita jaotis",
 			LogIn:           "Logi sisse",
 		}
@@ -225,6 +228,7 @@ func UI(lang string) UIStrings {
 			BlogNavigation:  "Blog navigation",
 			BlogViewMode:    "Blog view mode",
 			BlogGraphView:   "Blog graph view",
+			BlogRSSFeed:     "Blog RSS feed",
 			ToggleSectionOf: "Toggle section",
 			LogIn:           "Log in",
 		}

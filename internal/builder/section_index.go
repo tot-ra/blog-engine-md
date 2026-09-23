@@ -471,6 +471,37 @@ func collectBlogPostsForSection(sectionURL string, pages map[string]*Page) []*Pa
 	return posts
 }
 
+const blogSectionFeedName = "rss.xml"
+
+// BlogSectionFeedRelativePath returns the RSS path for a blog section index URL.
+func BlogSectionFeedRelativePath(sectionURL string) string {
+	return ensureTrailingSlash(sectionURL) + blogSectionFeedName
+}
+
+// IsBlogSectionIndexPage reports whether page is a generated or explicit blog listing.
+func IsBlogSectionIndexPage(page *Page) bool {
+	if page == nil || page.Type != TypeBlog {
+		return false
+	}
+	if page.Frontmatter != nil && !page.Frontmatter.Date.IsZero() {
+		return false
+	}
+	trimmed := strings.TrimSuffix(strings.TrimSpace(page.URL), "/")
+	return trimmed == "blog" || strings.HasSuffix(trimmed, "/blog")
+}
+
+// BlogSectionURLFromPageURL returns the language-scoped blog section URL for a post.
+func BlogSectionURLFromPageURL(pageURL string) string {
+	normalized := ensureTrailingSlash(pageURL)
+	parts := strings.Split(strings.Trim(normalized, "/"), "/")
+	for i, part := range parts {
+		if part == "blog" {
+			return "/" + strings.Join(parts[:i+1], "/") + "/"
+		}
+	}
+	return ""
+}
+
 func sectionPageSortDate(page *Page) time.Time {
 	if page == nil {
 		return time.Time{}

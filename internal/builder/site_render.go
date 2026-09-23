@@ -109,6 +109,10 @@ func (b *SiteBuilder) renderPage(page *Page) error {
 	if b.config.Build.PublishMarkdown && isMarkdownSource(page.SourcePath) && (page.Frontmatter == nil || strings.TrimSpace(page.Frontmatter.RedirectURL) == "") {
 		data.MarkdownURL = pageMarkdownURL(page.URL)
 	}
+	if rssURL := b.blogRSSFeedURLForPage(page); rssURL != "" {
+		data.RSSFeedURL = rssURL
+		data.ShowBlogRSSIcon = IsBlogSectionIndexPage(page)
+	}
 	data.TagURL = func(tag string) string {
 		return b.buildLanguageScopedURL(page.Language, "tags/"+parser.GenerateSlug(tag))
 	}
