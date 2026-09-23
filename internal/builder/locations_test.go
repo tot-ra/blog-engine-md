@@ -81,6 +81,9 @@ func TestEnhanceLocationLinksDecoratesFolderLinksAndEmbedsPreview(t *testing.T) 
 	if !strings.Contains(place.Content, `class="location-page-map"`) || !strings.Contains(place.Content, `class="location-map"`) || !strings.Contains(place.Content, `data-lat="59.454948"`) {
 		t.Fatalf("expected standalone location page to include a map, got %s", place.Content)
 	}
+	if !strings.Contains(place.Content, `class="location-panel-map-btn"`) || !strings.Contains(place.Content, `google.com/maps/search/?api=1&amp;query=`) {
+		t.Fatalf("expected standalone location page to include a Google Maps button, got %s", place.Content)
+	}
 	if strings.Contains(article.Content, "location-page-map") {
 		t.Fatalf("inline preview must not embed the standalone page map wrapper")
 	}

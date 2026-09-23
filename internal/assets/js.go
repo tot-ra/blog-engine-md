@@ -469,6 +469,32 @@ const builtinScripts = `
     }).catch(function() {});
   }
 
+  function googleMapsOpenURL(loc) {
+    var query = '';
+    if (typeof loc.lat === 'number' && typeof loc.lng === 'number') {
+      query = loc.lat + ',' + loc.lng;
+    } else if (loc.address) {
+      query = loc.address;
+    }
+    if (!query) return '';
+    return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(query);
+  }
+
+  function mapOpenButton(loc, copy) {
+    var href = googleMapsOpenURL(loc);
+    if (!href) return null;
+    var open = document.createElement('p');
+    open.className = 'location-panel-map-link';
+    var btn = document.createElement('a');
+    btn.className = 'location-panel-map-btn';
+    btn.href = href;
+    btn.target = '_blank';
+    btn.rel = 'noopener';
+    btn.textContent = copy.open;
+    open.appendChild(btn);
+    return open;
+  }
+
   function mapBlock(loc, copy) {
     var wrap = document.createElement('div');
     wrap.className = 'location-panel-map-wrap';
@@ -481,28 +507,13 @@ const builtinScripts = `
       map.setAttribute('data-lng', String(loc.lng));
       map.setAttribute('data-title', loc.title || '');
       wrap.appendChild(map);
-      var open = document.createElement('p');
-      open.className = 'location-panel-map-link';
-      var a = document.createElement('a');
-      a.href = 'https://www.openstreetmap.org/?mlat=' + encodeURIComponent(loc.lat) +
-        '&mlon=' + encodeURIComponent(loc.lng) + '#map=17/' + loc.lat + '/' + loc.lng;
-      a.target = '_blank';
-      a.rel = 'noopener';
-      a.textContent = copy.open;
-      open.appendChild(a);
-      wrap.appendChild(open);
+      var open = mapOpenButton(loc, copy);
+      if (open) wrap.appendChild(open);
       return wrap;
     }
     if (loc.address) {
-      var search = document.createElement('p');
-      search.className = 'location-panel-map-link';
-      var link = document.createElement('a');
-      link.href = 'https://www.openstreetmap.org/search?query=' + encodeURIComponent(loc.address);
-      link.target = '_blank';
-      link.rel = 'noopener';
-      link.textContent = copy.open;
-      search.appendChild(link);
-      wrap.appendChild(search);
+      var search = mapOpenButton(loc, copy);
+      if (search) wrap.appendChild(search);
       return wrap;
     }
     return null;

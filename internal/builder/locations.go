@@ -3,6 +3,7 @@ package builder
 import (
 	"encoding/json"
 	"html"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -49,7 +50,8 @@ func (b *SiteBuilder) enhanceLocationLinks() {
 
 	for _, page := range b.pages {
 		if b.isLocationPlace(page) {
-			if mapHTML := locationMapEmbedHTML(page.Frontmatter, page.Title); mapHTML != "" {
+			lang := languageFromURL(page.URL, b)
+			if mapHTML := locationMapEmbedHTML(page.Frontmatter, page.Title, lang); mapHTML != "" {
 				page.Content = `<div class="location-page-map">` + mapHTML + `</div>` + page.Content
 			}
 		}
@@ -272,25 +274,57 @@ func replaceOrAppendAttr(attrs, key, value string) string {
 	return attrs + ` ` + key + `="` + html.EscapeString(value) + `"`
 }
 
-func locationMapEmbedHTML(fm *parser.Frontmatter, title string) string {
+func locationMapOpenLabel(lang string) string {
+	switch strings.ToLower(strings.TrimSpace(lang)) {
+	case "ru":
+		return "Открыть на карте"
+	case "et":
+		return "Ava kaardil"
+	default:
+		return "Open map"
+	}
+}
+
+func googleMapsOpenURL(lat, lng float64, address string) string {
+	query := strings.TrimSpace(address)
+	if lat != 0 || lng != 0 {
+		query = strconv.FormatFloat(lat, 'f', 6, 64) + "," + strconv.FormatFloat(lng, 'f', 6, 64)
+	}
+	if query == "" {
+		return ""
+	}
+	return "https://www.google.com/maps/search/?api=1&query=" + url.QueryEscape(query)
+}
+
+func locationMapOpenButtonHTML(href, label string) string {
+	if strings.TrimSpace(href) == "" {
+		return ""
+	}
+	return `<p class="location-panel-map-link"><a class="location-panel-map-btn" href="` + html.EscapeString(href) + `" target="_blank" rel="noopener">` + html.EscapeString(label) + `</a></p>`
+}
+
+func locationMapEmbedHTML(fm *parser.Frontmatter, title, lang string) string {
 	lat, lng, ok := locationCoords(fm)
+	address := ""
+	if fm != nil {
+		address = strings.TrimSpace(fm.Address)
+	}
+	openURL := googleMapsOpenURL(lat, lng, address)
+	openButton := locationMapOpenButtonHTML(openURL, locationMapOpenLabel(lang))
 	if !ok {
-		if fm == nil || strings.TrimSpace(fm.Address) == "" {
+		if openButton == "" {
 			return ""
 		}
-		query := html.EscapeString(strings.TrimSpace(fm.Address))
-		return `<p class="location-panel-map-link"><a href="https://www.openstreetmap.org/search?query=` + query + `" target="_blank" rel="noopener">OpenStreetMap</a></p>`
+		return openButton
 	}
 
 	latStr := strconv.FormatFloat(lat, 'f', 6, 64)
 	lngStr := strconv.FormatFloat(lng, 'f', 6, 64)
-	open := "https://www.openstreetmap.org/?mlat=" + latStr + "&amp;mlon=" + lngStr + "#map=17/" + latStr + "/" + lngStr
 	label := html.EscapeString(strings.TrimSpace(title))
 	if label == "" {
 		label = "Map"
 	}
 	// WHY: OSM's export/embed.html now requires WebGL and renders a blank
 	// apology page in headless/older clients. Leaflet raster tiles show a map.
-	return `<div class="location-map" role="img" aria-label="` + label + `" data-lat="` + latStr + `" data-lng="` + lngStr + `" data-title="` + label + `"></div>` +
-		`<p class="location-panel-map-link"><a href="` + open + `" target="_blank" rel="noopener">OpenStreetMap</a></p>`
+	return `<div class="location-map" role="img" aria-label="` + label + `" data-lat="` + latStr + `" data-lng="` + lngStr + `" data-title="` + label + `"></div>` + openButton
 }

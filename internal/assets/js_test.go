@@ -61,6 +61,8 @@ func TestBuiltinScriptsIncludeLocationPreviews(t *testing.T) {
 		`location-link`,
 		`location-panel`,
 		`location-map`,
+		`location-panel-map-btn`,
+		`google.com/maps/search/?api=1&query=`,
 		`tile.openstreetmap.org`,
 		`event.preventDefault()`,
 	}
