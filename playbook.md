@@ -1,4 +1,6 @@
 # Lessons learned
+- OSM `export/embed.html` now requires WebGL and shows a blank apology page in headless Chrome. For location maps, mount Leaflet raster tiles (`tile.openstreetmap.org`) into a `div.location-map[data-lat][data-lng]` instead of an iframe embed.
+
 - If no configured review agent is listed, do not guess a generic agent ID; continue with local review or discover an active registry agent first.
 - Do not run parallel exact-string edits against the same file: earlier edits change the context and make later replacements fail. Parallelize across files, but edit each individual file sequentially.
 - HTML article preview stripping (`extractHTMLPreviewText`) must be shared by every listing surface: blog index used `extractArticlePreviewText`, but homepage `buildHomepageShowcase` still called markdown-only `extractPreviewText`, so CSS from interactive `.html` posts leaked into homepage cards. Prefer one helper with maxChars for both paths.

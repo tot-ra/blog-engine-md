@@ -119,6 +119,30 @@ Content.`,
 	}
 }
 
+func TestParseFrontmatterLocationFields(t *testing.T) {
+	fm, remaining, err := ParseFrontmatter(`---
+title: Ankru 10
+address: Ankru 10, Tallinn, Estonia
+lat: 59.454948
+lng: 24.672783
+---
+
+Parking at Põhjala.
+`)
+	if err != nil {
+		t.Fatalf("ParseFrontmatter() error = %v", err)
+	}
+	if remaining != "Parking at Põhjala." {
+		t.Fatalf("remaining = %q", remaining)
+	}
+	if fm.Address != "Ankru 10, Tallinn, Estonia" {
+		t.Fatalf("address = %q", fm.Address)
+	}
+	if fm.Lat != 59.454948 || fm.Lng != 24.672783 {
+		t.Fatalf("coords = %v,%v", fm.Lat, fm.Lng)
+	}
+}
+
 func TestParseHTMLFrontmatter(t *testing.T) {
 	content := `<!--
 ---

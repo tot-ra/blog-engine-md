@@ -932,6 +932,89 @@
             border-radius: 20px;
             color: var(--text-secondary);
         }
+        /* WHY: location notes are regular folder links; the dotted pin cue
+           marks them as inline previews without a custom markdown tag. */
+        a.location-link {
+            text-decoration: underline;
+            text-decoration-style: dotted;
+            text-underline-offset: 0.18em;
+        }
+        a.location-link::before {
+            content: "";
+            display: inline-block;
+            width: 0.8em;
+            height: 0.8em;
+            margin-right: 0.22em;
+            vertical-align: -0.08em;
+            background: currentColor;
+            -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z'/%3E%3C/svg%3E") center / contain no-repeat;
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z'/%3E%3C/svg%3E") center / contain no-repeat;
+        }
+        a.location-link.is-open {
+            font-weight: 600;
+        }
+        .location-panel,
+        .location-page-map {
+            margin: 0.85em 0 1.25em;
+            padding: 14px;
+            border: 1px solid var(--nav-border);
+            border-radius: 12px;
+            background: var(--nav-bg);
+        }
+        .location-panel-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 6px;
+        }
+        .location-panel-title {
+            font-size: 1.05rem;
+            color: var(--text-primary);
+        }
+        .location-panel-close {
+            border: 0;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 1.4rem;
+            line-height: 1;
+            cursor: pointer;
+            padding: 0 4px;
+        }
+        .location-panel-address {
+            margin: 0 0 10px;
+            color: var(--text-secondary);
+            font-size: 0.92rem;
+        }
+        .location-panel-body > *:last-child {
+            margin-bottom: 0;
+        }
+        .location-panel-map-wrap,
+        .location-page-map {
+            margin-top: 12px;
+        }
+        .location-page-map {
+            margin-top: 0;
+        }
+        .location-map,
+        .location-panel-map {
+            display: block;
+            width: 100%;
+            height: 220px;
+            border: 0;
+            border-radius: 8px;
+            background: var(--bg-primary);
+        }
+        .location-map .leaflet-container {
+            width: 100%;
+            height: 100%;
+            border-radius: 8px;
+            font: inherit;
+        }
+        .location-panel-map-link {
+            margin: 8px 0 0;
+            font-size: 0.85rem;
+        }
         /* Responsive */
         @media (max-width: 1200px) {
             .toc { display: none; }

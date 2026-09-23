@@ -49,6 +49,28 @@ func TestBuiltinScriptsIncludeTOCScrollspy(t *testing.T) {
 	}
 }
 
+func TestBuiltinScriptsIncludeLocationPreviews(t *testing.T) {
+	outDir := t.TempDir()
+	bundle, err := NewJSProcessor(false).Process(nil, outDir)
+	if err != nil {
+		t.Fatalf("process js: %v", err)
+	}
+
+	checks := []string{
+		`script.location-previews`,
+		`location-link`,
+		`location-panel`,
+		`location-map`,
+		`tile.openstreetmap.org`,
+		`event.preventDefault()`,
+	}
+	for _, check := range checks {
+		if !strings.Contains(bundle.Content, check) {
+			t.Fatalf("expected location preview bundle to contain %q", check)
+		}
+	}
+}
+
 func TestBuiltinScriptsNormalizeSQLLikeMermaidClassMembers(t *testing.T) {
 	outDir := t.TempDir()
 	bundle, err := NewJSProcessor(false).Process(nil, outDir)

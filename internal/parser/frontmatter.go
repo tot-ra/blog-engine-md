@@ -38,6 +38,9 @@ type Frontmatter struct {
 	Layout       string                 `yaml:"layout"` // Custom layout template name (e.g., "homepage")
 	RedirectURL  string                 `yaml:"redirectUrl"`
 	TemplateHero bool                   `yaml:"templateHero"`
+	Address      string                 `yaml:"address"`
+	Lat          float64                `yaml:"lat"`
+	Lng          float64                `yaml:"lng"`
 	Params       map[string]interface{} `yaml:"-"`
 }
 
@@ -85,6 +88,9 @@ func ParseFrontmatter(content string) (*Frontmatter, string, error) {
 		Layout              string                `yaml:"layout"`
 		RedirectURL         string                `yaml:"redirectUrl"`
 		TemplateHero        bool                  `yaml:"templateHero"`
+		Address             string                `yaml:"address"`
+		Lat                 float64               `yaml:"lat"`
+		Lng                 float64               `yaml:"lng"`
 	}
 	params := map[string]interface{}{}
 	if err := yaml.Unmarshal([]byte(fmContent), &params); err != nil {
@@ -118,6 +124,9 @@ func ParseFrontmatter(content string) (*Frontmatter, string, error) {
 	fm.Layout = raw.Layout
 	fm.RedirectURL = raw.RedirectURL
 	fm.TemplateHero = raw.TemplateHero
+	fm.Address = strings.TrimSpace(raw.Address)
+	fm.Lat = raw.Lat
+	fm.Lng = raw.Lng
 	fm.Params = params
 
 	parsedDate, err := parseFlexibleTime(raw.Date)

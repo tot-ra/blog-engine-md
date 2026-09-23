@@ -19,6 +19,7 @@ type SiteConfig struct {
 	SEO          SEOConfig                 `yaml:"seo"`
 	Homepage     HomepageConfig            `yaml:"homepage"` // Homepage customization
 	HomepageI18n map[string]HomepageConfig `yaml:"homepageI18n"`
+	Locations    LocationsConfig           `yaml:"locations"`
 }
 
 // HomepageConfig contains homepage-specific settings
@@ -201,6 +202,13 @@ type ElevenLabsConfig struct {
 	SimilarityBoost float64 `yaml:"similarityBoost"` // 0..1
 	Style           float64 `yaml:"style"`           // 0..1
 	SpeakerBoost    bool    `yaml:"speakerBoost"`    // Enhance speaker similarity
+}
+
+// LocationsConfig turns links into a content folder (default "locations")
+// into inline address/map previews instead of regular navigation.
+type LocationsConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Section string `yaml:"section"`
 }
 
 // RelatedConfig controls offline generation and later use of related-article embeddings.

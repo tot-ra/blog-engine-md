@@ -141,5 +141,9 @@ func DefaultConfig() *SiteConfig {
 		SEO: SEOConfig{
 			Enabled: true,
 		},
+		Locations: LocationsConfig{
+			Enabled: true,
+			Section: "locations",
+		},
 	}
 }

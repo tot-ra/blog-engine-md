@@ -128,6 +128,13 @@ func Validate(cfg *SiteConfig) error {
 	if cfg.Related.Diversity < 0 || cfg.Related.Diversity > 1 {
 		return fmt.Errorf("related.diversity must be between 0 and 1")
 	}
+	if strings.TrimSpace(cfg.Locations.Section) == "" {
+		cfg.Locations.Section = "locations"
+	}
+	cfg.Locations.Section = strings.Trim(strings.TrimSpace(cfg.Locations.Section), "/")
+	if cfg.Locations.Section == "" || strings.Contains(cfg.Locations.Section, "..") || strings.Contains(cfg.Locations.Section, "/") {
+		return fmt.Errorf("locations.section must be a single safe folder name")
+	}
 	if cfg.Site.Language == "" {
 		cfg.Site.Language = "en"
 	}

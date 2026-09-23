@@ -145,6 +145,10 @@ func (b *SiteBuilder) Build() error {
 		b.navTree = navBuilder.BuildTree(b.pages)
 	}
 
+	// WHY: location previews need the finished page map so folder links can
+	// carry rendered markdown + coordinates without a second authoring syntax.
+	b.enhanceLocationLinks()
+
 	// Generate and cache audio narration for recent blog posts.
 	if err := b.prepareBlogAudio(index); err != nil {
 		fmt.Fprintf(os.Stderr, "Error generating blog audio: %v\n", err)

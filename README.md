@@ -13,6 +13,7 @@ A high-performance static site generator written in Go, designed as a memory-eff
 - **[Audio narration (TTS)](#audio-narration-tts)** - generate and cache MP3 narration per post via `edge-tts` or ElevenLabs, with an inline waveform player.
 - **[Image pipeline](#image-processing)** - WebP conversion, responsive size variants, automatic HDR gain-map preservation, lazy loading, mtime/hash-based caching, parallel workers.
 - **[Rich content blocks](#extended-syntax)** - Mermaid diagrams (lazy-loaded), admonitions (`:::info`, `:::warning`, `:::tip`), YouTube/Vimeo embeds, syntax highlighting with copy buttons.
+- **[Location notes](#location-notes)** - links into a `locations/` folder open an inline note + map instead of leaving the article.
 - **[Auto navigation](#navigation--layout)** - sidebar tree derived from folders, breadcrumbs, sticky table of contents with scrollspy, prev/next links.
 - **[Interactive HTML articles](#interactive-html-partials)** - drop in a `.html` file with its own `<style>`/`<script>` and it becomes a first-class article.
 - **[SEO & syndication](#seo--syndication)** - meta/OpenGraph/Twitter tags, JSON-LD, canonical URLs, `sitemap.xml`, RSS and Atom feeds.
@@ -181,12 +182,46 @@ Standard CommonMark plus the GFM extension set: tables, task lists, strikethroug
 
 ### Extended syntax
 
-- **YAML frontmatter**: `title`, `date`, `tags`, `description`, `draft`, `order` (Docusaurus `sidebar_position` is accepted as an alias), `navTitle`, `redirectUrl`, `related`, `hideRelated`.
+- **YAML frontmatter**: `title`, `date`, `tags`, `description`, `draft`, `order` (Docusaurus `sidebar_position` is accepted as an alias), `navTitle`, `redirectUrl`, `related`, `hideRelated`, plus location notes (`address`, `lat`, `lng`).
+- **Location links**: a regular Markdown/HTML link into the `locations/` folder opens an inline preview (note body + map) instead of navigating away. See [Location notes](#location-notes).
 - **Wiki links**: `[[Page Title]]` and `[[Page Title|Display Text]]` are resolved against the content tree and feed the [graph view](#graph-view).
 - **`<!--truncate-->`**: cutoff point for article previews in listings and feeds.
 - **Mermaid diagrams**: ` ```mermaid ` fences render client-side; the Mermaid ESM bundle is loaded lazily only on pages that contain a diagram.
 - **Admonitions**: `:::info`, `:::warning`, `:::tip`.
 - **Embeds**: `::youtube[ID]`, `::vimeo[ID]`, or a bare YouTube/Vimeo link on its own line.
+
+### Location notes
+
+Mark a physical place by linking to a note under a dedicated folder instead of inventing a custom Markdown or HTML tag. The default folder is `locations/`:
+
+```
+content/
+├── ru/locations/ankru-10.md
+└── ru/events/festival.md   # [Ankru 10](/ru/locations/ankru-10/)
+```
+
+Location notes use ordinary frontmatter for the address and optional coordinates:
+
+```yaml
+---
+title: Ankru 10
+address: Ankru 10, Tallinn, Estonia
+lat: 59.454948
+lng: 24.672783
+---
+
+Short description of the place.
+```
+
+At build time the engine detects anchors that point at those pages and keeps the `href` for no-JS / middle-click. A normal click opens an inline panel with the rendered note and an OpenStreetMap raster map via Leaflet (or a search link when only `address` is set). Standalone location pages also get the map.
+
+```yaml
+locations:
+  enabled: true
+  section: "locations"  # folder name under each locale
+```
+
+Card links (`section-*`) and other navigation chrome are left as regular links.
 
 ### Cross-reference resolution
 

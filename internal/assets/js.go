@@ -391,4 +391,221 @@ const builtinScripts = `
     syncFromScroll();
   });
 })();
+
+// Location links: folder-based place notes open inline with a map.
+(function() {
+  var LABELS = {
+    ru: { close: 'Закрыть', map: 'Карта', open: 'Открыть на карте' },
+    et: { close: 'Sulge', map: 'Kaart', open: 'Ava kaardil' },
+    en: { close: 'Close', map: 'Map', open: 'Open map' }
+  };
+
+  function labels() {
+    var lang = (document.documentElement.lang || 'en').toLowerCase().split('-')[0];
+    return LABELS[lang] || LABELS.en;
+  }
+
+  function loadPreviews() {
+    var node = document.querySelector('script.location-previews');
+    if (!node) return {};
+    try {
+      var data = JSON.parse(node.textContent || '{}');
+      return data.locations || {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function closestLocationLink(el) {
+    while (el && el !== document) {
+      if (el.classList && el.classList.contains('location-link')) return el;
+      el = el.parentNode;
+    }
+    return null;
+  }
+
+  var leafletPromise = null;
+
+  function loadLeaflet() {
+    if (window.L) return Promise.resolve(window.L);
+    if (leafletPromise) return leafletPromise;
+    leafletPromise = new Promise(function(resolve, reject) {
+      if (!document.querySelector('link[data-location-leaflet]')) {
+        var css = document.createElement('link');
+        css.rel = 'stylesheet';
+        css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        css.setAttribute('data-location-leaflet', 'true');
+        document.head.appendChild(css);
+      }
+      var script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.onload = function() { resolve(window.L); };
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+    return leafletPromise;
+  }
+
+  function mountLocationMap(el, L) {
+    if (!el || el.getAttribute('data-map-ready') === 'true') return;
+    var lat = parseFloat(el.getAttribute('data-lat'));
+    var lng = parseFloat(el.getAttribute('data-lng'));
+    if (isNaN(lat) || isNaN(lng)) return;
+    el.setAttribute('data-map-ready', 'true');
+    var map = L.map(el, { scrollWheelZoom: false }).setView([lat, lng], 16);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap',
+      maxZoom: 19
+    }).addTo(map);
+    L.marker([lat, lng]).addTo(map);
+    setTimeout(function() { map.invalidateSize(); }, 0);
+  }
+
+  function hydrateLocationMaps(root) {
+    var nodes = (root || document).querySelectorAll('.location-map[data-lat][data-lng]');
+    if (!nodes.length) return;
+    loadLeaflet().then(function(L) {
+      nodes.forEach(function(el) { mountLocationMap(el, L); });
+    }).catch(function() {});
+  }
+
+  function mapBlock(loc, copy) {
+    var wrap = document.createElement('div');
+    wrap.className = 'location-panel-map-wrap';
+    if (typeof loc.lat === 'number' && typeof loc.lng === 'number') {
+      var map = document.createElement('div');
+      map.className = 'location-map';
+      map.setAttribute('role', 'img');
+      map.setAttribute('aria-label', copy.map);
+      map.setAttribute('data-lat', String(loc.lat));
+      map.setAttribute('data-lng', String(loc.lng));
+      map.setAttribute('data-title', loc.title || '');
+      wrap.appendChild(map);
+      var open = document.createElement('p');
+      open.className = 'location-panel-map-link';
+      var a = document.createElement('a');
+      a.href = 'https://www.openstreetmap.org/?mlat=' + encodeURIComponent(loc.lat) +
+        '&mlon=' + encodeURIComponent(loc.lng) + '#map=17/' + loc.lat + '/' + loc.lng;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.textContent = copy.open;
+      open.appendChild(a);
+      wrap.appendChild(open);
+      return wrap;
+    }
+    if (loc.address) {
+      var search = document.createElement('p');
+      search.className = 'location-panel-map-link';
+      var link = document.createElement('a');
+      link.href = 'https://www.openstreetmap.org/search?query=' + encodeURIComponent(loc.address);
+      link.target = '_blank';
+      link.rel = 'noopener';
+      link.textContent = copy.open;
+      search.appendChild(link);
+      wrap.appendChild(search);
+      return wrap;
+    }
+    return null;
+  }
+
+  function renderPanel(loc, copy) {
+    var panel = document.createElement('div');
+    panel.className = 'location-panel';
+    panel.setAttribute('role', 'region');
+    if (loc.title) panel.setAttribute('aria-label', loc.title);
+
+    var head = document.createElement('div');
+    head.className = 'location-panel-head';
+    var title = document.createElement('strong');
+    title.className = 'location-panel-title';
+    title.textContent = loc.title || '';
+    var close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'location-panel-close';
+    close.setAttribute('aria-label', copy.close);
+    close.textContent = '×';
+    head.appendChild(title);
+    head.appendChild(close);
+    panel.appendChild(head);
+
+    if (loc.address) {
+      var addr = document.createElement('p');
+      addr.className = 'location-panel-address';
+      addr.textContent = loc.address;
+      panel.appendChild(addr);
+    }
+
+    var body = document.createElement('div');
+    body.className = 'location-panel-body';
+    body.innerHTML = loc.html || '';
+    panel.appendChild(body);
+
+    var map = mapBlock(loc, copy);
+    if (map) panel.appendChild(map);
+    return panel;
+  }
+
+  var previews = null;
+  var openPanel = null;
+  var openLink = null;
+
+  function closePanel() {
+    if (openPanel && openPanel.parentNode) openPanel.parentNode.removeChild(openPanel);
+    openPanel = null;
+    if (openLink) {
+      openLink.classList.remove('is-open');
+      openLink.setAttribute('aria-expanded', 'false');
+      openLink = null;
+    }
+  }
+
+  function openFor(link) {
+    if (previews === null) previews = loadPreviews();
+    var href = link.getAttribute('href') || '';
+    var loc = previews[href];
+    if (!loc) return false;
+
+    if (openLink === link) {
+      closePanel();
+      return true;
+    }
+
+    closePanel();
+    var copy = labels();
+    var panel = renderPanel(loc, copy);
+    var block = link.closest('p, li, blockquote, h2, h3, h4, div') || link.parentNode;
+    if (!block || !block.parentNode) return false;
+    block.parentNode.insertBefore(panel, block.nextSibling);
+    hydrateLocationMaps(panel);
+    link.classList.add('is-open');
+    link.setAttribute('aria-expanded', 'true');
+    openPanel = panel;
+    openLink = link;
+    return true;
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    hydrateLocationMaps(document);
+  });
+
+  document.addEventListener('click', function(event) {
+    var closeBtn = event.target && event.target.closest ? event.target.closest('.location-panel-close') : null;
+    if (closeBtn) {
+      event.preventDefault();
+      closePanel();
+      return;
+    }
+    var link = closestLocationLink(event.target);
+    if (!link) {
+      if (openPanel && !openPanel.contains(event.target)) closePanel();
+      return;
+    }
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+    if (openFor(link)) event.preventDefault();
+  });
+
+  document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') closePanel();
+  });
+})();
 `
