@@ -12,6 +12,14 @@ import (
 	"github.com/tot-ra/blog-engine/internal/tags"
 )
 
+// normalizeAssetOutputRelativePath maps content paths to public /assets/... URLs.
+// Files under content/assets/... are already served from /assets/, so drop the
+// duplicate "assets/" segment (fonts in content/assets/css/ must land in dist/assets/css/).
+func normalizeAssetOutputRelativePath(relativePath string) string {
+	rel := filepath.ToSlash(relativePath)
+	return strings.TrimPrefix(rel, "assets/")
+}
+
 // copyAssets copies static assets to output directory (non-image, non-CSS/JS files)
 func (b *SiteBuilder) copyAssets(index *ContentIndex) error {
 	errs := b.parallelForEach(len(index.AssetFiles), func(i int) error {
@@ -24,7 +32,8 @@ func (b *SiteBuilder) copyAssets(index *ContentIndex) error {
 		}
 
 		// Determine output path
-		outputPath := filepath.Join(b.config.Build.OutputDir, "assets", file.RelativePath)
+		outputRel := normalizeAssetOutputRelativePath(file.RelativePath)
+		outputPath := filepath.Join(b.config.Build.OutputDir, "assets", outputRel)
 
 		// Create directory
 		if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {

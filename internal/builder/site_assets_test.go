@@ -50,6 +50,36 @@ func TestCopyAssetsCopiesStaticAssetsAndTriangleJSOnly(t *testing.T) {
 	assertFileMissing(t, filepath.Join(outputDir, "assets", "scripts", "app.js"))
 }
 
+func TestCopyAssetsStripsLeadingAssetsPrefix(t *testing.T) {
+	contentDir := t.TempDir()
+	outputDir := t.TempDir()
+
+	rel := "assets/css/Scada/Scada-Regular.ttf"
+	path := filepath.Join(contentDir, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte("font"), 0644); err != nil {
+		t.Fatalf("write font: %v", err)
+	}
+
+	index := &ContentIndex{
+		AssetFiles: []ContentFile{
+			{Path: path, RelativePath: filepath.FromSlash(rel), ContentType: TypeAsset},
+		},
+	}
+
+	b := NewSiteBuilder(config.DefaultConfig())
+	b.config.Build.OutputDir = outputDir
+	b.config.Build.ParallelWorkers = 1
+
+	if err := b.copyAssets(index); err != nil {
+		t.Fatalf("copy assets: %v", err)
+	}
+	assertFileContent(t, filepath.Join(outputDir, "assets", "css", "Scada", "Scada-Regular.ttf"), "font")
+	assertFileMissing(t, filepath.Join(outputDir, "assets", "assets", "css", "Scada", "Scada-Regular.ttf"))
+}
+
 func TestCopyConfiguredLogoCopiesOnlyAssetLogo(t *testing.T) {
 	contentDir := t.TempDir()
 	outputDir := t.TempDir()
